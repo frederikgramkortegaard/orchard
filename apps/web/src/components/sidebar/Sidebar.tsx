@@ -15,6 +15,26 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
 
   const activeProject = projects.find(p => p.id === activeProjectId);
 
+  // Sort worktrees by most recent activity: 1) lastCommitDate, 2) createdAt
+  // Main worktree always appears first
+  const sortedWorktrees = [...worktrees].sort((a, b) => {
+    // Main worktree always first
+    if (a.isMain && !b.isMain) return -1;
+    if (!a.isMain && b.isMain) return 1;
+
+    // Sort by most recent commit date (descending - newest first)
+    const aCommitDate = a.lastCommitDate ? new Date(a.lastCommitDate).getTime() : 0;
+    const bCommitDate = b.lastCommitDate ? new Date(b.lastCommitDate).getTime() : 0;
+    if (aCommitDate !== bCommitDate) {
+      return bCommitDate - aCommitDate;
+    }
+
+    // Then by creation date (descending - newest first)
+    const aCreatedAt = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const bCreatedAt = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return bCreatedAt - aCreatedAt;
+  });
+
   const getStatusIndicator = (worktree: Worktree) => {
     const { modified, staged, untracked, ahead, behind } = worktree.status;
     const hasChanges = modified > 0 || staged > 0 || untracked > 0;
@@ -56,7 +76,7 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
               Open a project
             </button>
           </div>
-        ) : worktrees.length === 0 ? (
+        ) : sortedWorktrees.length === 0 ? (
           <div className="text-center py-8 text-zinc-500">
             <GitBranch size={32} className="mx-auto mb-2 opacity-50" />
             <p className="text-sm">No worktrees</p>
@@ -69,7 +89,7 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
           </div>
         ) : (
           <div className="space-y-0.5">
-            {worktrees.map((worktree) => (
+            {sortedWorktrees.map((worktree) => (
               <button
                 key={worktree.id}
                 onClick={() => setActiveWorktree(worktree.id)}
