@@ -1,0 +1,24 @@
+{
+  "name": "@orchard/mcp-agent",
+  "version": "0.1.0",
+  "description": "MCP server for coding agents to communicate with Orchard orchestrator",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "orchard-agent-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0"
+  },
+  "keywords": ["mcp", "agent", "claude", "ai-agents", "orchard"],
+  "license": "MIT"
+}
