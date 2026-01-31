@@ -26,6 +26,8 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   const lastPongRef = useRef<number>(Date.now());
   // Track if component is mounted to prevent reconnects after unmount
   const isMountedRef = useRef(true);
+  // Track if page is unloading to prevent reconnects during refresh
+  const isUnloadingRef = useRef(false);
 
   const clearPingPong = useCallback(() => {
     if (pingIntervalRef.current) {
@@ -57,17 +59,23 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   }, [clearPingPong]);
 
   const connect = useCallback(() => {
+    // Don't connect if page is unloading (prevents reconnects during refresh)
+    if (isUnloadingRef.current) {
+      return;
+    }
+
     // Clear any pending reconnect
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
     }
 
-    // Don't connect if already connected or connecting
-    // CRITICAL: Must check CONNECTING state to prevent race condition where
-    // multiple WebSocket connections are created during fast re-renders
-    if (wsRef.current?.readyState === WebSocket.OPEN ||
-        wsRef.current?.readyState === WebSocket.CONNECTING) {
+    // Don't connect if already connected, connecting, or closing
+    // CRITICAL: Must check CONNECTING and CLOSING states to prevent race conditions
+    const currentState = wsRef.current?.readyState;
+    if (currentState === WebSocket.OPEN ||
+        currentState === WebSocket.CONNECTING ||
+        currentState === WebSocket.CLOSING) {
       return;
     }
 
@@ -91,9 +99,9 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     ws.onclose = () => {
       setIsConnected(false);
       clearPingPong();
-      // Only auto-reconnect if still mounted
-      // This prevents reconnect attempts after component unmount
-      if (!isMountedRef.current) {
+      // Only auto-reconnect if still mounted and not unloading
+      // This prevents reconnect attempts after component unmount or during page refresh
+      if (!isMountedRef.current || isUnloadingRef.current) {
         return;
       }
       // Auto-reconnect with exponential backoff (max 5 seconds)
@@ -132,9 +140,40 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     };
   }, [clearPingPong, startPingPong]);
 
+  // Store connect in a ref to avoid useEffect dependency issues
+  const connectRef = useRef(connect);
+  connectRef.current = connect;
+
   useEffect(() => {
     isMountedRef.current = true;
-    connect();
+    isUnloadingRef.current = false;
+    connectRef.current();
+
+    // Handle page visibility changes - reconnect when page becomes visible
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isMountedRef.current && !isUnloadingRef.current) {
+        // Check if connection is stale or closed
+        const currentState = wsRef.current?.readyState;
+        if (currentState !== WebSocket.OPEN && currentState !== WebSocket.CONNECTING) {
+          // Reset reconnect attempts for immediate reconnection
+          reconnectAttempts.current = 0;
+          connectRef.current();
+        }
+      }
+    };
+
+    // Handle page unload - prevent reconnection attempts during refresh
+    const handleBeforeUnload = () => {
+      isUnloadingRef.current = true;
+      // Clear any pending reconnect timers
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('beforeunload', handleBeforeUnload);
 
     return () => {
       // Mark as unmounted BEFORE cleanup to prevent reconnects
@@ -143,9 +182,11 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
       wsRef.current?.close();
     };
-  }, [connect, clearPingPong]);
+  }, [clearPingPong]);
 
   const send = useCallback((data: unknown) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
