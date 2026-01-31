@@ -79,6 +79,9 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     wsRef.current = ws;
 
     ws.onopen = () => {
+      // Only update state if this is still the current WebSocket
+      // This prevents stale callbacks from old WebSocket instances (e.g., during React StrictMode)
+      if (wsRef.current !== ws) return;
       setIsConnected(true);
       reconnectAttempts.current = 0;
       lastPongRef.current = Date.now();
@@ -89,6 +92,9 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     };
 
     ws.onclose = () => {
+      // Only update state if this is still the current WebSocket
+      // This prevents stale callbacks from old WebSocket instances (e.g., during React StrictMode)
+      if (wsRef.current !== ws) return;
       setIsConnected(false);
       clearPingPong();
       // Only auto-reconnect if still mounted
@@ -109,6 +115,8 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     };
 
     ws.onmessage = (event) => {
+      // Only process messages if this is still the current WebSocket
+      if (wsRef.current !== ws) return;
       try {
         const data = JSON.parse(event.data);
 
