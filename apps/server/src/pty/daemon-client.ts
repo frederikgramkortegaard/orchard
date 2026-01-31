@@ -7,6 +7,7 @@ const RECONNECT_INTERVAL = 2000;
 export interface DaemonSession {
   id: string;
   worktreeId: string;
+  projectPath: string;
   cwd: string;
   createdAt: string;
   subscriberCount?: number;
@@ -164,10 +165,11 @@ class DaemonClient extends EventEmitter {
   }
 
   // Session management
-  async createSession(worktreeId: string, cwd: string, initialCommand?: string): Promise<string> {
+  async createSession(worktreeId: string, projectPath: string, cwd: string, initialCommand?: string): Promise<string> {
     const response = await this.request({
       type: 'session:create',
       worktreeId,
+      projectPath,
       cwd,
       initialCommand,
     });

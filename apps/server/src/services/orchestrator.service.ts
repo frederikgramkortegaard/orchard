@@ -60,6 +60,7 @@ class OrchestratorService {
     // Create a terminal session for the orchestrator Claude via daemon
     const terminalSessionId = await daemonClient.createSession(
       `orchestrator-${projectId}`,
+      project.path,
       mainPath,
       'claude --dangerously-skip-permissions'  // Orchestrator has full permissions in project
     );
@@ -113,10 +114,17 @@ class OrchestratorService {
       baseBranch: defaultBranch,
     });
 
+    // Get project path for session storage
+    const project = projectService.getProject(projectId);
+    if (!project) {
+      throw new Error('Project not found');
+    }
+
     // Create a Claude terminal session for this worktree via daemon
     // Use --dangerously-skip-permissions since worktree is inside the trusted project folder
     const terminalSessionId = await daemonClient.createSession(
       worktree.id,
+      project.path,
       worktree.path,
       'claude --dangerously-skip-permissions'
     );

@@ -23,8 +23,8 @@ export interface ProjectConfig {
 }
 
 const ORCHARD_DIR = join(homedir(), 'orchard-projects');
-const ORCHARD_CONFIG_DIR = join(homedir(), '.orchard');
-const IN_PLACE_REGISTRY = join(ORCHARD_CONFIG_DIR, 'in-place-projects.json');
+// Store in-place registry alongside cloned projects (not in ~/.orchard/)
+const IN_PLACE_REGISTRY = join(ORCHARD_DIR, 'in-place-projects.json');
 
 class ProjectService {
   private projects = new Map<string, Project>();
@@ -33,11 +33,6 @@ class ProjectService {
     // Ensure orchard-projects directory exists
     if (!existsSync(ORCHARD_DIR)) {
       await mkdir(ORCHARD_DIR, { recursive: true });
-    }
-
-    // Ensure ~/.orchard config directory exists
-    if (!existsSync(ORCHARD_CONFIG_DIR)) {
-      await mkdir(ORCHARD_CONFIG_DIR, { recursive: true });
     }
 
     // Load cloned projects from orchard-projects directory

@@ -1,6 +1,4 @@
-import { useState } from 'react';
-import { Group, Panel, Separator } from 'react-resizable-panels';
-import { Plus, GitBranch, Folder, Trash2, Bot, PanelTopClose, PanelTop, CheckCircle, Archive } from 'lucide-react';
+import { Plus, GitBranch, Folder, Trash2, CheckCircle, Archive } from 'lucide-react';
 import { useProjectStore, type Worktree } from '../../stores/project.store';
 import { OrchestratorPanel } from '../orchestrator/OrchestratorPanel';
 
@@ -13,7 +11,6 @@ interface SidebarProps {
 
 export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onArchiveWorktree }: SidebarProps) {
   const { projects, activeProjectId, worktrees, activeWorktreeId, setActiveWorktree } = useProjectStore();
-  const [showOrchestrator, setShowOrchestrator] = useState(true);
 
   const activeProject = projects.find(p => p.id === activeProjectId);
 
@@ -124,46 +121,17 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
 
   return (
     <aside className="h-full bg-zinc-100 dark:bg-zinc-800 border-r border-zinc-300 dark:border-zinc-700 flex flex-col overflow-hidden">
-      {/* Toggle orchestrator button */}
+      {/* Orchestrator input - simple row at top */}
       {activeProjectId && activeProject && (
-        <div className="px-2 py-1.5 border-b border-zinc-300 dark:border-zinc-700 flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400">
-            <Bot size={14} />
-            <span className="text-xs font-medium">Orchestrator</span>
-          </div>
-          <button
-            onClick={() => setShowOrchestrator(!showOrchestrator)}
-            className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded"
-            title={showOrchestrator ? 'Hide Orchestrator' : 'Show Orchestrator'}
-          >
-            {showOrchestrator ? <PanelTopClose size={14} /> : <PanelTop size={14} />}
-          </button>
+        <div className="p-2 border-b border-zinc-300 dark:border-zinc-700 flex-shrink-0">
+          <OrchestratorPanel projectId={activeProjectId} projectPath={activeProject.path} />
         </div>
       )}
 
-      {/* Main content with resizable panels */}
-      {activeProjectId && activeProject && showOrchestrator ? (
-        <Group orientation="vertical" className="flex-1 overflow-hidden">
-          {/* Orchestrator panel - resizable */}
-          <Panel defaultSize={50} minSize={25} maxSize={75}>
-            <div className="h-full p-2 overflow-hidden">
-              <OrchestratorPanel projectId={activeProjectId} projectPath={activeProject.path} />
-            </div>
-          </Panel>
-
-          <Separator className="h-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-row-resize flex-shrink-0" />
-
-          {/* Worktrees section */}
-          <Panel defaultSize={50} minSize={25}>
-            {worktreesContent}
-          </Panel>
-        </Group>
-      ) : (
-        /* Just worktrees when orchestrator is hidden or no project */
-        <div className="flex-1 overflow-hidden">
-          {worktreesContent}
-        </div>
-      )}
+      {/* Worktrees section */}
+      <div className="flex-1 overflow-hidden">
+        {worktreesContent}
+      </div>
     </aside>
   );
 }
