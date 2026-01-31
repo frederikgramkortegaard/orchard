@@ -7,6 +7,7 @@ interface WebSocketContextValue {
   subscribe: (type: string, handler: MessageHandler) => () => void;
   isConnected: boolean;
   connectionId: number; // Incremented on each reconnect to trigger re-subscriptions
+  reconnect: () => void; // Manual reconnect function
 }
 
 const WebSocketContext = createContext<WebSocketContextValue | null>(null);
@@ -96,8 +97,11 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       if (!isMountedRef.current) {
         return;
       }
-      // Auto-reconnect with exponential backoff (max 5 seconds)
-      const delay = Math.min(1000 * Math.pow(1.5, reconnectAttempts.current), 5000);
+      // Auto-reconnect with faster initial attempts, then exponential backoff
+      // First 3 attempts: 100ms, 200ms, 400ms. Then exponential up to 5 seconds.
+      const delay = reconnectAttempts.current < 3
+        ? 100 * Math.pow(2, reconnectAttempts.current)
+        : Math.min(1000 * Math.pow(1.5, reconnectAttempts.current - 3), 5000);
       reconnectAttempts.current++;
       reconnectTimeoutRef.current = window.setTimeout(() => {
         connect();
@@ -136,9 +140,23 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     isMountedRef.current = true;
     connect();
 
+    // Reconnect when tab becomes visible (helps after hot reload or sleep)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isMountedRef.current) {
+        // If not connected, attempt immediate reconnect
+        if (wsRef.current?.readyState !== WebSocket.OPEN &&
+            wsRef.current?.readyState !== WebSocket.CONNECTING) {
+          reconnectAttempts.current = 0; // Reset for fast reconnect
+          connect();
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
       // Mark as unmounted BEFORE cleanup to prevent reconnects
       isMountedRef.current = false;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       clearPingPong();
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
@@ -164,8 +182,18 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // Manual reconnect - closes existing connection and reconnects immediately
+  const reconnect = useCallback(() => {
+    reconnectAttempts.current = 0;
+    if (wsRef.current) {
+      wsRef.current.close();
+    }
+    // Small delay to ensure close completes
+    setTimeout(() => connect(), 50);
+  }, [connect]);
+
   return (
-    <WebSocketContext.Provider value={{ send, subscribe, isConnected, connectionId }}>
+    <WebSocketContext.Provider value={{ send, subscribe, isConnected, connectionId, reconnect }}>
       {children}
     </WebSocketContext.Provider>
   );
