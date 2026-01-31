@@ -125,37 +125,32 @@ export async function worktreesRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Mark worktree as merged and stop any active Claude sessions
-  fastify.post<{ Params: { id: string } }>('/worktrees/:id/mark-merged', async (request, reply) => {
+  // Archive worktree - close all terminal sessions for this worktree
+  fastify.post<{ Params: { id: string } }>('/worktrees/:id/archive', async (request, reply) => {
     const worktree = worktreeService.getWorktree(request.params.id);
     if (!worktree) {
       return reply.status(404).send({ error: 'Worktree not found' });
     }
 
     if (worktree.isMain) {
-      return reply.status(400).send({ error: 'Cannot mark main worktree as merged' });
+      return reply.status(400).send({ error: 'Cannot archive main worktree' });
     }
 
     // Kill any active sessions for this worktree
+    let sessionsDestroyed = 0;
     if (daemonClient.isConnected()) {
       try {
         const sessions = await daemonClient.getSessionsForWorktree(worktree.id);
         for (const session of sessions) {
           await daemonClient.destroySession(session.id);
-          console.log(`Destroyed session ${session.id} for merged worktree ${worktree.id}`);
+          sessionsDestroyed++;
+          console.log(`Destroyed session ${session.id} for archived worktree ${worktree.id}`);
         }
       } catch (err) {
-        console.error('Error destroying sessions for merged worktree:', err);
-        // Continue with marking as merged even if session destruction fails
+        console.error('Error destroying sessions for archived worktree:', err);
       }
     }
 
-    // Mark the worktree as merged
-    const updatedWorktree = worktreeService.markWorktreeAsMerged(request.params.id);
-    if (!updatedWorktree) {
-      return reply.status(500).send({ error: 'Failed to mark worktree as merged' });
-    }
-
-    return updatedWorktree;
+    return { success: true, sessionsDestroyed };
   });
 }

@@ -92,13 +92,19 @@ class WorktreeService {
 
           const status = await this.getWorktreeStatus(path);
 
+          // Check if this branch has been merged into default branch
+          // Only mark merged if: all commits in main AND no uncommitted changes AND no ahead commits
+          const merged = !isMain && branch && status.modified === 0 && status.staged === 0 && status.untracked === 0 && status.ahead === 0
+            ? await this.checkIfMerged(projectId, branch)
+            : false;
+
           const worktree: Worktree = {
             id,
             projectId,
             path,
             branch: branch || 'detached',
             isMain,
-            merged: false,
+            merged,
             status,
           };
 
@@ -286,11 +292,33 @@ class WorktreeService {
     return Array.from(this.worktrees.values()).filter(w => w.projectId === projectId);
   }
 
-  markWorktreeAsMerged(worktreeId: string): Worktree | undefined {
+  // Check if a branch has been fully merged into the default branch
+  async checkIfMerged(projectId: string, branch: string): Promise<boolean> {
+    const mainPath = projectService.getMainWorktreePath(projectId);
+    if (!mainPath) return false;
+
+    const git = simpleGit(mainPath);
+    const defaultBranch = await this.getDefaultBranch(projectId);
+
+    // Don't check main branch against itself
+    if (branch === defaultBranch) return false;
+
+    try {
+      // Check if the branch is an ancestor of the default branch
+      // This means all commits in branch exist in defaultBranch
+      await git.raw(['merge-base', '--is-ancestor', branch, defaultBranch]);
+      return true; // Exit code 0 means branch is merged
+    } catch {
+      return false; // Exit code 1 means not merged
+    }
+  }
+
+  // Mark worktree as having new activity (un-merge it)
+  markWorktreeActive(worktreeId: string): Worktree | undefined {
     const worktree = this.worktrees.get(worktreeId);
     if (!worktree) return undefined;
 
-    worktree.merged = true;
+    worktree.merged = false;
     this.worktrees.set(worktreeId, worktree);
     return worktree;
   }

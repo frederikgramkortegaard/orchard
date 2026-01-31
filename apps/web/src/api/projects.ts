@@ -91,13 +91,13 @@ export async function fetchBranches(projectId: string): Promise<{ local: string[
   return res.json();
 }
 
-export async function markWorktreeMerged(worktreeId: string): Promise<Worktree> {
-  const res = await fetch(`${API_BASE}/worktrees/${worktreeId}/mark-merged`, {
+// Archive a worktree - close its terminal sessions
+export async function archiveWorktree(worktreeId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/worktrees/${worktreeId}/archive`, {
     method: 'POST',
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || 'Failed to mark worktree as merged');
+    throw new Error(err.error || 'Failed to archive worktree');
   }
-  return res.json();
 }

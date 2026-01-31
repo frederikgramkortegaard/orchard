@@ -65,10 +65,10 @@ function App() {
     removeWorktree(worktreeId);
   }, [removeWorktree]);
 
-  const handleMarkMerged = useCallback(async (worktreeId: string) => {
-    const updatedWorktree = await api.markWorktreeMerged(worktreeId);
-    updateWorktree(worktreeId, { merged: updatedWorktree.merged });
-  }, [updateWorktree]);
+  const handleArchiveWorktree = useCallback(async (worktreeId: string) => {
+    // Archive the worktree - close its terminal session
+    await api.archiveWorktree(worktreeId);
+  }, []);
 
   const handleDeleteProject = useCallback(async (projectId: string) => {
     await api.deleteProject(projectId);
@@ -122,7 +122,7 @@ function App() {
             onOpenProject={() => setShowProjectModal(true)}
             onCreateWorktree={() => setShowWorktreeModal(true)}
             onDeleteWorktree={handleDeleteWorktree}
-            onMarkMerged={handleMarkMerged}
+            onArchiveWorktree={handleArchiveWorktree}
           />
         </Panel>
 

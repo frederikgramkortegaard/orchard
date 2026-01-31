@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
-import { Plus, GitBranch, Folder, Trash2, Bot, PanelTopClose, PanelTop, CheckCircle, GitMerge } from 'lucide-react';
+import { Plus, GitBranch, Folder, Trash2, Bot, PanelTopClose, PanelTop, CheckCircle, Archive } from 'lucide-react';
 import { useProjectStore, type Worktree } from '../../stores/project.store';
 import { OrchestratorPanel } from '../orchestrator/OrchestratorPanel';
 
@@ -8,10 +8,10 @@ interface SidebarProps {
   onOpenProject: () => void;
   onCreateWorktree: () => void;
   onDeleteWorktree: (worktreeId: string) => void;
-  onMarkMerged: (worktreeId: string) => void;
+  onArchiveWorktree: (worktreeId: string) => void;
 }
 
-export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onMarkMerged }: SidebarProps) {
+export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onArchiveWorktree }: SidebarProps) {
   const { projects, activeProjectId, worktrees, activeWorktreeId, setActiveWorktree } = useProjectStore();
   const [showOrchestrator, setShowOrchestrator] = useState(true);
 
@@ -90,16 +90,16 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onM
                   {worktree.merged && <span className="text-green-500 ml-1">(merged)</span>}
                 </span>
                 {!worktree.merged && getStatusIndicator(worktree)}
-                {!worktree.isMain && !worktree.merged && (
+                {!worktree.isMain && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      onMarkMerged(worktree.id);
+                      onArchiveWorktree(worktree.id);
                     }}
-                    className="opacity-0 group-hover:opacity-100 p-0.5 text-zinc-400 hover:text-green-400"
-                    title="Mark as merged"
+                    className="opacity-0 group-hover:opacity-100 p-0.5 text-zinc-500 dark:text-zinc-400 hover:text-amber-500 dark:hover:text-amber-400"
+                    title="Archive worktree (close session)"
                   >
-                    <GitMerge size={12} />
+                    <Archive size={12} />
                   </button>
                 )}
                 {!worktree.isMain && (
