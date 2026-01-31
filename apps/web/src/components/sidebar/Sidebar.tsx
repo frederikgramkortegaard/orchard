@@ -1,4 +1,5 @@
 import { Plus, GitBranch, Folder, Trash2, CheckCircle, Archive } from 'lucide-react';
+import { Group, Panel, Separator } from 'react-resizable-panels';
 import { useProjectStore, type Worktree } from '../../stores/project.store';
 import { OrchestratorPanel } from '../orchestrator/OrchestratorPanel';
 
@@ -124,17 +125,27 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
 
   return (
     <aside className="h-full bg-zinc-100 dark:bg-zinc-800 border-r border-zinc-300 dark:border-zinc-700 flex flex-col overflow-hidden">
-      {/* Orchestrator input - simple row at top */}
-      {activeProjectId && activeProject && (
-        <div className="p-2 border-b border-zinc-300 dark:border-zinc-700 flex-shrink-0">
-          <OrchestratorPanel projectId={activeProjectId} projectPath={activeProject.path} />
+      {activeProjectId && activeProject ? (
+        <Group orientation="vertical" className="h-full">
+          {/* Orchestrator chat panel - resizable */}
+          <Panel defaultSize="30%" minSize="15%" maxSize="60%">
+            <div className="h-full p-2">
+              <OrchestratorPanel projectId={activeProjectId} projectPath={activeProject.path} />
+            </div>
+          </Panel>
+
+          <Separator className="h-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-row-resize" />
+
+          {/* Worktrees section */}
+          <Panel>
+            {worktreesContent}
+          </Panel>
+        </Group>
+      ) : (
+        <div className="flex-1 overflow-hidden">
+          {worktreesContent}
         </div>
       )}
-
-      {/* Worktrees section */}
-      <div className="flex-1 overflow-hidden">
-        {worktreesContent}
-      </div>
     </aside>
   );
 }

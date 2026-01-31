@@ -118,7 +118,7 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
   }, [inputText, orchestratorSessionId, projectId]);
 
   return (
-    <div className="flex flex-col max-h-64 bg-zinc-200 dark:bg-zinc-800 rounded-lg border border-zinc-300 dark:border-zinc-700 overflow-hidden">
+    <div className="flex flex-col h-full bg-zinc-200 dark:bg-zinc-800 rounded-lg border border-zinc-300 dark:border-zinc-700 overflow-hidden">
       {/* Chat header */}
       <div className="flex items-center gap-2 px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border-b border-zinc-300 dark:border-zinc-700">
         <div
