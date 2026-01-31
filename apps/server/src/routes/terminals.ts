@@ -32,14 +32,20 @@ export async function terminalsRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // List terminal sessions
-  fastify.get('/terminals', async (request, reply) => {
+  // List terminal sessions (optionally filtered by worktreeId)
+  fastify.get<{ Querystring: { worktreeId?: string } }>('/terminals', async (request, reply) => {
     if (!daemonClient.isConnected()) {
       return reply.status(503).send({ error: 'Terminal daemon not available' });
     }
 
     try {
-      const sessions = await daemonClient.listSessions();
+      const { worktreeId } = request.query;
+      let sessions = await daemonClient.listSessions();
+
+      if (worktreeId) {
+        sessions = sessions.filter((s: any) => s.worktreeId === worktreeId);
+      }
+
       return sessions;
     } catch (err: any) {
       return reply.status(500).send({ error: err.message });

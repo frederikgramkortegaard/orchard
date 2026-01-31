@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import { Sun, Moon } from 'lucide-react';
 import { useProjectStore } from './stores/project.store';
-import { useEditorStore } from './stores/editor.store';
 import { useTheme } from './contexts/ThemeContext';
 import { useToast } from './contexts/ToastContext';
 import { ProjectTabBar } from './components/layout/ProjectTabBar';
@@ -103,12 +102,6 @@ function App() {
 
   const activeWorktree = worktrees.find((w) => w.id === activeWorktreeId);
   const activeProject = projects.find((p) => p.id === activeProjectId);
-  const { closeAllFiles } = useEditorStore();
-
-  // Close all open files when worktree changes
-  useEffect(() => {
-    closeAllFiles();
-  }, [activeWorktreeId, closeAllFiles]);
 
   return (
     <div className="h-screen flex flex-col bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">

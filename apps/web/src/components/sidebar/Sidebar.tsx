@@ -122,10 +122,10 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
             {sortedWorktrees.map((worktree) => {
               const rateLimited = isWorktreeRateLimited(worktree.id);
               return (
-              <button
+              <div
                 key={worktree.id}
                 onClick={() => setActiveWorktree(worktree.id)}
-                className={`w-full flex items-center gap-2 px-3 py-2 rounded text-left group ${
+                className={`w-full flex items-center gap-2 px-3 py-2 rounded text-left group cursor-pointer ${
                   activeWorktreeId === worktree.id ? 'bg-zinc-300 dark:bg-zinc-600' : 'hover:bg-zinc-200/50 dark:hover:bg-zinc-700/50'
                 } ${worktree.archived ? 'opacity-40' : worktree.merged ? 'opacity-60' : ''} ${rateLimited ? 'ring-1 ring-amber-500/50' : ''}`}
               >
@@ -170,7 +170,7 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
                     <Trash2 size={12} />
                   </button>
                 )}
-              </button>
+              </div>
             );
             })}
           </div>

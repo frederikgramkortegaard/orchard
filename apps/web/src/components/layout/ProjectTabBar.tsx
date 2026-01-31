@@ -25,10 +25,10 @@ export function ProjectTabBar({ onNewProject, showDashboard, onToggleDashboard }
   return (
     <div className="flex items-center bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 px-1">
       {projects.map((project) => (
-        <button
+        <div
           key={project.id}
           onClick={() => setActiveProject(project.id)}
-          className={`group flex items-center gap-2 px-3 py-1.5 border-b-2 transition-colors ${
+          className={`group flex items-center gap-2 px-3 py-1.5 border-b-2 transition-colors cursor-pointer ${
             activeProjectId === project.id
               ? 'border-blue-500 bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-white'
               : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50'
@@ -43,7 +43,7 @@ export function ProjectTabBar({ onNewProject, showDashboard, onToggleDashboard }
           >
             <X size={12} />
           </button>
-        </button>
+        </div>
       ))}
 
       <button

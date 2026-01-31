@@ -58,29 +58,32 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
     const fetchExistingSessions = async () => {
       try {
         // Fetch existing sessions for this worktree (don't create new ones)
+        console.log('[SplitTerminalPane] Fetching sessions for worktree:', worktreeId);
         const res = await fetch(`/api/terminals/worktree/${encodeURIComponent(worktreeId)}`);
         if (res.ok) {
           const existingSessions = await res.json();
+          console.log('[SplitTerminalPane] Found sessions:', existingSessions.length, existingSessions);
           existingSessions.forEach((session: any) => {
-            if (!sessions.has(session.id)) {
-              addSession({
-                id: session.id,
-                worktreeId: session.worktreeId,
-                cwd: session.cwd,
-                createdAt: session.createdAt,
-                isConnected: true,
-                isClaudeSession: true, // Existing sessions are likely Claude sessions (conservative default)
-              });
-            }
+            console.log('[SplitTerminalPane] Adding session:', session.id);
+            addSession({
+              id: session.id,
+              worktreeId: session.worktreeId,
+              cwd: session.cwd,
+              createdAt: session.createdAt,
+              isConnected: true,
+              isClaudeSession: true, // Existing sessions are likely Claude sessions (conservative default)
+            });
           });
 
           // Auto-select first session if available
           if (existingSessions.length > 0) {
             setPanels([{ id: 'left', sessionId: existingSessions[0].id }]);
           }
+        } else {
+          console.error('[SplitTerminalPane] Failed to fetch sessions:', res.status, res.statusText);
         }
       } catch (err) {
-        console.error('Failed to fetch sessions:', err);
+        console.error('[SplitTerminalPane] Failed to fetch sessions:', err);
       }
     };
 
@@ -303,20 +306,26 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
     );
   };
 
-  if (!isConnected) {
+  // Show disconnected banner but still allow viewing sessions
+  const disconnectedBanner = !isConnected && (
+    <div className="px-2 py-1 bg-red-500/10 border-b border-red-500/20 text-red-500 text-sm text-center">
+      WebSocket disconnected - reconnecting...
+    </div>
+  );
+
+  if (panels.length === 1) {
     return (
-      <div className="flex items-center justify-center h-full bg-zinc-50 dark:bg-zinc-900 text-red-500 dark:text-red-400">
-        WebSocket disconnected
+      <div className="h-full bg-zinc-50 dark:bg-zinc-900 flex flex-col">
+        {disconnectedBanner}
+        <div className="flex-1">{renderPanel(panels[0])}</div>
       </div>
     );
   }
 
-  if (panels.length === 1) {
-    return <div className="h-full bg-zinc-50 dark:bg-zinc-900">{renderPanel(panels[0])}</div>;
-  }
-
   return (
-    <Group orientation="horizontal" className="h-full bg-zinc-50 dark:bg-zinc-900">
+    <div className="h-full bg-zinc-50 dark:bg-zinc-900 flex flex-col">
+      {disconnectedBanner}
+      <Group orientation="horizontal" className="flex-1">
       <Panel defaultSize={50} minSize={5}>
         {renderPanel(panels[0])}
       </Panel>
@@ -325,5 +334,6 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
         {renderPanel(panels[1])}
       </Panel>
     </Group>
+    </div>
   );
 }
