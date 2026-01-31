@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Radio, Send, Loader2, User, Bot } from 'lucide-react';
+import { useChatStore, ChatMessage } from '../../stores/chat.store';
 
 interface OrchestratorPanelProps {
   projectId: string;
@@ -13,21 +14,17 @@ interface TerminalSession {
   createdAt: string;
 }
 
-interface ChatMessage {
-  id: string;
-  text: string;
-  timestamp: string;
-  from: 'user' | 'orchestrator';
-  replyTo?: string;
-}
-
 export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelProps) {
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [orchestratorSessionId, setOrchestratorSessionId] = useState<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const chatRef = useRef<HTMLDivElement>(null);
+
+  // Use persisted chat store instead of local state
+  const chatMessages = useChatStore((state) => state.getMessages(projectId));
+  const setMessages = useChatStore((state) => state.setMessages);
+  const addMessage = useChatStore((state) => state.addMessage);
 
   // Load chat history on mount and poll for updates
   useEffect(() => {
@@ -36,7 +33,7 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
         const res = await fetch(`/api/chat?projectId=${projectId}&limit=100`);
         if (res.ok) {
           const messages = await res.json();
-          setChatMessages(messages);
+          setMessages(projectId, messages);
         }
       } catch {
         // Ignore errors
@@ -45,7 +42,7 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
     loadChat();
     const interval = setInterval(loadChat, 3000);
     return () => clearInterval(interval);
-  }, [projectId]);
+  }, [projectId, setMessages]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -96,7 +93,7 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
 
       if (chatRes.ok) {
         const data = await chatRes.json();
-        setChatMessages(prev => [...prev, data.message]);
+        addMessage(projectId, data.message);
       }
 
       // If orchestrator is connected, also send to terminal
@@ -115,7 +112,7 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
     } finally {
       setIsSending(false);
     }
-  }, [inputText, orchestratorSessionId, projectId]);
+  }, [inputText, orchestratorSessionId, projectId, addMessage]);
 
   return (
     <div className="flex flex-col h-full bg-zinc-200 dark:bg-zinc-800 rounded-lg border border-zinc-300 dark:border-zinc-700 overflow-hidden">

@@ -117,8 +117,10 @@ export const useProjectStore = create<ProjectState>()(
     }),
     {
       name: 'orchard-project-store',
-      // Only persist these fields
+      // Persist projects, worktrees, and active selections for hot reload resilience
       partialize: (state) => ({
+        projects: state.projects,
+        worktrees: state.worktrees,
         activeProjectId: state.activeProjectId,
         activeWorktreeId: state.activeWorktreeId,
       }),
