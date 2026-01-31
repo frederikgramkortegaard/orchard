@@ -4,6 +4,15 @@ import { existsSync } from 'fs';
 import { join } from 'path';
 import { projectService } from '../services/project.service.js';
 
+interface ChatMessage {
+  id: string;
+  projectId: string;
+  text: string;
+  timestamp: string;
+  from: 'user' | 'orchestrator';
+  replyTo?: string; // ID of message being replied to
+}
+
 interface QueuedMessage {
   id: string;
   projectId: string;
@@ -12,7 +21,7 @@ interface QueuedMessage {
   processed: boolean;
 }
 
-async function getMessageQueuePath(projectId: string): Promise<string | null> {
+async function getOrchardDir(projectId: string): Promise<string | null> {
   const project = projectService.getProject(projectId);
   if (!project) return null;
 
@@ -20,7 +29,37 @@ async function getMessageQueuePath(projectId: string): Promise<string | null> {
   if (!existsSync(orchardDir)) {
     await mkdir(orchardDir, { recursive: true });
   }
+  return orchardDir;
+}
+
+async function getMessageQueuePath(projectId: string): Promise<string | null> {
+  const orchardDir = await getOrchardDir(projectId);
+  if (!orchardDir) return null;
   return join(orchardDir, 'message-queue.json');
+}
+
+async function getChatPath(projectId: string): Promise<string | null> {
+  const orchardDir = await getOrchardDir(projectId);
+  if (!orchardDir) return null;
+  return join(orchardDir, 'chat.json');
+}
+
+async function loadChat(projectId: string): Promise<ChatMessage[]> {
+  const chatPath = await getChatPath(projectId);
+  if (!chatPath || !existsSync(chatPath)) return [];
+
+  try {
+    const data = await readFile(chatPath, 'utf-8');
+    return JSON.parse(data);
+  } catch {
+    return [];
+  }
+}
+
+async function saveChat(projectId: string, messages: ChatMessage[]): Promise<void> {
+  const chatPath = await getChatPath(projectId);
+  if (!chatPath) return;
+  await writeFile(chatPath, JSON.stringify(messages, null, 2));
 }
 
 async function loadMessages(projectId: string): Promise<QueuedMessage[]> {
@@ -175,5 +214,46 @@ export async function messagesRoutes(fastify: FastifyInstance) {
     await saveMessages(projectId, unprocessed);
 
     return { success: true, cleared: messages.length - unprocessed.length };
+  });
+
+  // Get chat history
+  fastify.get<{
+    Querystring: { projectId: string; limit?: string };
+  }>('/chat', async (request, reply) => {
+    const { projectId, limit = '50' } = request.query;
+
+    if (!projectId) {
+      return reply.status(400).send({ error: 'projectId required' });
+    }
+
+    const chat = await loadChat(projectId);
+    const numLimit = parseInt(limit, 10) || 50;
+    return chat.slice(-numLimit);
+  });
+
+  // Send a chat message (from user or orchestrator)
+  fastify.post<{
+    Body: { projectId: string; text: string; from: 'user' | 'orchestrator'; replyTo?: string };
+  }>('/chat', async (request, reply) => {
+    const { projectId, text, from, replyTo } = request.body;
+
+    if (!projectId || !text || !from) {
+      return reply.status(400).send({ error: 'projectId, text, and from required' });
+    }
+
+    const chat = await loadChat(projectId);
+    const newMessage: ChatMessage = {
+      id: crypto.randomUUID(),
+      projectId,
+      text,
+      timestamp: new Date().toISOString(),
+      from,
+      replyTo,
+    };
+
+    chat.push(newMessage);
+    await saveChat(projectId, chat);
+
+    return { success: true, message: newMessage };
   });
 }

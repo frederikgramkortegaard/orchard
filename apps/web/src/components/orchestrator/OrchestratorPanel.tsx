@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Radio, Send, Loader2, MessageSquare } from 'lucide-react';
+import { Radio, Send, Loader2, User, Bot } from 'lucide-react';
 
 interface OrchestratorPanelProps {
   projectId: string;
@@ -13,46 +13,46 @@ interface TerminalSession {
   createdAt: string;
 }
 
-interface QueuedMessage {
+interface ChatMessage {
   id: string;
   text: string;
-  timestamp: Date;
+  timestamp: string;
+  from: 'user' | 'orchestrator';
+  replyTo?: string;
 }
 
 export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelProps) {
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [orchestratorSessionId, setOrchestratorSessionId] = useState<string | null>(null);
-  const [status, setStatus] = useState<'idle' | 'success' | 'error' | 'queued'>('idle');
-  const [messageQueue, setMessageQueue] = useState<QueuedMessage[]>([]);
-  const queueRef = useRef<QueuedMessage[]>([]);
+  const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const chatRef = useRef<HTMLDivElement>(null);
 
-  // Keep ref in sync with state for use in interval
+  // Load chat history on mount and poll for updates
   useEffect(() => {
-    queueRef.current = messageQueue;
-  }, [messageQueue]);
-
-  // Load queued messages from server on mount
-  useEffect(() => {
-    const loadQueuedMessages = async () => {
+    const loadChat = async () => {
       try {
-        const res = await fetch(`/api/messages?projectId=${projectId}`);
+        const res = await fetch(`/api/chat?projectId=${projectId}&limit=100`);
         if (res.ok) {
           const messages = await res.json();
-          if (messages.length > 0) {
-            setMessageQueue(messages.map((m: any) => ({
-              id: m.id,
-              text: m.text,
-              timestamp: new Date(m.timestamp),
-            })));
-          }
+          setChatMessages(messages);
         }
       } catch {
         // Ignore errors
       }
     };
-    loadQueuedMessages();
+    loadChat();
+    const interval = setInterval(loadChat, 3000);
+    return () => clearInterval(interval);
   }, [projectId]);
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (chatRef.current) {
+      chatRef.current.scrollTop = chatRef.current.scrollHeight;
+    }
+  }, [chatMessages]);
 
   // Find orchestrator session on mount and poll for it
   useEffect(() => {
@@ -63,31 +63,12 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
         if (res.ok) {
           const sessions: TerminalSession[] = await res.json();
           if (sessions.length > 0) {
-            const sessionId = sessions[0].id;
-            setOrchestratorSessionId(sessionId);
-
-            // Send any queued messages
-            if (queueRef.current.length > 0) {
-              for (const msg of queueRef.current) {
-                try {
-                  await fetch(`/api/terminals/${sessionId}/input`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ input: msg.text, sendEnter: true }),
-                  });
-                } catch {
-                  // Ignore individual message errors
-                }
-              }
-              // Mark messages as processed on server
-              await fetch(`/api/messages?projectId=${projectId}&markProcessed=true`);
-              setMessageQueue([]);
-              setStatus('success');
-              setTimeout(() => setStatus('idle'), 2000);
-            }
+            setOrchestratorSessionId(sessions[0].id);
+          } else {
+            setOrchestratorSessionId(null);
           }
         }
-      } catch (err) {
+      } catch {
         // Ignore errors
       }
     };
@@ -102,113 +83,127 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
 
     const message = inputText.trim();
     setInputText('');
+    setIsSending(true);
+    setStatus('idle');
 
-    if (orchestratorSessionId) {
-      // Send directly
-      setIsSending(true);
-      setStatus('idle');
-      try {
-        const res = await fetch(`/api/terminals/${orchestratorSessionId}/input`, {
+    try {
+      // Always save to chat history
+      const chatRes = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, text: message, from: 'user' }),
+      });
+
+      if (chatRes.ok) {
+        const data = await chatRes.json();
+        setChatMessages(prev => [...prev, data.message]);
+      }
+
+      // If orchestrator is connected, also send to terminal
+      if (orchestratorSessionId) {
+        await fetch(`/api/terminals/${orchestratorSessionId}/input`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ input: message, sendEnter: true }),
         });
+      }
 
-        if (res.ok) {
-          setStatus('success');
-          setTimeout(() => setStatus('idle'), 2000);
-        } else {
-          setStatus('error');
-        }
-      } catch (err) {
-        setStatus('error');
-      } finally {
-        setIsSending(false);
-      }
-    } else {
-      // Queue the message on the server
-      try {
-        const res = await fetch('/api/messages', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ projectId, text: message }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setMessageQueue(prev => [...prev, { id: data.message.id, text: message, timestamp: new Date() }]);
-          setStatus('queued');
-          setTimeout(() => setStatus('idle'), 1000);
-        } else {
-          setStatus('error');
-        }
-      } catch {
-        setStatus('error');
-      }
+      setStatus('success');
+      setTimeout(() => setStatus('idle'), 2000);
+    } catch (err) {
+      setStatus('error');
+    } finally {
+      setIsSending(false);
     }
-  }, [inputText, orchestratorSessionId]);
+  }, [inputText, orchestratorSessionId, projectId]);
 
   return (
-    <div className="flex flex-col gap-2 p-2 bg-zinc-200 dark:bg-zinc-800 rounded-lg border border-zinc-300 dark:border-zinc-700">
-      <div className="flex items-center gap-2">
+    <div className="flex flex-col h-full bg-zinc-200 dark:bg-zinc-800 rounded-lg border border-zinc-300 dark:border-zinc-700 overflow-hidden">
+      {/* Chat header */}
+      <div className="flex items-center gap-2 px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border-b border-zinc-300 dark:border-zinc-700">
         <div
-          className={`flex items-center justify-center w-8 h-8 rounded relative ${
-            orchestratorSessionId
-              ? status === 'success'
-                ? 'bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400'
-                : status === 'error'
-                ? 'bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400'
-                : 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
-              : status === 'queued'
-              ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+          className={`w-2 h-2 rounded-full ${
+            orchestratorSessionId ? 'bg-green-500' : 'bg-zinc-400'
+          }`}
+        />
+        <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+          {orchestratorSessionId ? 'Connected' : 'Messages will queue'}
+        </span>
+      </div>
+
+      {/* Chat messages */}
+      <div
+        ref={chatRef}
+        className="flex-1 overflow-y-auto p-2 space-y-2"
+      >
+        {chatMessages.length === 0 ? (
+          <div className="text-xs text-zinc-500 text-center py-4">
+            No messages yet. Send a message to the orchestrator.
+          </div>
+        ) : (
+          chatMessages.map((msg) => (
+            <div
+              key={msg.id}
+              className={`flex gap-2 ${msg.from === 'user' ? 'justify-end' : 'justify-start'}`}
+            >
+              {msg.from === 'orchestrator' && (
+                <div className="w-6 h-6 rounded-full bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center flex-shrink-0">
+                  <Bot size={14} className="text-amber-600 dark:text-amber-400" />
+                </div>
+              )}
+              <div
+                className={`max-w-[80%] px-3 py-2 rounded-lg text-sm ${
+                  msg.from === 'user'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200'
+                }`}
+              >
+                <p className="whitespace-pre-wrap break-words">{msg.text}</p>
+                <p className={`text-xs mt-1 ${msg.from === 'user' ? 'text-blue-200' : 'text-zinc-400'}`}>
+                  {new Date(msg.timestamp).toLocaleTimeString()}
+                </p>
+              </div>
+              {msg.from === 'user' && (
+                <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center flex-shrink-0">
+                  <User size={14} className="text-blue-600 dark:text-blue-400" />
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Input area */}
+      <div className="flex items-center gap-2 p-2 bg-zinc-100 dark:bg-zinc-900 border-t border-zinc-300 dark:border-zinc-700">
+        <div
+          className={`flex items-center justify-center w-8 h-8 rounded ${
+            status === 'success'
+              ? 'bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400'
+              : status === 'error'
+              ? 'bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400'
+              : orchestratorSessionId
+              ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
               : 'bg-zinc-300 dark:bg-zinc-700 text-zinc-500'
           }`}
-          title={orchestratorSessionId ? 'Orchestrator connected' : messageQueue.length > 0 ? `${messageQueue.length} messages queued` : 'Orchestrator not connected - messages will be queued'}
         >
           <Radio size={16} className={isSending ? 'animate-pulse' : ''} />
-          {messageQueue.length > 0 && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 text-white text-xs rounded-full flex items-center justify-center">
-              {messageQueue.length}
-            </span>
-          )}
         </div>
         <input
           type="text"
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
-          placeholder={orchestratorSessionId ? 'Message to orchestrator...' : 'Message (will be queued)...'}
-          className="flex-1 px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded text-sm focus:outline-none focus:border-amber-500 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+          placeholder="Message..."
+          className="flex-1 px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded text-sm focus:outline-none focus:border-amber-500 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
           onKeyDown={(e) => e.key === 'Enter' && !isSending && handleSend()}
         />
         <button
           onClick={handleSend}
           disabled={isSending || !inputText.trim()}
           className="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded text-sm disabled:opacity-50 flex items-center"
-          title={orchestratorSessionId ? 'Send to orchestrator' : 'Queue message'}
         >
           {isSending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
         </button>
       </div>
-
-      {/* Queued messages list */}
-      {messageQueue.length > 0 && (
-        <div className="flex flex-col gap-1 pt-1 border-t border-zinc-300 dark:border-zinc-700">
-          <div className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
-            <MessageSquare size={12} />
-            Queued ({messageQueue.length})
-          </div>
-          {messageQueue.map((msg) => (
-            <div
-              key={msg.id}
-              className="flex items-center gap-2 px-2 py-1 bg-blue-50 dark:bg-blue-900/20 rounded text-xs"
-            >
-              <span className="text-zinc-400 dark:text-zinc-500 flex-shrink-0">
-                {msg.timestamp.toLocaleTimeString()}
-              </span>
-              <span className="text-zinc-700 dark:text-zinc-300 truncate">{msg.text}</span>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
