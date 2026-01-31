@@ -2,7 +2,7 @@ import { simpleGit } from 'simple-git';
 import { existsSync } from 'fs';
 import { mkdir, writeFile } from 'fs/promises';
 import { join, basename } from 'path';
-import { randomUUID } from 'crypto';
+import { randomUUID, createHash } from 'crypto';
 import { projectService } from './project.service.js';
 
 export interface Worktree {
@@ -127,10 +127,10 @@ class WorktreeService {
       throw new Error('Could not find main worktree');
     }
 
-    // For in-place projects, create worktrees as siblings
+    // For in-place projects, create worktrees in .worktrees/ subdirectory
     // For cloned projects, create them inside the project directory
     const worktreePath = project.inPlace
-      ? join(project.path, '..', `${basename(project.path)}-${branch}`)
+      ? join(project.path, '.worktrees', branch.replace(/\//g, '-'))
       : join(project.path, branch);
 
     if (existsSync(worktreePath)) {
@@ -167,7 +167,7 @@ class WorktreeService {
     return worktree;
   }
 
-  // Set up Claude permissions for a worktree to allow access to entire project folder
+  // Set up Claude permissions for a worktree to allow access to project and worktree folders
   private async setupClaudePermissions(worktreePath: string, projectPath: string): Promise<void> {
     const claudeDir = join(worktreePath, '.claude');
     const settingsPath = join(claudeDir, 'settings.local.json');
@@ -177,14 +177,24 @@ class WorktreeService {
         await mkdir(claudeDir, { recursive: true });
       }
 
+      // Include both project path and worktree path (they may differ for in-place projects)
+      const allowedPaths = [projectPath];
+      if (worktreePath !== projectPath && !worktreePath.startsWith(projectPath)) {
+        allowedPaths.push(worktreePath);
+      }
+
+      const allowRules: string[] = [];
+      for (const path of allowedPaths) {
+        allowRules.push(`Bash(${path}/**)`);
+        allowRules.push(`Read(${path}/**)`);
+        allowRules.push(`Write(${path}/**)`);
+        allowRules.push(`Edit(${path}/**)`);
+      }
+
       const settings = {
+        trust: true,
         permissions: {
-          allow: [
-            `Bash(${projectPath}/**)`,  // Allow bash in project folder
-            `Read(${projectPath}/**)`,  // Allow reading in project folder
-            `Write(${projectPath}/**)`, // Allow writing in project folder
-            `Edit(${projectPath}/**)`,  // Allow editing in project folder
-          ],
+          allow: allowRules,
           deny: []
         }
       };
@@ -273,16 +283,12 @@ class WorktreeService {
     return Array.from(this.worktrees.values()).filter(w => w.projectId === projectId);
   }
 
-  private pathToIdMap = new Map<string, string>();
-
+  // Generate deterministic ID based on path so it survives restarts
   private getOrCreateId(projectId: string, path: string): string {
-    const key = `${projectId}:${path}`;
-    let id = this.pathToIdMap.get(key);
-    if (!id) {
-      id = randomUUID();
-      this.pathToIdMap.set(key, id);
-    }
-    return id;
+    // Use a hash of projectId + path to create a deterministic UUID-like ID
+    const hash = createHash('sha256').update(`${projectId}:${path}`).digest('hex');
+    // Format as UUID: 8-4-4-4-12
+    return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-${hash.slice(12, 16)}-${hash.slice(16, 20)}-${hash.slice(20, 32)}`;
   }
 }
 

@@ -1,9 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import { Plus, X, SplitSquareHorizontal, Square } from 'lucide-react';
 import { useTerminalStore } from '../../stores/terminal.store';
 import { TerminalInstance } from './TerminalInstance';
-import { useWebSocket } from '../../hooks/useWebSocket';
+import { useWebSocket } from '../../contexts/WebSocketContext';
 
 interface SplitTerminalPaneProps {
   worktreeId?: string;
@@ -21,6 +21,46 @@ export function SplitTerminalPane({ worktreeId, worktreePath }: SplitTerminalPan
   const [panels, setPanels] = useState<TerminalPanel[]>([{ id: 'left', sessionId: null }]);
   const [activePanelId, setActivePanelId] = useState('left');
   const [isCreating, setIsCreating] = useState(false);
+
+  // Reset panels and fetch existing sessions when worktree changes
+  // NOTE: Only the orchestrator creates sessions - UI just views them
+  useEffect(() => {
+    // Reset panels when switching worktrees
+    setPanels([{ id: 'left', sessionId: null }]);
+    setActivePanelId('left');
+
+    if (!worktreeId) return;
+
+    const fetchExistingSessions = async () => {
+      try {
+        // Fetch existing sessions for this worktree (don't create new ones)
+        const res = await fetch(`/api/terminals/worktree/${encodeURIComponent(worktreeId)}`);
+        if (res.ok) {
+          const existingSessions = await res.json();
+          existingSessions.forEach((session: any) => {
+            if (!sessions.has(session.id)) {
+              addSession({
+                id: session.id,
+                worktreeId: session.worktreeId,
+                cwd: session.cwd,
+                createdAt: session.createdAt,
+                isConnected: true,
+              });
+            }
+          });
+
+          // Auto-select first session if available
+          if (existingSessions.length > 0) {
+            setPanels([{ id: 'left', sessionId: existingSessions[0].id }]);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch sessions:', err);
+      }
+    };
+
+    fetchExistingSessions();
+  }, [worktreeId]); // Only depend on worktreeId to avoid loops
 
   // Filter to only show terminals for current worktree, exclude orchestrator terminals
   const filteredSessions = worktreeId
@@ -131,11 +171,15 @@ export function SplitTerminalPane({ worktreeId, worktreePath }: SplitTerminalPan
             className="flex-1 bg-zinc-900 text-sm px-2 py-0.5 rounded border border-zinc-700 focus:outline-none focus:border-blue-500"
           >
             <option value="">Select terminal...</option>
-            {availableSessions.map((s) => (
-              <option key={s.id} value={s.id}>
-                Terminal ({s.id.slice(0, 8)})
-              </option>
-            ))}
+            {availableSessions.map((s) => {
+              // Extract name from cwd path (last directory name)
+              const name = s.cwd.split('/').pop() || s.id.slice(0, 8);
+              return (
+                <option key={s.id} value={s.id}>
+                  {name}
+                </option>
+              );
+            })}
           </select>
 
           <button
@@ -193,6 +237,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath }: SplitTerminalPan
               send={send}
               subscribe={subscribe}
               isActive={activePanelId === panel.id}
+              readOnly={true}
             />
           ) : (
             <div className="flex items-center justify-center h-full text-zinc-500">

@@ -25,18 +25,18 @@ export async function projectsRoutes(fastify: FastifyInstance) {
     openProjectIds.delete(request.params.id);
     return { success: true };
   });
-  // Create project from git URL
+  // Create project from git URL or local path
   fastify.post<{
-    Body: { repoUrl?: string; localPath?: string; name?: string; inPlace?: boolean };
+    Body: { repoUrl?: string; localPath?: string; name?: string };
   }>('/projects', async (request, reply) => {
-    const { repoUrl, localPath, name, inPlace } = request.body;
+    const { repoUrl, localPath, name } = request.body;
 
     try {
       let project;
       if (repoUrl) {
         project = await projectService.createProject(repoUrl, name);
       } else if (localPath) {
-        project = await projectService.createProjectFromLocal(localPath, name, inPlace);
+        project = await projectService.createProjectFromLocal(localPath, name);
       } else {
         return reply.status(400).send({ error: 'repoUrl or localPath required' });
       }

@@ -94,6 +94,22 @@ class DaemonClient extends EventEmitter {
       }
     }
 
+    // Handle task completion notifications from daemon
+    if (msg.type === 'agent:task-complete') {
+      console.log(`Task complete: session ${msg.sessionId}, worktree ${msg.worktreeId}`);
+      this.emit('task-complete', msg);
+      // Forward to all client subscribers
+      this.clientSubscribers.forEach((subscribers) => {
+        const message = JSON.stringify(msg);
+        subscribers.forEach((client) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(message);
+          }
+        });
+      });
+      return;
+    }
+
     // Handle terminal data - forward to client subscribers
     if (msg.type === 'terminal:data' || msg.type === 'terminal:scrollback' ||
         msg.type === 'terminal:exit' || msg.type === 'terminal:error') {

@@ -10,9 +10,10 @@ interface TerminalInstanceProps {
   subscribe: (type: string, handler: (data: unknown) => void) => () => void;
   isActive: boolean;
   fontSize?: number;
+  readOnly?: boolean;
 }
 
-export function TerminalInstance({ sessionId, send, subscribe, isActive, fontSize = 14 }: TerminalInstanceProps) {
+export function TerminalInstance({ sessionId, send, subscribe, isActive, fontSize = 14, readOnly = false }: TerminalInstanceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -34,13 +35,14 @@ export function TerminalInstance({ sessionId, send, subscribe, isActive, fontSiz
     if (!containerRef.current) return;
 
     const terminal = new Terminal({
-      cursorBlink: true,
+      cursorBlink: !readOnly,
+      disableStdin: readOnly,
       fontSize,
       fontFamily: 'Menlo, Monaco, "Courier New", monospace',
       theme: {
         background: '#18181b',
         foreground: '#fafafa',
-        cursor: '#fafafa',
+        cursor: readOnly ? '#3f3f46' : '#fafafa',
         cursorAccent: '#18181b',
         selectionBackground: '#3f3f46',
       },
@@ -67,10 +69,12 @@ export function TerminalInstance({ sessionId, send, subscribe, isActive, fontSiz
     // Subscribe to session
     send({ type: 'terminal:subscribe', sessionId });
 
-    // Handle terminal input
-    terminal.onData((data) => {
-      send({ type: 'terminal:input', sessionId, data });
-    });
+    // Handle terminal input (disabled for read-only terminals)
+    if (!readOnly) {
+      terminal.onData((data) => {
+        send({ type: 'terminal:input', sessionId, data });
+      });
+    }
 
     // Send initial resize
     send({

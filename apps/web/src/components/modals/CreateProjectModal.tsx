@@ -20,7 +20,7 @@ export function CreateProjectModal({ isOpen, onClose, onSubmit, onOpenExisting }
   const [error, setError] = useState<string | null>(null);
   const [showBrowser, setShowBrowser] = useState(false);
   const [availableProjects, setAvailableProjects] = useState<Project[]>([]);
-  const [inPlace, setInPlace] = useState(true); // Default to in-place for local paths
+
 
   // Load available projects when modal opens
   useEffect(() => {
@@ -54,7 +54,6 @@ export function CreateProjectModal({ isOpen, onClose, onSubmit, onOpenExisting }
         repoUrl: mode === 'url' ? repoUrl : undefined,
         localPath: mode === 'local' ? localPath : undefined,
         name: name || undefined,
-        inPlace: mode === 'local' ? inPlace : undefined,
       });
       onClose();
       setRepoUrl('');
@@ -157,45 +156,26 @@ export function CreateProjectModal({ isOpen, onClose, onSubmit, onOpenExisting }
               selectGitReposOnly={true}
             />
           ) : (
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm text-zinc-400 mb-1">Local Repository Path</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={localPath}
-                    onChange={(e) => setLocalPath(e.target.value)}
-                    placeholder="/path/to/existing/repo"
-                    className="flex-1 px-3 py-2 bg-zinc-900 border border-zinc-700 rounded focus:outline-none focus:border-blue-500"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowBrowser(true)}
-                    className="px-3 py-2 bg-zinc-700 hover:bg-zinc-600 rounded"
-                    title="Browse folders"
-                  >
-                    <FolderOpen size={18} />
-                  </button>
-                </div>
-              </div>
-
-              <label className="flex items-center gap-2 cursor-pointer">
+            <div>
+              <label className="block text-sm text-zinc-400 mb-1">Local Repository Path</label>
+              <div className="flex gap-2">
                 <input
-                  type="checkbox"
-                  checked={inPlace}
-                  onChange={(e) => setInPlace(e.target.checked)}
-                  className="w-4 h-4 rounded border-zinc-600 bg-zinc-900 text-blue-500 focus:ring-blue-500"
+                  type="text"
+                  value={localPath}
+                  onChange={(e) => setLocalPath(e.target.value)}
+                  placeholder="/path/to/existing/repo"
+                  className="flex-1 px-3 py-2 bg-zinc-900 border border-zinc-700 rounded focus:outline-none focus:border-blue-500"
+                  required
                 />
-                <span className="text-sm">Open in-place</span>
-                <span className="text-xs text-zinc-500">(shares existing .claude/ context)</span>
-              </label>
-
-              <p className="text-xs text-zinc-500">
-                {inPlace
-                  ? 'Uses repository directly. Orchestrator shares existing Claude context.'
-                  : 'Clones repository to ~/orchard-projects. Creates new Claude context.'}
-              </p>
+                <button
+                  type="button"
+                  onClick={() => setShowBrowser(true)}
+                  className="px-3 py-2 bg-zinc-700 hover:bg-zinc-600 rounded"
+                  title="Browse folders"
+                >
+                  <FolderOpen size={18} />
+                </button>
+              </div>
             </div>
           )}
 

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTerminalStore } from '../../stores/terminal.store';
 import { TerminalInstance } from './TerminalInstance';
-import { useWebSocket } from '../../hooks/useWebSocket';
+import { useWebSocket } from '../../contexts/WebSocketContext';
 
 interface TerminalPaneProps {
   worktreeId?: string;

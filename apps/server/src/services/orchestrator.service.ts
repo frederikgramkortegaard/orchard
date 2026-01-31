@@ -16,8 +16,38 @@ export interface OrchestratorCommand {
   args: Record<string, string>;
 }
 
+interface TaskCompletion {
+  worktreeId: string;
+  sessionId: string;
+  completedAt: Date;
+  branch?: string;
+}
+
 class OrchestratorService {
   private sessions = new Map<string, OrchestratorSession>();
+  private completions: TaskCompletion[] = [];
+
+  // Called by daemon client when task complete is detected
+  recordCompletion(worktreeId: string, sessionId: string, branch?: string): void {
+    this.completions.push({
+      worktreeId,
+      sessionId,
+      completedAt: new Date(),
+      branch,
+    });
+    console.log(`Task completed: worktree ${worktreeId}, session ${sessionId}`);
+  }
+
+  getRecentCompletions(since?: Date): TaskCompletion[] {
+    if (!since) {
+      return this.completions;
+    }
+    return this.completions.filter(c => c.completedAt >= since);
+  }
+
+  clearCompletions(): void {
+    this.completions = [];
+  }
 
   async createSession(projectId: string): Promise<OrchestratorSession> {
     const project = projectService.getProject(projectId);
@@ -84,13 +114,38 @@ class OrchestratorService {
     });
 
     // Create a Claude terminal session for this worktree via daemon
+    // Use --dangerously-skip-permissions since worktree is inside the trusted project folder
     const terminalSessionId = await daemonClient.createSession(
       worktree.id,
       worktree.path,
-      description
-        ? `claude "${description}"`
-        : 'claude'
+      'claude --dangerously-skip-permissions'
     );
+
+    // Handle the bypass permissions prompt and send task
+    // Step 1: Wait for bypass prompt to appear
+    setTimeout(() => {
+      // Step 2: Arrow down to select "Yes, I accept"
+      daemonClient.writeToSession(terminalSessionId, '\x1b[B');
+
+      setTimeout(() => {
+        // Step 3: Press enter to confirm
+        daemonClient.writeToSession(terminalSessionId, '\r');
+
+        // Step 4: Wait for Claude to be ready, then send task
+        if (description) {
+          setTimeout(() => {
+            // Send the task
+            daemonClient.writeToSession(terminalSessionId, description);
+
+            setTimeout(() => {
+              // Press enter to submit the task
+              daemonClient.writeToSession(terminalSessionId, '\r');
+              console.log(`Sent task to session ${terminalSessionId}`);
+            }, 500);
+          }, 3000);
+        }
+      }, 200);
+    }, 4000);
 
     return JSON.stringify({
       success: true,
@@ -216,7 +271,11 @@ class OrchestratorService {
 
     // Send to the first session for this worktree
     const session = sessions[0];
-    daemonClient.writeToSession(session.id, prompt + '\r');
+    // Send prompt, then enter to submit
+    daemonClient.writeToSession(session.id, prompt);
+    setTimeout(() => {
+      daemonClient.writeToSession(session.id, '\r');
+    }, 500);
     return true;
   }
 

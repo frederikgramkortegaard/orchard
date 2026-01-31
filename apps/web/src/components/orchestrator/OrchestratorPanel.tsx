@@ -3,7 +3,7 @@ import { Bot, GitMerge, Plus, Loader2, AlertCircle, CheckCircle, ChevronDown, Ch
 import { useProjectStore } from '../../stores/project.store';
 import { useTerminalStore } from '../../stores/terminal.store';
 import { TerminalInstance } from '../terminal/TerminalInstance';
-import { useWebSocket } from '../../hooks/useWebSocket';
+import { useWebSocket } from '../../contexts/WebSocketContext';
 import * as orchestratorApi from '../../api/orchestrator';
 import * as projectsApi from '../../api/projects';
 import type { WorktreeSession } from '../../api/orchestrator';

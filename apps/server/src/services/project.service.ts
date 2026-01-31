@@ -23,6 +23,8 @@ export interface ProjectConfig {
 }
 
 const ORCHARD_DIR = join(homedir(), 'orchard-projects');
+const ORCHARD_CONFIG_DIR = join(homedir(), '.orchard');
+const IN_PLACE_REGISTRY = join(ORCHARD_CONFIG_DIR, 'in-place-projects.json');
 
 class ProjectService {
   private projects = new Map<string, Project>();
@@ -33,7 +35,12 @@ class ProjectService {
       await mkdir(ORCHARD_DIR, { recursive: true });
     }
 
-    // Load existing projects
+    // Ensure ~/.orchard config directory exists
+    if (!existsSync(ORCHARD_CONFIG_DIR)) {
+      await mkdir(ORCHARD_CONFIG_DIR, { recursive: true });
+    }
+
+    // Load cloned projects from orchard-projects directory
     try {
       const dirs = await readdir(ORCHARD_DIR, { withFileTypes: true });
       for (const dir of dirs) {
@@ -50,6 +57,43 @@ class ProjectService {
       }
     } catch (err) {
       console.error('Error loading projects:', err);
+    }
+
+    // Load in-place projects from registry
+    await this.loadInPlaceProjects();
+  }
+
+  private async loadInPlaceProjects(): Promise<void> {
+    if (!existsSync(IN_PLACE_REGISTRY)) {
+      return;
+    }
+
+    try {
+      const registry: string[] = JSON.parse(await readFile(IN_PLACE_REGISTRY, 'utf-8'));
+      for (const projectPath of registry) {
+        if (existsSync(projectPath)) {
+          await this.reopenProject(projectPath);
+        }
+      }
+    } catch (err) {
+      console.error('Error loading in-place projects registry:', err);
+    }
+  }
+
+  private async registerInPlaceProject(projectPath: string): Promise<void> {
+    let registry: string[] = [];
+
+    if (existsSync(IN_PLACE_REGISTRY)) {
+      try {
+        registry = JSON.parse(await readFile(IN_PLACE_REGISTRY, 'utf-8'));
+      } catch {
+        registry = [];
+      }
+    }
+
+    if (!registry.includes(projectPath)) {
+      registry.push(projectPath);
+      await writeFile(IN_PLACE_REGISTRY, JSON.stringify(registry, null, 2));
     }
   }
 
@@ -128,7 +172,7 @@ class ProjectService {
     }
   }
 
-  async createProjectFromLocal(localPath: string, name?: string, inPlace = false): Promise<Project> {
+  async createProjectFromLocal(localPath: string, name?: string): Promise<Project> {
     // Verify it's a git repo
     if (!existsSync(join(localPath, '.git'))) {
       throw new Error('Not a git repository');
@@ -140,60 +184,18 @@ class ProjectService {
     const repoUrl = origin?.refs?.fetch;
 
     const projectName = name || basename(localPath);
-
-    if (inPlace) {
-      // In-place mode: use the repo directly without cloning
-      const projectPath = localPath;
-      const orchardConfigPath = join(projectPath, '.orchard');
-
-      // Check if already tracked
-      const configPath = join(orchardConfigPath, 'config.json');
-      if (existsSync(configPath)) {
-        const existing = await this.reopenProject(projectPath);
-        if (existing) return existing;
-      }
-
-      // Create .orchard config in the repo
-      await mkdir(orchardConfigPath, { recursive: true });
-
-      const projectId = randomUUID();
-      const config: ProjectConfig = {
-        id: projectId,
-        name: projectName,
-        repoUrl,
-        createdAt: new Date().toISOString(),
-        inPlace: true,
-      };
-
-      await writeFile(configPath, JSON.stringify(config, null, 2));
-
-      const project: Project = {
-        ...config,
-        path: projectPath,
-      };
-
-      this.projects.set(projectId, project);
-      return project;
-    }
-
-    // Clone mode: copy to orchard-projects directory
-    const projectPath = join(ORCHARD_DIR, projectName);
-    const mainWorktreePath = join(projectPath, 'main');
+    const projectPath = localPath;
     const orchardConfigPath = join(projectPath, '.orchard');
 
-    // If project already exists, just reopen it
-    if (existsSync(projectPath)) {
+    // Check if already tracked
+    const configPath = join(orchardConfigPath, 'config.json');
+    if (existsSync(configPath)) {
       const existing = await this.reopenProject(projectPath);
       if (existing) return existing;
     }
 
-    // Create project structure
-    await mkdir(projectPath, { recursive: true });
+    // Create .orchard config in the repo
     await mkdir(orchardConfigPath, { recursive: true });
-
-    // Clone from local path
-    const gitClone = simpleGit();
-    await gitClone.clone(localPath, mainWorktreePath);
 
     const projectId = randomUUID();
     const config: ProjectConfig = {
@@ -201,15 +203,13 @@ class ProjectService {
       name: projectName,
       repoUrl,
       createdAt: new Date().toISOString(),
+      inPlace: true,
     };
 
-    await writeFile(
-      join(orchardConfigPath, 'config.json'),
-      JSON.stringify(config, null, 2)
-    );
+    await writeFile(configPath, JSON.stringify(config, null, 2));
 
-    // Create Claude settings for project-wide permissions
-    await this.setupClaudePermissions(mainWorktreePath, projectPath);
+    // Register in in-place projects registry so it's found on restart
+    await this.registerInPlaceProject(projectPath);
 
     const project: Project = {
       ...config,

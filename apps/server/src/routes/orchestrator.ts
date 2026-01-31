@@ -153,4 +153,15 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
     const sessions = orchestratorService.getActiveWorktreeSessions(request.params.projectId);
     return { sessions };
   });
+
+  // Get recent task completions
+  fastify.get('/orchestrator/completions', async () => {
+    return { completions: orchestratorService.getRecentCompletions() };
+  });
+
+  // Clear completions (after processing them)
+  fastify.delete('/orchestrator/completions', async () => {
+    orchestratorService.clearCompletions();
+    return { success: true };
+  });
 }

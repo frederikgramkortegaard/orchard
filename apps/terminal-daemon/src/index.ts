@@ -133,12 +133,72 @@ class TerminalDaemon {
       unackedData: 0,
     };
 
+    // Track if we need to auto-accept trust prompt for Claude sessions
+    let trustPromptHandled = false;
+    const isClaudeSession = initialCommand?.includes('claude');
+    let taskCompleteNotified = false;
+
     // Handle PTY output
     ptyProcess.onData((data) => {
       // Add to scrollback (keep last 10000 lines worth)
       session.scrollback.push(data);
       if (session.scrollback.length > 10000) {
         session.scrollback.shift();
+      }
+
+      // Auto-accept Claude's prompts if this is a Claude session
+      if (isClaudeSession && !trustPromptHandled) {
+        const recentOutput = session.scrollback.slice(-10).join('');
+        // Handle trust folder prompt
+        if (recentOutput.includes('Do you trust the files in this folder?') ||
+            recentOutput.includes('Yes, proceed')) {
+          trustPromptHandled = true;
+          setTimeout(() => {
+            ptyProcess.write('\r');
+            console.log(`Auto-accepted trust prompt for session ${id}`);
+          }, 100);
+        }
+        // Handle bypass permissions confirmation (select option 2: "Yes, I accept")
+        // Only trigger when we see "Enter to confirm" which means the menu is ready
+        if ((recentOutput.includes('Bypass Permissions mode') || recentOutput.includes('Yes, I accept'))
+            && recentOutput.includes('Enter to confirm')) {
+          trustPromptHandled = true;
+          // Send arrow down to select option 2, then enter
+          setTimeout(() => {
+            ptyProcess.write('\x1b[B'); // Arrow down
+            setTimeout(() => {
+              ptyProcess.write('\r'); // Enter
+              console.log(`Auto-accepted bypass permissions for session ${id}`);
+            }, 200);
+          }, 500);
+        }
+      }
+
+      // Detect "TASK COMPLETE" and broadcast notification
+      if (isClaudeSession && !taskCompleteNotified) {
+        const recentOutput = session.scrollback.slice(-20).join('');
+        if (recentOutput.includes('TASK COMPLETE')) {
+          taskCompleteNotified = true;
+          const notification = JSON.stringify({
+            type: 'agent:task-complete',
+            sessionId: id,
+            worktreeId,
+            timestamp: Date.now(),
+          });
+          // Broadcast to all subscribers
+          session.subscribers.forEach((sub) => {
+            if (sub.readyState === WebSocket.OPEN) {
+              sub.send(notification);
+            }
+          });
+          // Also broadcast to all connected clients
+          this.wss.clients.forEach((client) => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(notification);
+            }
+          });
+          console.log(`Task complete detected for session ${id} (worktree: ${worktreeId})`);
+        }
       }
 
       // Broadcast to subscribers with flow control

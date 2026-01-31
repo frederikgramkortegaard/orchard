@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { worktreeService } from '../services/worktree.service.js';
+import { daemonClient } from '../pty/daemon-client.js';
 
 export async function worktreesRoutes(fastify: FastifyInstance) {
   // List worktrees for a project
@@ -26,6 +27,18 @@ export async function worktreesRoutes(fastify: FastifyInstance) {
         newBranch,
         baseBranch,
       });
+
+      // Auto-spawn a Claude session for this worktree (with skip-permissions since inside project)
+      if (daemonClient.isConnected()) {
+        try {
+          await daemonClient.createSession(worktree.id, worktree.path, 'claude --dangerously-skip-permissions');
+          console.log(`Created Claude session for worktree ${worktree.id}`);
+        } catch (err) {
+          console.error('Failed to create Claude session for worktree:', err);
+          // Don't fail the worktree creation if session fails
+        }
+      }
+
       return worktree;
     } catch (err: any) {
       return reply.status(400).send({ error: err.message });
@@ -74,5 +87,41 @@ export async function worktreesRoutes(fastify: FastifyInstance) {
     }
     const status = await worktreeService.getWorktreeStatus(worktree.path);
     return { ...worktree, status };
+  });
+
+  // Ensure a Claude session exists for a worktree (creates one if not)
+  fastify.post<{ Params: { id: string } }>('/worktrees/:id/ensure-session', async (request, reply) => {
+    const worktree = worktreeService.getWorktree(request.params.id);
+    if (!worktree) {
+      return reply.status(404).send({ error: 'Worktree not found' });
+    }
+
+    if (!daemonClient.isConnected()) {
+      return reply.status(503).send({ error: 'Terminal daemon not available' });
+    }
+
+    // Check if session already exists for this worktree
+    const existingSessions = await daemonClient.getSessionsForWorktree(worktree.id);
+    if (existingSessions.length > 0) {
+      return { session: existingSessions[0], created: false };
+    }
+
+    // Create new Claude session with skip-permissions since worktree is inside project
+    try {
+      const sessionId = await daemonClient.createSession(worktree.id, worktree.path, 'claude --dangerously-skip-permissions');
+      const session = await daemonClient.getSession(sessionId);
+      console.log(`Created Claude session ${sessionId} for worktree ${worktree.id}`);
+      return {
+        session: {
+          id: sessionId,
+          worktreeId: worktree.id,
+          cwd: worktree.path,
+          createdAt: session?.createdAt || new Date().toISOString(),
+        },
+        created: true
+      };
+    } catch (err: any) {
+      return reply.status(500).send({ error: err.message });
+    }
   });
 }
