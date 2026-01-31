@@ -50,7 +50,22 @@ curl -s http://localhost:3001/terminals | jq '.[] | {id, cwd: (.cwd | split("/")
 ```
 
 ## Communication Protocol
-Agents should use structured messages for orchestrator to detect:
+
+### Structured Output (Preferred)
+Agents should use JSON-formatted messages in `orchestrator-message` code blocks. See `.orchard/skills/agent-structured-output.md` for full documentation.
+
+Example:
+```orchestrator-message
+{
+  "type": "TASK_COMPLETE",
+  "data": {
+    "summary": "Implemented feature",
+    "filesChanged": ["src/file.ts"]
+  }
+}
+```
+
+### Legacy Text Markers (Still Supported)
 - `:ORCHESTRATOR: TASK COMPLETE` - Task finished
 - `:ORCHESTRATOR: QUESTION - <question>` - Needs clarification
 - `:ORCHESTRATOR: BLOCKED - <reason>` - Stuck on something

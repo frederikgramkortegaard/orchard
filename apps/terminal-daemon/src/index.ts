@@ -24,11 +24,90 @@ interface PtySession {
   scrollback: string[];
   subscribers: Set<WebSocket>;
   unackedData: number;
+  messageBuffer: string;
+}
+
+// Structured output message types for agent communication
+interface OrchestratorMessage {
+  type: 'TASK_COMPLETE' | 'QUESTION' | 'BLOCKED' | 'STATUS_UPDATE' | 'ERROR' | 'REQUEST_REVIEW';
+  data: Record<string, unknown>;
 }
 
 class TerminalDaemon {
   private sessions = new Map<string, PtySession>();
   private wss: WebSocketServer;
+
+  // Regex to match orchestrator-message code blocks
+  // Handles both ```orchestrator-message and ``` closings with various whitespace
+  private readonly orchestratorMessageRegex = /```orchestrator-message\s*\n([\s\S]*?)```/g;
+
+  /**
+   * Parse orchestrator-message blocks from terminal output
+   * Returns parsed messages and remaining unparsed buffer
+   */
+  private parseOrchestratorMessages(buffer: string): { messages: OrchestratorMessage[]; remaining: string } {
+    const messages: OrchestratorMessage[] = [];
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    // Reset regex state
+    this.orchestratorMessageRegex.lastIndex = 0;
+
+    while ((match = this.orchestratorMessageRegex.exec(buffer)) !== null) {
+      try {
+        const jsonContent = match[1].trim();
+        const parsed = JSON.parse(jsonContent) as OrchestratorMessage;
+
+        // Validate message structure
+        if (parsed.type && typeof parsed.type === 'string') {
+          messages.push(parsed);
+        }
+      } catch (err) {
+        // Invalid JSON, skip this block
+        console.warn('Failed to parse orchestrator message:', err);
+      }
+      lastIndex = match.index + match[0].length;
+    }
+
+    // Check if there's an incomplete block at the end (started but not closed)
+    const incompleteStart = buffer.lastIndexOf('```orchestrator-message');
+    if (incompleteStart > lastIndex) {
+      // Keep the incomplete block in buffer for next chunk
+      return { messages, remaining: buffer.slice(incompleteStart) };
+    }
+
+    return { messages, remaining: '' };
+  }
+
+  /**
+   * Broadcast a structured orchestrator message to all clients
+   */
+  private broadcastOrchestratorMessage(session: PtySession, message: OrchestratorMessage) {
+    const notification = JSON.stringify({
+      type: 'agent:message',
+      sessionId: session.id,
+      worktreeId: session.worktreeId,
+      messageType: message.type,
+      data: message.data,
+      timestamp: Date.now(),
+    });
+
+    // Broadcast to session subscribers
+    session.subscribers.forEach((sub) => {
+      if (sub.readyState === WebSocket.OPEN) {
+        sub.send(notification);
+      }
+    });
+
+    // Broadcast to all connected clients
+    this.wss.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(notification);
+      }
+    });
+
+    console.log(`Orchestrator message [${message.type}] from session ${session.id} (worktree: ${session.worktreeId})`);
+  }
 
   constructor() {
     // Load persisted session info (but we can't restore PTY processes)
@@ -126,6 +205,7 @@ class TerminalDaemon {
       scrollback: [],
       subscribers: new Set(),
       unackedData: 0,
+      messageBuffer: '',
     };
 
     // Track if we need to auto-accept trust prompt for Claude sessions
@@ -169,10 +249,50 @@ class TerminalDaemon {
         }
       }
 
-      // Detect "TASK COMPLETE" and broadcast notification
+      // Parse structured orchestrator-message blocks from output
+      if (isClaudeSession) {
+        session.messageBuffer += data;
+
+        // Parse any complete orchestrator-message blocks
+        const { messages, remaining } = this.parseOrchestratorMessages(session.messageBuffer);
+        session.messageBuffer = remaining;
+
+        // Broadcast each parsed message
+        for (const message of messages) {
+          this.broadcastOrchestratorMessage(session, message);
+
+          // Handle TASK_COMPLETE specially to maintain backwards compatibility
+          if (message.type === 'TASK_COMPLETE' && !taskCompleteNotified) {
+            taskCompleteNotified = true;
+            const notification = JSON.stringify({
+              type: 'agent:task-complete',
+              sessionId: id,
+              worktreeId,
+              timestamp: Date.now(),
+            });
+            session.subscribers.forEach((sub) => {
+              if (sub.readyState === WebSocket.OPEN) {
+                sub.send(notification);
+              }
+            });
+            this.wss.clients.forEach((client) => {
+              if (client.readyState === WebSocket.OPEN) {
+                client.send(notification);
+              }
+            });
+          }
+        }
+
+        // Limit message buffer size to prevent memory issues
+        if (session.messageBuffer.length > 50000) {
+          session.messageBuffer = session.messageBuffer.slice(-10000);
+        }
+      }
+
+      // Detect legacy "TASK COMPLETE" text marker for backwards compatibility
       if (isClaudeSession && !taskCompleteNotified) {
         const recentOutput = session.scrollback.slice(-20).join('');
-        if (recentOutput.includes('TASK COMPLETE')) {
+        if (recentOutput.includes(':ORCHESTRATOR: TASK COMPLETE') || recentOutput.includes('TASK COMPLETE')) {
           taskCompleteNotified = true;
           const notification = JSON.stringify({
             type: 'agent:task-complete',
