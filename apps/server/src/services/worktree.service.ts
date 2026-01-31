@@ -132,9 +132,16 @@ class WorktreeService {
           const archived = this.archivedWorktrees.has(id);
           const { lastCommitDate, createdAt } = await this.getWorktreeDates(path, branch || 'HEAD', projectId);
 
-          // Merged detection disabled - the previous logic incorrectly marked new branches
-          // from master as merged (since they are ancestors of master)
-          const merged = false;
+          // Check if this branch has been merged into default branch
+          // Only mark merged if: all commits in main AND no uncommitted changes AND no ahead commits AND no active terminal sessions
+          let merged = false;
+          if (!isMain && branch && status.modified === 0 && status.staged === 0 && status.untracked === 0 && status.ahead === 0) {
+            // Check for active terminal sessions first
+            const hasActiveSessions = await this.hasActiveTerminalSessions(id);
+            if (!hasActiveSessions) {
+              merged = await this.checkIfMerged(projectId, branch);
+            }
+          }
 
           const worktree: Worktree = {
             id,
