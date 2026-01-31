@@ -194,7 +194,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
         onClick={() => setActivePanelId(panel.id)}
       >
         {/* Panel header */}
-        <div className={`flex items-center gap-1 px-2 py-1 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700 ${session?.rateLimit?.isLimited ? 'border-b-amber-500' : ''}`}>
+        <div className={`flex items-center gap-1 px-2 py-1 bg-zinc-100 dark:bg-zinc-800 pink:bg-pink-100 border-b border-zinc-300 dark:border-zinc-700 pink:border-pink-300 ${session?.rateLimit?.isLimited ? 'border-b-amber-500' : ''}`}>
           {session?.rateLimit?.isLimited && (
             <Clock size={14} className="text-amber-500 animate-pulse" />
           )}
@@ -206,7 +206,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
                 assignSessionToPanel(panel.id, e.target.value);
               }
             }}
-            className="flex-1 bg-white dark:bg-zinc-900 text-sm px-2 py-0.5 rounded border border-zinc-300 dark:border-zinc-700 focus:outline-none focus:border-blue-500"
+            className="flex-1 bg-white dark:bg-zinc-900 pink:bg-pink-50 text-sm px-2 py-0.5 rounded border border-zinc-300 dark:border-zinc-700 pink:border-pink-300 focus:outline-none focus:border-blue-500 pink:focus:border-pink-500"
           >
             <option value="">Select terminal...</option>
             {availableSessions.map((s) => {
@@ -224,7 +224,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
           <button
             onClick={() => createTerminal(panel.id)}
             disabled={isCreating || !worktreeId || !projectPath || !isConnected}
-            className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded disabled:opacity-50"
+            className="p-1 text-zinc-500 dark:text-zinc-400 pink:text-pink-500 hover:text-zinc-900 dark:hover:text-white pink:hover:text-pink-900 hover:bg-zinc-200 dark:hover:bg-zinc-700 pink:hover:bg-pink-200 rounded disabled:opacity-50"
             title="New terminal"
           >
             <Plus size={14} />
@@ -233,7 +233,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
           {panels.length === 1 ? (
             <button
               onClick={splitPane}
-              className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded"
+              className="p-1 text-zinc-500 dark:text-zinc-400 pink:text-pink-500 hover:text-zinc-900 dark:hover:text-white pink:hover:text-pink-900 hover:bg-zinc-200 dark:hover:bg-zinc-700 pink:hover:bg-pink-200 rounded"
               title="Split terminal"
             >
               <SplitSquareHorizontal size={14} />
@@ -241,7 +241,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
           ) : (
             <button
               onClick={() => unsplitPane(panel.id)}
-              className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded"
+              className="p-1 text-zinc-500 dark:text-zinc-400 pink:text-pink-500 hover:text-zinc-900 dark:hover:text-white pink:hover:text-pink-900 hover:bg-zinc-200 dark:hover:bg-zinc-700 pink:hover:bg-pink-200 rounded"
               title="Close split"
             >
               <X size={14} />
@@ -252,14 +252,14 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
             <>
               <button
                 onClick={() => closeTerminal(session.id)}
-                className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded"
+                className="p-1 text-zinc-500 dark:text-zinc-400 pink:text-pink-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 pink:hover:bg-pink-200 rounded"
                 title="Stop & close terminal (kills process)"
               >
                 <Square size={12} className="fill-current" />
               </button>
               <button
                 onClick={() => closeTerminal(session.id)}
-                className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded"
+                className="p-1 text-zinc-500 dark:text-zinc-400 pink:text-pink-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 pink:hover:bg-pink-200 rounded"
                 title="Close terminal tab"
               >
                 <X size={14} />
@@ -284,7 +284,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
               <button
                 onClick={() => createTerminal(panel.id)}
                 disabled={!worktreeId || !projectPath || !isConnected}
-                className="px-4 py-2 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 rounded disabled:opacity-50"
+                className="px-4 py-2 bg-zinc-200 dark:bg-zinc-800 pink:bg-pink-200 hover:bg-zinc-300 dark:hover:bg-zinc-700 pink:hover:bg-pink-300 rounded disabled:opacity-50"
               >
                 Create Terminal
               </button>
@@ -297,22 +297,22 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
 
   if (!isConnected) {
     return (
-      <div className="flex items-center justify-center h-full bg-zinc-50 dark:bg-zinc-900 text-red-500 dark:text-red-400">
+      <div className="flex items-center justify-center h-full bg-zinc-50 dark:bg-zinc-900 pink:bg-pink-50 text-red-500 dark:text-red-400">
         WebSocket disconnected
       </div>
     );
   }
 
   if (panels.length === 1) {
-    return <div className="h-full bg-zinc-50 dark:bg-zinc-900">{renderPanel(panels[0])}</div>;
+    return <div className="h-full bg-zinc-50 dark:bg-zinc-900 pink:bg-pink-50">{renderPanel(panels[0])}</div>;
   }
 
   return (
-    <Group orientation="horizontal" className="h-full bg-zinc-50 dark:bg-zinc-900">
+    <Group orientation="horizontal" className="h-full bg-zinc-50 dark:bg-zinc-900 pink:bg-pink-50">
       <Panel defaultSize={50} minSize={5}>
         {renderPanel(panels[0])}
       </Panel>
-      <Separator className="w-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-col-resize" />
+      <Separator className="w-1 bg-zinc-300 dark:bg-zinc-700 pink:bg-pink-300 hover:bg-zinc-400 dark:hover:bg-zinc-600 pink:hover:bg-pink-400 cursor-col-resize" />
       <Panel defaultSize={50} minSize={5}>
         {renderPanel(panels[1])}
       </Panel>

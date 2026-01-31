@@ -118,15 +118,15 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
   }, [inputText, orchestratorSessionId, projectId]);
 
   return (
-    <div className="flex flex-col h-full bg-zinc-200 dark:bg-zinc-800 rounded-lg border border-zinc-300 dark:border-zinc-700 overflow-hidden">
+    <div className="flex flex-col h-full bg-zinc-200 dark:bg-zinc-800 pink:bg-pink-200 rounded-lg border border-zinc-300 dark:border-zinc-700 pink:border-pink-300 overflow-hidden">
       {/* Chat header */}
-      <div className="flex items-center gap-2 px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border-b border-zinc-300 dark:border-zinc-700">
+      <div className="flex items-center gap-2 px-3 py-2 bg-zinc-100 dark:bg-zinc-900 pink:bg-pink-100 border-b border-zinc-300 dark:border-zinc-700 pink:border-pink-300">
         <div
           className={`w-2 h-2 rounded-full ${
             orchestratorSessionId ? 'bg-green-500' : 'bg-zinc-400'
           }`}
         />
-        <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+        <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400 pink:text-pink-600">
           {orchestratorSessionId ? 'Connected' : 'Messages will queue'}
         </span>
       </div>
@@ -174,7 +174,7 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
       </div>
 
       {/* Input area */}
-      <div className="flex items-center gap-2 p-2 bg-zinc-100 dark:bg-zinc-900 border-t border-zinc-300 dark:border-zinc-700">
+      <div className="flex items-center gap-2 p-2 bg-zinc-100 dark:bg-zinc-900 pink:bg-pink-100 border-t border-zinc-300 dark:border-zinc-700 pink:border-pink-300">
         <div
           className={`flex items-center justify-center w-8 h-8 rounded ${
             status === 'success'
@@ -183,7 +183,7 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
               ? 'bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400'
               : orchestratorSessionId
               ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
-              : 'bg-zinc-300 dark:bg-zinc-700 text-zinc-500'
+              : 'bg-zinc-300 dark:bg-zinc-700 pink:bg-pink-300 text-zinc-500 pink:text-pink-500'
           }`}
         >
           <Radio size={16} className={isSending ? 'animate-pulse' : ''} />
@@ -193,13 +193,13 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           placeholder="Message..."
-          className="flex-1 px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded text-sm focus:outline-none focus:border-amber-500 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+          className="flex-1 px-3 py-2 bg-white dark:bg-zinc-800 pink:bg-pink-50 border border-zinc-300 dark:border-zinc-700 pink:border-pink-300 rounded text-sm focus:outline-none focus:border-amber-500 pink:focus:border-pink-500 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 pink:placeholder:text-pink-400"
           onKeyDown={(e) => e.key === 'Enter' && !isSending && handleSend()}
         />
         <button
           onClick={handleSend}
           disabled={isSending || !inputText.trim()}
-          className="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded text-sm disabled:opacity-50 flex items-center"
+          className="px-3 py-2 bg-amber-600 hover:bg-amber-500 pink:bg-pink-600 pink:hover:bg-pink-500 text-white rounded text-sm disabled:opacity-50 flex items-center"
         >
           {isSending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
         </button>

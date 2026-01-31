@@ -56,7 +56,7 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
       return <span className="w-2 h-2 rounded-full bg-yellow-500" title={`${modified} modified, ${staged} staged, ${untracked} untracked`} />;
     }
     if (ahead > 0 || behind > 0) {
-      return <span className="text-xs text-zinc-400 dark:text-zinc-500">{ahead > 0 && `↑${ahead}`}{behind > 0 && `↓${behind}`}</span>;
+      return <span className="text-xs text-zinc-400 dark:text-zinc-500 pink:text-pink-400">{ahead > 0 && `↑${ahead}`}{behind > 0 && `↓${behind}`}</span>;
     }
     return <span className="w-2 h-2 rounded-full bg-green-500" title="Clean" />;
   };
@@ -64,12 +64,12 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
   const worktreesContent = (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Worktrees header */}
-      <div className="px-4 py-3 border-b border-zinc-300 dark:border-zinc-700 flex items-center justify-between flex-shrink-0">
-        <h2 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400">WORKTREES</h2>
+      <div className="px-4 py-3 border-b border-zinc-300 dark:border-zinc-700 pink:border-pink-300 flex items-center justify-between flex-shrink-0">
+        <h2 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 pink:text-pink-500">WORKTREES</h2>
         <button
           onClick={onCreateWorktree}
           disabled={!activeProjectId}
-          className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded disabled:opacity-50"
+          className="p-1 text-zinc-500 dark:text-zinc-400 pink:text-pink-500 hover:text-zinc-900 dark:hover:text-white pink:hover:text-pink-900 hover:bg-zinc-200 dark:hover:bg-zinc-700 pink:hover:bg-pink-200 rounded disabled:opacity-50"
           title="New Worktree"
         >
           <Plus size={16} />
@@ -84,7 +84,7 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
             <p className="text-sm">No project selected</p>
             <button
               onClick={onOpenProject}
-              className="mt-2 text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 text-sm"
+              className="mt-2 text-blue-600 dark:text-blue-400 pink:text-pink-600 hover:text-blue-500 dark:hover:text-blue-300 pink:hover:text-pink-500 text-sm"
             >
               Open a project
             </button>
@@ -95,7 +95,7 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
             <p className="text-sm">No worktrees</p>
             <button
               onClick={onCreateWorktree}
-              className="mt-2 text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 text-sm"
+              className="mt-2 text-blue-600 dark:text-blue-400 pink:text-pink-600 hover:text-blue-500 dark:hover:text-blue-300 pink:hover:text-pink-500 text-sm"
             >
               Create a worktree
             </button>
@@ -109,7 +109,7 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
                 key={worktree.id}
                 onClick={() => setActiveWorktree(worktree.id)}
                 className={`w-full flex items-center gap-2 px-3 py-2 rounded text-left group ${
-                  activeWorktreeId === worktree.id ? 'bg-zinc-300 dark:bg-zinc-600' : 'hover:bg-zinc-200/50 dark:hover:bg-zinc-700/50'
+                  activeWorktreeId === worktree.id ? 'bg-zinc-300 dark:bg-zinc-600 pink:bg-pink-300' : 'hover:bg-zinc-200/50 dark:hover:bg-zinc-700/50 pink:hover:bg-pink-200/50'
                 } ${worktree.archived ? 'opacity-40' : worktree.merged ? 'opacity-60' : ''} ${rateLimited ? 'ring-1 ring-amber-500/50' : ''}`}
               >
                 {worktree.archived ? (
@@ -119,11 +119,11 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
                 ) : rateLimited ? (
                   <Clock size={14} className="text-amber-500 animate-pulse flex-shrink-0" />
                 ) : (
-                  <GitBranch size={14} className="text-zinc-500 dark:text-zinc-400 flex-shrink-0" />
+                  <GitBranch size={14} className="text-zinc-500 dark:text-zinc-400 pink:text-pink-500 flex-shrink-0" />
                 )}
-                <span className={`flex-1 truncate text-sm ${worktree.archived || worktree.merged ? 'text-zinc-400 dark:text-zinc-500' : ''}`}>
+                <span className={`flex-1 truncate text-sm ${worktree.archived || worktree.merged ? 'text-zinc-400 dark:text-zinc-500 pink:text-pink-400' : ''}`}>
                   {worktree.branch}
-                  {worktree.isMain && <span className="text-zinc-400 dark:text-zinc-500 ml-1">(main)</span>}
+                  {worktree.isMain && <span className="text-zinc-400 dark:text-zinc-500 pink:text-pink-400 ml-1">(main)</span>}
                   {worktree.archived && <span className="text-zinc-400 ml-1">(archived)</span>}
                   {!worktree.archived && worktree.merged && <span className="text-green-500 ml-1">(merged)</span>}
                   {rateLimited && <span className="text-amber-500 ml-1">(paused)</span>}
@@ -135,7 +135,7 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
                       e.stopPropagation();
                       onArchiveWorktree(worktree.id);
                     }}
-                    className="opacity-0 group-hover:opacity-100 p-0.5 text-zinc-500 dark:text-zinc-400 hover:text-amber-500 dark:hover:text-amber-400"
+                    className="opacity-0 group-hover:opacity-100 p-0.5 text-zinc-500 dark:text-zinc-400 pink:text-pink-500 hover:text-amber-500 dark:hover:text-amber-400"
                     title="Archive worktree (close session)"
                   >
                     <Archive size={12} />
@@ -147,7 +147,7 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
                       e.stopPropagation();
                       onDeleteWorktree(worktree.id);
                     }}
-                    className="opacity-0 group-hover:opacity-100 p-0.5 text-zinc-500 dark:text-zinc-400 hover:text-red-500 dark:hover:text-red-400"
+                    className="opacity-0 group-hover:opacity-100 p-0.5 text-zinc-500 dark:text-zinc-400 pink:text-pink-500 hover:text-red-500 dark:hover:text-red-400"
                     title="Delete worktree"
                   >
                     <Trash2 size={12} />
@@ -163,7 +163,7 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
   );
 
   return (
-    <aside className="h-full bg-zinc-100 dark:bg-zinc-800 border-r border-zinc-300 dark:border-zinc-700 flex flex-col overflow-hidden">
+    <aside className="h-full bg-zinc-100 dark:bg-zinc-800 pink:bg-pink-100 border-r border-zinc-300 dark:border-zinc-700 pink:border-pink-300 flex flex-col overflow-hidden">
       {activeProjectId && activeProject ? (
         <Group orientation="vertical" className="h-full">
           {/* Orchestrator chat panel - resizable */}
@@ -173,7 +173,7 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
             </div>
           </Panel>
 
-          <Separator className="h-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-row-resize" />
+          <Separator className="h-1 bg-zinc-300 dark:bg-zinc-700 pink:bg-pink-300 hover:bg-zinc-400 dark:hover:bg-zinc-600 pink:hover:bg-pink-400 cursor-row-resize" />
 
           {/* Worktrees section */}
           <Panel defaultSize={60} minSize={5}>
