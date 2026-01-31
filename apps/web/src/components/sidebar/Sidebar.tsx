@@ -17,8 +17,16 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
 
   const activeProject = projects.find(p => p.id === activeProjectId);
 
+  // Check if a worktree has any active terminal sessions
+  const hasActiveSession = (worktreeId: string) => {
+    return Array.from(sessions.values()).some(
+      s => s.worktreeId === worktreeId && s.isConnected
+    );
+  };
+
   // Sort worktrees by most recent activity: 1) lastCommitDate, 2) createdAt
   // Main worktree always appears first, archived worktrees last
+  // Worktrees with active sessions appear before those without
   const sortedWorktrees = [...worktrees].sort((a, b) => {
     // Main worktree always first
     if (a.isMain && !b.isMain) return -1;
@@ -27,6 +35,12 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
     // Archived worktrees always last
     if (a.archived && !b.archived) return 1;
     if (!a.archived && b.archived) return -1;
+
+    // Worktrees with active sessions come first
+    const aHasSession = hasActiveSession(a.id);
+    const bHasSession = hasActiveSession(b.id);
+    if (aHasSession && !bHasSession) return -1;
+    if (!aHasSession && bHasSession) return 1;
 
     // Sort by most recent commit date (descending - newest first)
     const aCommitDate = a.lastCommitDate ? new Date(a.lastCommitDate).getTime() : 0;
