@@ -4,6 +4,7 @@ import { Plus, X, SplitSquareHorizontal, Square, Clock } from 'lucide-react';
 import { useTerminalStore } from '../../stores/terminal.store';
 import { TerminalInstance } from './TerminalInstance';
 import { useWebSocket } from '../../contexts/WebSocketContext';
+import { useToast } from '../../contexts/ToastContext';
 
 interface SplitTerminalPaneProps {
   worktreeId?: string;
@@ -19,6 +20,7 @@ interface TerminalPanel {
 export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: SplitTerminalPaneProps) {
   const { send, subscribe, isConnected, connectionId } = useWebSocket();
   const { sessions, addSession, removeSession, setSessionRateLimited, clearSessionRateLimit } = useTerminalStore();
+  const { addToast } = useToast();
   const [panels, setPanels] = useState<TerminalPanel[]>([{ id: 'left', sessionId: null }]);
   const [activePanelId, setActivePanelId] = useState('left');
   const [isCreating, setIsCreating] = useState(false);
@@ -134,13 +136,18 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
         setPanels((prev) =>
           prev.map((p) => (p.id === panelId ? { ...p, sessionId: session.id } : p))
         );
+
+        addToast('success', `Terminal "${terminalName}" created`);
+      } else {
+        addToast('error', 'Failed to create terminal');
       }
     } catch (err) {
       console.error('Failed to create terminal:', err);
+      addToast('error', 'Failed to create terminal');
     } finally {
       setIsCreating(false);
     }
-  }, [worktreeId, worktreePath, projectPath, addSession]);
+  }, [worktreeId, worktreePath, projectPath, addSession, addToast]);
 
   const closeTerminal = useCallback(async (sessionId: string) => {
     try {

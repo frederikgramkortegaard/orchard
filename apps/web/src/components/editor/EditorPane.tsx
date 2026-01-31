@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import Editor from '@monaco-editor/react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import { useEditorStore } from '../../stores/editor.store';
+import { useToast } from '../../contexts/ToastContext';
 import { FileTree } from './FileTree';
 import { FileTabs } from './FileTabs';
 
@@ -56,6 +57,7 @@ function getLanguageFromPath(path: string): string {
 export function EditorPane({ worktreePath }: EditorPaneProps) {
   const { openFiles, activeFilePath, openFile, closeFile, setActiveFile, updateFileContent } =
     useEditorStore();
+  const { addToast } = useToast();
 
   const activeFile = openFiles.find((f) => f.path === activeFilePath);
 
@@ -73,16 +75,16 @@ export function EditorPane({ worktreePath }: EditorPaneProps) {
         const res = await fetch(`/api/files/content?path=${encodeURIComponent(path)}`);
         if (!res.ok) {
           const err = await res.json();
-          console.error('Failed to load file:', err.error);
+          addToast('error', err.error || `Failed to load "${name}"`);
           return;
         }
         const data = await res.json();
         openFile(path, name, data.content);
       } catch (err) {
-        console.error('Failed to load file:', err);
+        addToast('error', `Failed to load "${name}"`);
       }
     },
-    [openFiles, openFile, setActiveFile]
+    [openFiles, openFile, setActiveFile, addToast]
   );
 
   const handleEditorChange = useCallback(

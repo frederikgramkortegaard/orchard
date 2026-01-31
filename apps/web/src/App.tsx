@@ -5,6 +5,7 @@ import { useProjectStore } from './stores/project.store';
 import { useTerminalStore } from './stores/terminal.store';
 import { useEditorStore } from './stores/editor.store';
 import { useTheme } from './contexts/ThemeContext';
+import { useToast } from './contexts/ToastContext';
 import { ProjectTabBar } from './components/layout/ProjectTabBar';
 import { Sidebar } from './components/sidebar/Sidebar';
 import { SplitTerminalPane } from './components/terminal/SplitTerminalPane';
@@ -16,6 +17,7 @@ import * as api from './api/projects';
 
 function App() {
   const { theme, toggleTheme } = useTheme();
+  const { addToast } = useToast();
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [showWorktreeModal, setShowWorktreeModal] = useState(false);
   const {
@@ -62,19 +64,36 @@ function App() {
 
   const handleCreateWorktree = useCallback(async (data: { branch: string; newBranch?: boolean; baseBranch?: string }) => {
     if (!activeProjectId) return;
-    const worktree = await api.createWorktree({ projectId: activeProjectId, ...data });
-    addWorktree(worktree);
-  }, [activeProjectId, addWorktree]);
+    try {
+      const worktree = await api.createWorktree({ projectId: activeProjectId, ...data });
+      addWorktree(worktree);
+      addToast('success', `Worktree "${data.branch}" created`);
+    } catch (err: any) {
+      addToast('error', err.message || 'Failed to create worktree');
+      throw err;
+    }
+  }, [activeProjectId, addWorktree, addToast]);
 
   const handleDeleteWorktree = useCallback(async (worktreeId: string) => {
-    await api.deleteWorktree(worktreeId);
-    removeWorktree(worktreeId);
-  }, [removeWorktree]);
+    const worktree = worktrees.find(w => w.id === worktreeId);
+    try {
+      await api.deleteWorktree(worktreeId);
+      removeWorktree(worktreeId);
+      addToast('success', `Worktree "${worktree?.branch || 'unknown'}" deleted`);
+    } catch (err: any) {
+      addToast('error', err.message || 'Failed to delete worktree');
+    }
+  }, [worktrees, removeWorktree, addToast]);
 
   const handleArchiveWorktree = useCallback(async (worktreeId: string) => {
-    // Archive the worktree - close its terminal session
-    await api.archiveWorktree(worktreeId);
-  }, []);
+    const worktree = worktrees.find(w => w.id === worktreeId);
+    try {
+      await api.archiveWorktree(worktreeId);
+      addToast('info', `Worktree "${worktree?.branch || 'unknown'}" archived`);
+    } catch (err: any) {
+      addToast('error', err.message || 'Failed to archive worktree');
+    }
+  }, [worktrees, addToast]);
 
   const handleDeleteProject = useCallback(async (projectId: string) => {
     await api.deleteProject(projectId);
