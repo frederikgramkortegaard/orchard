@@ -18,6 +18,7 @@ import { sendMessage } from './tools/send-message.js';
 import { archiveWorktree } from './tools/archive-worktree.js';
 import { nudgeAgent } from './tools/nudge-agent.js';
 import { getFileTree } from './tools/get-file-tree.js';
+import { startSession } from './tools/start-session.js';
 
 // Orchard server base URL (configurable via env)
 const ORCHARD_API = process.env.ORCHARD_API || 'http://localhost:3001/api';
@@ -219,6 +220,20 @@ const tools: Tool[] = [
       required: ['projectId'],
     },
   },
+  {
+    name: 'start_session',
+    description: 'Start a new Claude session in a worktree',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        worktreeId: {
+          type: 'string',
+          description: 'The worktree ID to start a session in',
+        },
+      },
+      required: ['worktreeId'],
+    },
+  },
 ];
 
 // Tool handlers
@@ -234,6 +249,7 @@ const toolHandlers: Record<string, (args: Record<string, unknown>) => Promise<st
   archive_worktree: async (args) => archiveWorktree(ORCHARD_API, args as { worktreeId: string }),
   nudge_agent: async (args) => nudgeAgent(ORCHARD_API, args as { worktreeId: string }),
   get_file_tree: async (args) => getFileTree(ORCHARD_API, args as { projectId: string; depth?: number }),
+  start_session: async (args) => startSession(ORCHARD_API, args as { worktreeId: string }),
 };
 
 // Create and configure server
