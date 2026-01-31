@@ -10,6 +10,7 @@ if [ -z "$MESSAGE" ]; then
   exit 1
 fi
 
-curl -s -X POST http://localhost:3001/chat \
-  -H "Content-Type: application/json" \
-  --data-raw "{\"projectId\":\"$PROJECT_ID\",\"text\":\"$MESSAGE\",\"from\":\"orchestrator\"}" | jq -r '.message.text // .error'
+# Use printf to avoid bash escaping issues
+printf '{"projectId":"%s","text":"%s","from":"orchestrator"}' "$PROJECT_ID" "$MESSAGE" | \
+  curl -s -X POST http://localhost:3001/chat -H "Content-Type: application/json" -d @- | \
+  jq -r '.message.text // .error // "Message sent"'
