@@ -40,16 +40,16 @@ export function OrchestratorLog({ projectId }: OrchestratorLogProps) {
   }, [lines]);
 
   return (
-    <div className="h-full flex flex-col bg-zinc-900 rounded-lg border border-zinc-700 overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2 bg-zinc-800 border-b border-zinc-700">
-        <div className="flex items-center gap-2 text-zinc-400">
+    <div className="h-full flex flex-col bg-zinc-200 dark:bg-zinc-900 rounded-lg border border-zinc-300 dark:border-zinc-700 overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700">
+        <div className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400">
           <Terminal size={14} />
           <span className="text-xs font-medium">Orchestrator Activity</span>
         </div>
         <button
           onClick={fetchLog}
           disabled={isLoading}
-          className="p-1 text-zinc-400 hover:text-white rounded disabled:opacity-50"
+          className="p-1 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white rounded disabled:opacity-50"
           title="Refresh"
         >
           <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />
@@ -57,7 +57,7 @@ export function OrchestratorLog({ projectId }: OrchestratorLogProps) {
       </div>
       <div
         ref={logRef}
-        className="flex-1 overflow-y-auto p-2 font-mono text-xs text-zinc-300 space-y-0.5"
+        className="flex-1 overflow-y-auto p-2 font-mono text-xs text-zinc-700 dark:text-zinc-300 space-y-0.5"
       >
         {lines.length === 0 ? (
           <div className="text-zinc-500 text-center py-4">No activity yet</div>
@@ -71,7 +71,7 @@ export function OrchestratorLog({ projectId }: OrchestratorLogProps) {
               return (
                 <div key={i} className="flex gap-2">
                   <span className="text-zinc-500 flex-shrink-0">{time}</span>
-                  <span className={message.includes('ERROR') ? 'text-red-400' : message.includes('COMPLETE') ? 'text-green-400' : ''}>{message}</span>
+                  <span className={message.includes('ERROR') ? 'text-red-600 dark:text-red-400' : message.includes('COMPLETE') ? 'text-green-600 dark:text-green-400' : ''}>{message}</span>
                 </div>
               );
             }
