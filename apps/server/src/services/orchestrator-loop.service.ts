@@ -7,7 +7,6 @@ import OpenAI from 'openai';
 import { activityLoggerService } from './activity-logger.service.js';
 import { sessionPersistenceService } from './session-persistence.service.js';
 import { terminalMonitorService, type DetectedPattern } from './terminal-monitor.service.js';
-import { messageQueueService } from './message-queue.service.js';
 import { worktreeService } from './worktree.service.js';
 import { orchestratorService } from './orchestrator.service.js';
 import { projectService } from './project.service.js';
@@ -378,6 +377,9 @@ class OrchestratorLoopService extends EventEmitter {
   private lastTickStartTime: number = 0;
   private lastActionWasNoAction: boolean = false;
 
+  // Track which chat messages have been processed
+  private lastProcessedMessageId: string | null = null;
+
   constructor(config: Partial<OrchestratorLoopConfig> = {}) {
     super();
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -699,6 +701,9 @@ class OrchestratorLoopService extends EventEmitter {
     let tookAction = false;
 
     try {
+      // Get pending messages BEFORE gathering context (so we can mark them processed after)
+      const pendingMessages = await this.getPendingUserMessages();
+
       // Gather tick context
       context = await this.gatherTickContext();
 
@@ -728,6 +733,13 @@ class OrchestratorLoopService extends EventEmitter {
       // Call LLM for decisions - returns true if a real action was taken (not no_action)
       tookAction = await this.callLLMForDecisions(context, correlationId);
       this.lastActionWasNoAction = !tookAction;
+
+      // Mark pending messages as processed after LLM has seen them
+      // This prevents the same messages from triggering responses every tick
+      if (pendingMessages.length > 0) {
+        const lastMessage = pendingMessages[pendingMessages.length - 1];
+        this.markMessagesProcessed(lastMessage.id);
+      }
 
       // Reset failure counter on success
       this.consecutiveFailures = 0;
@@ -1208,6 +1220,7 @@ class OrchestratorLoopService extends EventEmitter {
 
   /**
    * Tool: Get recent user messages from chat
+   * Note: Messages are marked as processed by executeTick after the LLM responds
    */
   private async toolGetUserMessages(limit: number, correlationId: string): Promise<void> {
     const projectId = this.projectId;
@@ -1228,16 +1241,28 @@ class OrchestratorLoopService extends EventEmitter {
       messages = [];
     }
 
-    // Get last N messages
-    const recentMessages = messages.slice(-limit);
+    // Get only pending (unprocessed) user messages
+    const userMessages = messages.filter(m => m.from === 'user');
+    let pendingMessages: typeof userMessages = [];
+
+    if (this.lastProcessedMessageId) {
+      const lastIndex = userMessages.findIndex(m => m.id === this.lastProcessedMessageId);
+      if (lastIndex !== -1) {
+        pendingMessages = userMessages.slice(lastIndex + 1);
+      } else {
+        pendingMessages = userMessages.slice(-limit);
+      }
+    } else {
+      pendingMessages = userMessages.slice(-limit);
+    }
 
     await activityLoggerService.log({
       type: 'event',
       category: 'orchestrator',
-      summary: `Retrieved ${recentMessages.length} recent messages`,
+      summary: `Retrieved ${pendingMessages.length} pending user messages`,
       details: {
-        messageCount: recentMessages.length,
-        messages: recentMessages.map(m => ({
+        messageCount: pendingMessages.length,
+        messages: pendingMessages.map(m => ({
           from: m.from,
           text: m.text.slice(0, 200),
           timestamp: m.timestamp,
@@ -1247,10 +1272,17 @@ class OrchestratorLoopService extends EventEmitter {
     });
 
     // Add to conversation history so LLM can see the messages
-    this.conversationHistory.push({
-      role: 'user',
-      content: `Recent messages:\n${recentMessages.map(m => `[${m.from}]: ${m.text}`).join('\n')}`,
-    });
+    if (pendingMessages.length > 0) {
+      this.conversationHistory.push({
+        role: 'user',
+        content: `New messages from user:\n${pendingMessages.map(m => `[${m.from}]: ${m.text}`).join('\n')}`,
+      });
+    } else {
+      this.conversationHistory.push({
+        role: 'user',
+        content: 'No new messages from the user.',
+      });
+    }
   }
 
   /**
@@ -1463,6 +1495,50 @@ class OrchestratorLoopService extends EventEmitter {
   }
 
   /**
+   * Get pending user messages from chat.json (messages after lastProcessedMessageId)
+   */
+  private async getPendingUserMessages(): Promise<Array<{ id: string; text: string; timestamp: string; from: string }>> {
+    const projectId = this.projectId;
+    if (!projectId) return [];
+
+    const project = projectService.getProject(projectId);
+    if (!project?.path) return [];
+
+    const chatPath = join(project.path, '.orchard', 'chat.json');
+    let messages: Array<{ id: string; text: string; timestamp: string; from: string }> = [];
+
+    try {
+      if (existsSync(chatPath)) {
+        const data = await readFile(chatPath, 'utf-8');
+        messages = JSON.parse(data);
+      }
+    } catch {
+      return [];
+    }
+
+    // Only get user messages (not orchestrator messages)
+    const userMessages = messages.filter(m => m.from === 'user');
+
+    // If we have a lastProcessedMessageId, only return messages after it
+    if (this.lastProcessedMessageId) {
+      const lastIndex = userMessages.findIndex(m => m.id === this.lastProcessedMessageId);
+      if (lastIndex !== -1) {
+        return userMessages.slice(lastIndex + 1);
+      }
+    }
+
+    return userMessages;
+  }
+
+  /**
+   * Mark messages as processed (up to and including the given message ID)
+   */
+  private markMessagesProcessed(messageId: string): void {
+    this.lastProcessedMessageId = messageId;
+    console.log(`[OrchestratorLoop] Marked messages processed up to ${messageId}`);
+  }
+
+  /**
    * Gather context for the tick
    */
   private async gatherTickContext(): Promise<TickContext> {
@@ -1494,8 +1570,8 @@ class OrchestratorLoopService extends EventEmitter {
         };
       });
 
-    // Get pending user messages
-    const unreadMessages = await messageQueueService.getUnreadMessages(projectId);
+    // Get pending user messages from chat.json (not messageQueueService)
+    const pendingMessages = await this.getPendingUserMessages();
 
     // Get pending completions/questions/errors and clear them
     const completions = [...this.pendingCompletions];
@@ -1508,7 +1584,7 @@ class OrchestratorLoopService extends EventEmitter {
     return {
       timestamp: new Date(),
       tickNumber: this.tickNumber,
-      pendingUserMessages: unreadMessages.length,
+      pendingUserMessages: pendingMessages.length,
       activeAgents,
       deadSessions: deadWorktreeIds,
       completions,
