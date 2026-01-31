@@ -4,6 +4,7 @@ import { mkdir, writeFile, readFile } from 'fs/promises';
 import { join, basename } from 'path';
 import { randomUUID, createHash } from 'crypto';
 import { projectService } from './project.service.js';
+import { daemonClient } from '../pty/daemon-client.js';
 
 export interface Worktree {
   id: string;
@@ -129,10 +130,15 @@ class WorktreeService {
           const archived = this.archivedWorktrees.has(id);
 
           // Check if this branch has been merged into default branch
-          // Only mark merged if: all commits in main AND no uncommitted changes AND no ahead commits
-          const merged = !isMain && branch && status.modified === 0 && status.staged === 0 && status.untracked === 0 && status.ahead === 0
-            ? await this.checkIfMerged(projectId, branch)
-            : false;
+          // Only mark merged if: all commits in main AND no uncommitted changes AND no ahead commits AND no active terminal sessions
+          let merged = false;
+          if (!isMain && branch && status.modified === 0 && status.staged === 0 && status.untracked === 0 && status.ahead === 0) {
+            // Check for active terminal sessions first
+            const hasActiveSessions = await this.hasActiveTerminalSessions(worktreeId);
+            if (!hasActiveSessions) {
+              merged = await this.checkIfMerged(projectId, branch);
+            }
+          }
 
           const worktree: Worktree = {
             id,
@@ -348,6 +354,17 @@ class WorktreeService {
       return true; // Exit code 0 means branch is merged
     } catch {
       return false; // Exit code 1 means not merged
+    }
+  }
+
+  // Check if a worktree has active terminal sessions (means someone is working on it)
+  async hasActiveTerminalSessions(worktreeId: string): Promise<boolean> {
+    if (!daemonClient.isConnected()) return false;
+    try {
+      const sessions = await daemonClient.listSessions();
+      return sessions.some((s: any) => s.worktreeId === worktreeId);
+    } catch {
+      return false;
     }
   }
 
