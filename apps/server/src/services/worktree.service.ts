@@ -4,6 +4,7 @@ import { mkdir, writeFile, readFile } from 'fs/promises';
 import { join, basename } from 'path';
 import { randomUUID, createHash } from 'crypto';
 import { projectService } from './project.service.js';
+import { daemonClient } from '../pty/daemon-client.js';
 
 export interface Worktree {
   id: string;
@@ -128,12 +129,9 @@ class WorktreeService {
           const status = await this.getWorktreeStatus(path);
           const archived = this.archivedWorktrees.has(id);
 
-          // Check if this branch has been merged into default branch
-          // Only mark merged if: all commits in main AND no uncommitted changes AND no ahead commits
-          let merged = false;
-          if (!isMain && branch && status.modified === 0 && status.staged === 0 && status.untracked === 0 && status.ahead === 0) {
-            merged = await this.checkIfMerged(projectId, branch);
-          }
+          // Merged detection disabled - the previous logic incorrectly marked new branches
+          // from master as merged (since they are ancestors of master)
+          const merged = false;
 
           const worktree: Worktree = {
             id,
@@ -352,6 +350,16 @@ class WorktreeService {
     }
   }
 
+  // Check if a worktree has active terminal sessions (means someone is working on it)
+  async hasActiveTerminalSessions(worktreeId: string): Promise<boolean> {
+    if (!daemonClient.isConnected()) return false;
+    try {
+      const sessions = await daemonClient.listSessions();
+      return sessions.some((s: any) => s.worktreeId === worktreeId);
+    } catch {
+      return false;
+    }
+  }
 
   // Mark worktree as having new activity (un-archive it)
   markWorktreeActive(worktreeId: string): Worktree | undefined {
