@@ -41,6 +41,43 @@ class TerminalDaemon {
   // Handles both ```orchestrator-message and ``` closings with various whitespace
   private readonly orchestratorMessageRegex = /```orchestrator-message\s*\n([\s\S]*?)```/g;
 
+  // Shell prompt patterns to detect when shell is ready for input
+  // Matches common prompt endings: $, %, #, >, or PS C:\>
+  private readonly shellPromptPatterns = [
+    /[$%#>]\s*$/,                    // Common Unix prompts: $, %, #, >
+    /PS [A-Z]:\\[^>]*>\s*$/,         // PowerShell prompt
+    /\w+@[\w.-]+[:\s][^\n]*[$#%]\s*$/,  // user@host:path$
+    /^\s*\[\d+\]\s*[$#%>]\s*$/,     // [1] $ style prompt
+    />\s*$/,                         // Simple > prompt
+  ];
+
+  /**
+   * Check if the given output ends with a shell prompt, indicating readiness
+   */
+  private isShellReady(output: string): boolean {
+    // Get the last line or last meaningful chunk
+    const lines = output.split(/[\r\n]+/).filter(l => l.trim());
+    if (lines.length === 0) return false;
+    const lastLine = lines[lines.length - 1];
+
+    return this.shellPromptPatterns.some(pattern => pattern.test(lastLine));
+  }
+
+  /**
+   * Check if Claude is ready for input (shows the input prompt)
+   */
+  private isClaudeReady(output: string): boolean {
+    // Claude shows ">" when ready for input, but we need to be careful
+    // not to trigger on shell prompts. Claude's prompt is typically on its own line.
+    const lines = output.split(/[\r\n]+/).filter(l => l.trim());
+    if (lines.length === 0) return false;
+    const lastLine = lines[lines.length - 1].trim();
+
+    // Claude's input prompt is just ">" possibly with some ANSI codes
+    // It appears after Claude finishes loading
+    return /^(\x1b\[[0-9;]*m)*>\s*(\x1b\[[0-9;]*m)*$/.test(lastLine) || lastLine === '>';
+  }
+
   /**
    * Parse orchestrator-message blocks from terminal output
    * Returns parsed messages and remaining unparsed buffer
@@ -238,6 +275,24 @@ class TerminalDaemon {
     const isClaudeSession = initialCommand?.includes('claude');
     let taskCompleteNotified = false;
     let isRateLimited = false;
+    let claudeReadyNotified = false;
+
+    // Event-driven startup state machine
+    let shellReady = false;
+    let initialCommandSent = false;
+    let startupTimeoutId: NodeJS.Timeout | null = null;
+    const MAX_STARTUP_WAIT = 10000; // 10 second max wait for shell
+
+    // Set a fallback timeout in case shell prompt detection fails
+    if (initialCommand) {
+      startupTimeoutId = setTimeout(() => {
+        if (!initialCommandSent) {
+          console.log(`Shell prompt detection timeout for session ${id}, sending command anyway`);
+          initialCommandSent = true;
+          ptyProcess.write(initialCommand + '\r');
+        }
+      }, MAX_STARTUP_WAIT);
+    }
 
     // Handle PTY output
     ptyProcess.onData((data) => {
@@ -247,31 +302,74 @@ class TerminalDaemon {
         session.scrollback.shift();
       }
 
+      // Event-driven shell readiness detection
+      if (initialCommand && !initialCommandSent) {
+        const recentOutput = session.scrollback.slice(-5).join('');
+        if (this.isShellReady(recentOutput)) {
+          shellReady = true;
+          initialCommandSent = true;
+          if (startupTimeoutId) {
+            clearTimeout(startupTimeoutId);
+            startupTimeoutId = null;
+          }
+          console.log(`Shell ready detected for session ${id}, sending initial command`);
+          // Small delay to ensure terminal is fully rendered
+          setTimeout(() => {
+            ptyProcess.write(initialCommand + '\r');
+          }, 50);
+        }
+      }
+
       // Auto-accept Claude's prompts if this is a Claude session
+      // Event-driven: respond immediately when prompt is detected
       if (isClaudeSession && !trustPromptHandled) {
-        const recentOutput = session.scrollback.slice(-10).join('');
+        const recentOutput = session.scrollback.slice(-15).join('');
         // Handle trust folder prompt
         if (recentOutput.includes('Do you trust the files in this folder?') ||
             recentOutput.includes('Yes, proceed')) {
           trustPromptHandled = true;
-          setTimeout(() => {
-            ptyProcess.write('\r');
-            console.log(`Auto-accepted trust prompt for session ${id}`);
-          }, 100);
+          console.log(`Trust prompt detected for session ${id}, auto-accepting`);
+          // Immediate response - the prompt is ready
+          ptyProcess.write('\r');
+          console.log(`Auto-accepted trust prompt for session ${id}`);
         }
         // Handle bypass permissions confirmation (select option 2: "Yes, I accept")
         // Only trigger when we see "Enter to confirm" which means the menu is ready
         if ((recentOutput.includes('Bypass Permissions mode') || recentOutput.includes('Yes, I accept'))
             && recentOutput.includes('Enter to confirm')) {
           trustPromptHandled = true;
+          console.log(`Bypass permissions prompt detected for session ${id}, auto-accepting`);
           // Send arrow down to select option 2, then enter
+          // Small delay for UI rendering, but not excessive
           setTimeout(() => {
             ptyProcess.write('\x1b[B'); // Arrow down
             setTimeout(() => {
               ptyProcess.write('\r'); // Enter
               console.log(`Auto-accepted bypass permissions for session ${id}`);
-            }, 200);
-          }, 500);
+            }, 100);
+          }, 100);
+        }
+      }
+
+      // Detect when Claude is ready for input and broadcast notification
+      // This happens after startup prompts are handled and Claude shows its ">" prompt
+      if (isClaudeSession && trustPromptHandled && !claudeReadyNotified) {
+        const recentOutput = session.scrollback.slice(-5).join('');
+        if (this.isClaudeReady(recentOutput)) {
+          claudeReadyNotified = true;
+          console.log(`Claude ready for input detected for session ${id}`);
+          const notification = JSON.stringify({
+            type: 'agent:ready',
+            sessionId: id,
+            worktreeId,
+            timestamp: Date.now(),
+          });
+          // Broadcast to all connected clients
+          this.wss.clients.forEach((client) => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(notification);
+            }
+          });
         }
       }
 
@@ -444,12 +542,7 @@ class TerminalDaemon {
     this.sessions.set(id, session);
     this.persistSessions();
 
-    // Send initial command if provided
-    if (initialCommand) {
-      setTimeout(() => {
-        ptyProcess.write(initialCommand + '\r');
-      }, 500);
-    }
+    // Initial command is now sent via event-driven shell readiness detection in onData handler
 
     ws.send(JSON.stringify({
       type: 'session:created',

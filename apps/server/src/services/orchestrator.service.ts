@@ -129,31 +129,30 @@ class OrchestratorService {
       'claude --dangerously-skip-permissions'
     );
 
-    // Handle the bypass permissions prompt and send task
-    // Step 1: Wait for bypass prompt to appear
-    setTimeout(() => {
-      // Step 2: Arrow down to select "Yes, I accept"
-      daemonClient.writeToSession(terminalSessionId, '\x1b[B');
-
-      setTimeout(() => {
-        // Step 3: Press enter to confirm
-        daemonClient.writeToSession(terminalSessionId, '\r');
-
-        // Step 4: Wait for Claude to be ready, then send task
-        if (description) {
+    // Wait for Claude to be ready (daemon handles bypass permissions prompt automatically)
+    // Then send the task description
+    if (description) {
+      // Wait for agent ready event (or timeout after 30s)
+      daemonClient.waitForAgentReady(terminalSessionId)
+        .then(() => {
+          console.log(`Agent ready, sending task to session ${terminalSessionId}`);
+          daemonClient.writeToSession(terminalSessionId, description);
+          // Small delay to ensure message is received before pressing enter
           setTimeout(() => {
-            // Send the task
-            daemonClient.writeToSession(terminalSessionId, description);
-
-            setTimeout(() => {
-              // Press enter to submit the task
-              daemonClient.writeToSession(terminalSessionId, '\r');
-              console.log(`Sent task to session ${terminalSessionId}`);
-            }, 500);
-          }, 3000);
-        }
-      }, 200);
-    }, 4000);
+            daemonClient.writeToSession(terminalSessionId, '\r');
+            console.log(`Sent task to session ${terminalSessionId}`);
+          }, 100);
+        })
+        .catch((err) => {
+          console.error(`Failed to wait for agent ready: ${err.message}`);
+          // Fallback: send task anyway after timeout
+          daemonClient.writeToSession(terminalSessionId, description);
+          setTimeout(() => {
+            daemonClient.writeToSession(terminalSessionId, '\r');
+            console.log(`Sent task to session ${terminalSessionId} (after timeout fallback)`);
+          }, 100);
+        });
+    }
 
     return JSON.stringify({
       success: true,
@@ -281,9 +280,10 @@ class OrchestratorService {
     const session = sessions[0];
     // Send prompt, then enter to submit
     daemonClient.writeToSession(session.id, prompt);
+    // Small delay to ensure message is received before pressing enter
     setTimeout(() => {
       daemonClient.writeToSession(session.id, '\r');
-    }, 500);
+    }, 100);
     return true;
   }
 
