@@ -239,11 +239,11 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
   const availableBranches = worktrees.map(w => w.branch);
 
   return (
-    <div className="bg-zinc-800 rounded-lg border border-zinc-700 overflow-hidden">
+    <div className="bg-zinc-800 rounded-lg border border-zinc-700 overflow-hidden h-full flex flex-col">
       {/* Header - collapsible */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center justify-between px-3 py-2 bg-zinc-900 hover:bg-zinc-800/50"
+        className="w-full flex items-center justify-between px-3 py-2 bg-zinc-900 hover:bg-zinc-800/50 flex-shrink-0"
       >
         <div className="flex items-center gap-2">
           <Bot size={16} className="text-blue-400" />
@@ -253,9 +253,9 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
       </button>
 
       {isExpanded && (
-        <div className="flex flex-col">
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
           {/* Claude Terminal - main interaction */}
-          <div className="h-64 border-b border-zinc-700">
+          <div className="flex-1 min-h-0 border-b border-zinc-700">
             {orchestratorSessionId && isConnected ? (
               <TerminalInstance
                 sessionId={orchestratorSessionId}
@@ -271,8 +271,8 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
             )}
           </div>
 
-          {/* Quick Actions - compact */}
-          <div className="p-3 space-y-3">
+          {/* Quick Actions - compact and scrollable */}
+          <div className="p-3 space-y-3 overflow-y-auto flex-shrink-0 max-h-48">
             {/* Result message */}
             {result && (
               <div
