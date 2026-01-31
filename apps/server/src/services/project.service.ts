@@ -236,8 +236,8 @@ class ProjectService {
     return Array.from(this.projects.values());
   }
 
-  getMainWorktreePath(projectId: string): string | undefined {
-    const project = this.projects.get(projectId);
+  getMainWorktreePath(projectIdOrName: string): string | undefined {
+    const project = this.getProject(projectIdOrName);
     if (!project) return undefined;
     // In-place projects use the project path directly
     return project.inPlace ? project.path : join(project.path, 'main');
