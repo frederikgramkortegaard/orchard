@@ -46,6 +46,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
                 cwd: session.cwd,
                 createdAt: session.createdAt,
                 isConnected: true,
+                isClaudeSession: true, // Existing sessions are likely Claude sessions (conservative default)
               });
             }
           });
@@ -95,6 +96,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
           cwd: session.cwd,
           createdAt: session.createdAt,
           isConnected: true,
+          isClaudeSession: false, // Manually created terminals are not Claude sessions
         });
 
         // Assign to panel
@@ -239,7 +241,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
               send={send}
               subscribe={subscribe}
               isActive={activePanelId === panel.id}
-              readOnly={true}
+              readOnly={session.isClaudeSession !== false}
             />
           ) : (
             <div className="flex items-center justify-center h-full text-zinc-500">

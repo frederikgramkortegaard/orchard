@@ -6,6 +6,7 @@ export interface TerminalSession {
   cwd: string;
   createdAt: string;
   isConnected: boolean;
+  isClaudeSession?: boolean; // If true, terminal is read-only (controlled by orchestrator)
 }
 
 interface TerminalState {
