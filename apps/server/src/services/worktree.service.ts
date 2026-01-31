@@ -1,0 +1,289 @@
+import { simpleGit } from 'simple-git';
+import { existsSync } from 'fs';
+import { mkdir, writeFile } from 'fs/promises';
+import { join, basename } from 'path';
+import { randomUUID } from 'crypto';
+import { projectService } from './project.service.js';
+
+export interface Worktree {
+  id: string;
+  projectId: string;
+  path: string;
+  branch: string;
+  isMain: boolean;
+  status: WorktreeStatus;
+}
+
+export interface WorktreeStatus {
+  ahead: number;
+  behind: number;
+  modified: number;
+  staged: number;
+  untracked: number;
+}
+
+class WorktreeService {
+  private worktrees = new Map<string, Worktree>();
+
+  async getDefaultBranch(projectId: string): Promise<string> {
+    const mainPath = projectService.getMainWorktreePath(projectId);
+    if (!mainPath) return 'main';
+
+    const git = simpleGit(mainPath);
+
+    try {
+      // Try to get the default branch from remote
+      const remotes = await git.remote(['show', 'origin']);
+      if (remotes) {
+        const match = remotes.match(/HEAD branch: (\S+)/);
+        if (match) return match[1];
+      }
+    } catch {
+      // Fallback: check which branch exists locally
+    }
+
+    try {
+      const branches = await git.branchLocal();
+      // Check common default branch names
+      if (branches.all.includes('main')) return 'main';
+      if (branches.all.includes('master')) return 'master';
+      // Return current branch or first branch
+      return branches.current || branches.all[0] || 'main';
+    } catch {
+      return 'main';
+    }
+  }
+
+  async loadWorktreesForProject(projectId: string): Promise<Worktree[]> {
+    const project = projectService.getProject(projectId);
+    if (!project) return [];
+
+    const mainPath = projectService.getMainWorktreePath(projectId);
+    if (!mainPath || !existsSync(mainPath)) return [];
+
+    const git = simpleGit(mainPath);
+
+    try {
+      // Get worktree list
+      const result = await git.raw(['worktree', 'list', '--porcelain']);
+      const worktreeBlocks = result.split('\n\n').filter(Boolean);
+
+      const worktrees: Worktree[] = [];
+
+      for (const block of worktreeBlocks) {
+        const lines = block.split('\n');
+        let path = '';
+        let branch = '';
+
+        for (const line of lines) {
+          if (line.startsWith('worktree ')) {
+            path = line.replace('worktree ', '');
+          } else if (line.startsWith('branch ')) {
+            branch = line.replace('branch refs/heads/', '');
+          }
+        }
+
+        if (path) {
+          // For in-place projects, the project root is the main worktree
+          // For cloned projects, the /main subdirectory is the main worktree
+          const isMain = path === mainPath;
+          const id = this.getOrCreateId(projectId, path);
+
+          const status = await this.getWorktreeStatus(path);
+
+          const worktree: Worktree = {
+            id,
+            projectId,
+            path,
+            branch: branch || 'detached',
+            isMain,
+            status,
+          };
+
+          worktrees.push(worktree);
+          this.worktrees.set(id, worktree);
+        }
+      }
+
+      return worktrees;
+    } catch (err) {
+      console.error('Error loading worktrees:', err);
+      return [];
+    }
+  }
+
+  async createWorktree(
+    projectId: string,
+    branch: string,
+    options?: { newBranch?: boolean; baseBranch?: string }
+  ): Promise<Worktree> {
+    const project = projectService.getProject(projectId);
+    if (!project) {
+      throw new Error('Project not found');
+    }
+
+    const mainPath = projectService.getMainWorktreePath(projectId);
+    if (!mainPath) {
+      throw new Error('Could not find main worktree');
+    }
+
+    // For in-place projects, create worktrees as siblings
+    // For cloned projects, create them inside the project directory
+    const worktreePath = project.inPlace
+      ? join(project.path, '..', `${basename(project.path)}-${branch}`)
+      : join(project.path, branch);
+
+    if (existsSync(worktreePath)) {
+      throw new Error(`Worktree path already exists: ${worktreePath}`);
+    }
+
+    const git = simpleGit(mainPath);
+
+    if (options?.newBranch) {
+      // Create new branch and worktree
+      const base = options.baseBranch || 'HEAD';
+      await git.raw(['worktree', 'add', '-b', branch, worktreePath, base]);
+    } else {
+      // Create worktree for existing branch
+      await git.raw(['worktree', 'add', worktreePath, branch]);
+    }
+
+    const id = randomUUID();
+    const status = await this.getWorktreeStatus(worktreePath);
+
+    // Set up Claude permissions for this worktree
+    await this.setupClaudePermissions(worktreePath, project.path);
+
+    const worktree: Worktree = {
+      id,
+      projectId,
+      path: worktreePath,
+      branch,
+      isMain: false,
+      status,
+    };
+
+    this.worktrees.set(id, worktree);
+    return worktree;
+  }
+
+  // Set up Claude permissions for a worktree to allow access to entire project folder
+  private async setupClaudePermissions(worktreePath: string, projectPath: string): Promise<void> {
+    const claudeDir = join(worktreePath, '.claude');
+    const settingsPath = join(claudeDir, 'settings.local.json');
+
+    try {
+      if (!existsSync(claudeDir)) {
+        await mkdir(claudeDir, { recursive: true });
+      }
+
+      const settings = {
+        permissions: {
+          allow: [
+            `Bash(${projectPath}/**)`,  // Allow bash in project folder
+            `Read(${projectPath}/**)`,  // Allow reading in project folder
+            `Write(${projectPath}/**)`, // Allow writing in project folder
+            `Edit(${projectPath}/**)`,  // Allow editing in project folder
+          ],
+          deny: []
+        }
+      };
+
+      await writeFile(settingsPath, JSON.stringify(settings, null, 2));
+    } catch (err) {
+      console.error('Error setting up Claude permissions:', err);
+    }
+  }
+
+  async deleteWorktree(worktreeId: string, force = false): Promise<boolean> {
+    const worktree = this.worktrees.get(worktreeId);
+    if (!worktree) return false;
+
+    if (worktree.isMain) {
+      throw new Error('Cannot delete main worktree');
+    }
+
+    const project = projectService.getProject(worktree.projectId);
+    if (!project) return false;
+
+    const mainPath = projectService.getMainWorktreePath(worktree.projectId);
+    if (!mainPath) return false;
+
+    const git = simpleGit(mainPath);
+
+    try {
+      const args = ['worktree', 'remove', worktree.path];
+      if (force) args.push('--force');
+      await git.raw(args);
+      this.worktrees.delete(worktreeId);
+      return true;
+    } catch (err) {
+      console.error('Error deleting worktree:', err);
+      return false;
+    }
+  }
+
+  async getWorktreeStatus(worktreePath: string): Promise<WorktreeStatus> {
+    if (!existsSync(worktreePath)) {
+      return { ahead: 0, behind: 0, modified: 0, staged: 0, untracked: 0 };
+    }
+
+    const git = simpleGit(worktreePath);
+
+    try {
+      const status = await git.status();
+
+      return {
+        ahead: status.ahead,
+        behind: status.behind,
+        modified: status.modified.length,
+        staged: status.staged.length,
+        untracked: status.not_added.length,
+      };
+    } catch {
+      return { ahead: 0, behind: 0, modified: 0, staged: 0, untracked: 0 };
+    }
+  }
+
+  async getBranches(projectId: string): Promise<{ local: string[]; remote: string[]; defaultBranch: string }> {
+    const mainPath = projectService.getMainWorktreePath(projectId);
+    if (!mainPath) return { local: [], remote: [], defaultBranch: 'main' };
+
+    const git = simpleGit(mainPath);
+    const defaultBranch = await this.getDefaultBranch(projectId);
+
+    try {
+      const branches = await git.branch(['-a']);
+      const local = branches.all.filter(b => !b.startsWith('remotes/'));
+      const remote = branches.all
+        .filter(b => b.startsWith('remotes/origin/'))
+        .map(b => b.replace('remotes/origin/', ''));
+
+      return { local, remote, defaultBranch };
+    } catch {
+      return { local: [], remote: [], defaultBranch };
+    }
+  }
+
+  getWorktree(worktreeId: string): Worktree | undefined {
+    return this.worktrees.get(worktreeId);
+  }
+
+  getWorktreesForProject(projectId: string): Worktree[] {
+    return Array.from(this.worktrees.values()).filter(w => w.projectId === projectId);
+  }
+
+  private pathToIdMap = new Map<string, string>();
+
+  private getOrCreateId(projectId: string, path: string): string {
+    const key = `${projectId}:${path}`;
+    let id = this.pathToIdMap.get(key);
+    if (!id) {
+      id = randomUUID();
+      this.pathToIdMap.set(key, id);
+    }
+    return id;
+  }
+}
+
+export const worktreeService = new WorktreeService();

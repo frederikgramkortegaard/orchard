@@ -1,0 +1,341 @@
+import { WebSocketServer, WebSocket } from 'ws';
+import * as pty from 'node-pty';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { join } from 'path';
+import { homedir } from 'os';
+
+const DAEMON_PORT = 3002;
+const DATA_DIR = join(homedir(), '.orchard');
+const SESSIONS_FILE = join(DATA_DIR, 'terminal-sessions.json');
+
+// Ensure data directory exists
+if (!existsSync(DATA_DIR)) {
+  mkdirSync(DATA_DIR, { recursive: true });
+}
+
+interface SessionInfo {
+  id: string;
+  worktreeId: string;
+  cwd: string;
+  createdAt: string;
+  initialCommand?: string;
+}
+
+interface PtySession {
+  id: string;
+  worktreeId: string;
+  cwd: string;
+  createdAt: Date;
+  pty: pty.IPty;
+  scrollback: string[];
+  subscribers: Set<WebSocket>;
+  unackedData: number;
+}
+
+class TerminalDaemon {
+  private sessions = new Map<string, PtySession>();
+  private wss: WebSocketServer;
+
+  constructor() {
+    // Load persisted session info (but we can't restore PTY processes)
+    this.loadPersistedSessions();
+
+    // Create WebSocket server
+    this.wss = new WebSocketServer({ port: DAEMON_PORT });
+    console.log(`Terminal daemon listening on ws://localhost:${DAEMON_PORT}`);
+
+    this.wss.on('connection', (ws) => {
+      console.log('Client connected to terminal daemon');
+
+      ws.on('message', (raw) => {
+        try {
+          const msg = JSON.parse(raw.toString());
+          this.handleMessage(ws, msg);
+        } catch (err) {
+          console.error('Error handling message:', err);
+        }
+      });
+
+      ws.on('close', () => {
+        // Unsubscribe from all sessions
+        this.sessions.forEach((session) => {
+          session.subscribers.delete(ws);
+        });
+      });
+
+      // Send connected acknowledgment
+      ws.send(JSON.stringify({ type: 'daemon:connected', timestamp: Date.now() }));
+    });
+
+    // Graceful shutdown
+    process.on('SIGINT', () => this.shutdown());
+    process.on('SIGTERM', () => this.shutdown());
+  }
+
+  private handleMessage(ws: WebSocket, msg: any) {
+    switch (msg.type) {
+      case 'session:create':
+        this.createSession(ws, msg);
+        break;
+      case 'session:destroy':
+        this.destroySession(ws, msg.sessionId, msg.requestId);
+        break;
+      case 'session:list':
+        this.listSessions(ws, msg.requestId);
+        break;
+      case 'session:get':
+        this.getSession(ws, msg.sessionId, msg.requestId);
+        break;
+      case 'terminal:subscribe':
+        this.subscribeToSession(ws, msg.sessionId);
+        break;
+      case 'terminal:unsubscribe':
+        this.unsubscribeFromSession(ws, msg.sessionId);
+        break;
+      case 'terminal:input':
+        this.writeToSession(msg.sessionId, msg.data);
+        break;
+      case 'terminal:resize':
+        this.resizeSession(msg.sessionId, msg.cols, msg.rows);
+        break;
+      case 'terminal:ack':
+        this.acknowledgeData(msg.sessionId, msg.count);
+        break;
+      case 'ping':
+        ws.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }));
+        break;
+      default:
+        console.warn('Unknown message type:', msg.type);
+    }
+  }
+
+  private createSession(ws: WebSocket, msg: any) {
+    const { worktreeId, cwd, initialCommand, requestId } = msg;
+    const id = crypto.randomUUID();
+
+    const shell = process.platform === 'win32' ? 'powershell.exe' : process.env.SHELL || '/bin/bash';
+    const ptyProcess = pty.spawn(shell, [], {
+      name: 'xterm-256color',
+      cols: 80,
+      rows: 24,
+      cwd,
+      env: { ...process.env, TERM: 'xterm-256color' },
+    });
+
+    const session: PtySession = {
+      id,
+      worktreeId,
+      cwd,
+      createdAt: new Date(),
+      pty: ptyProcess,
+      scrollback: [],
+      subscribers: new Set(),
+      unackedData: 0,
+    };
+
+    // Handle PTY output
+    ptyProcess.onData((data) => {
+      // Add to scrollback (keep last 10000 lines worth)
+      session.scrollback.push(data);
+      if (session.scrollback.length > 10000) {
+        session.scrollback.shift();
+      }
+
+      // Broadcast to subscribers with flow control
+      const MAX_UNACKED = 100;
+      if (session.unackedData < MAX_UNACKED) {
+        session.unackedData++;
+        const message = JSON.stringify({
+          type: 'terminal:data',
+          sessionId: id,
+          data,
+        });
+        session.subscribers.forEach((sub) => {
+          if (sub.readyState === WebSocket.OPEN) {
+            sub.send(message);
+          }
+        });
+      }
+    });
+
+    // Handle PTY exit
+    ptyProcess.onExit(({ exitCode }) => {
+      const message = JSON.stringify({
+        type: 'terminal:exit',
+        sessionId: id,
+        exitCode,
+      });
+      session.subscribers.forEach((sub) => {
+        if (sub.readyState === WebSocket.OPEN) {
+          sub.send(message);
+        }
+      });
+    });
+
+    this.sessions.set(id, session);
+    this.persistSessions();
+
+    // Send initial command if provided
+    if (initialCommand) {
+      setTimeout(() => {
+        ptyProcess.write(initialCommand + '\r');
+      }, 500);
+    }
+
+    ws.send(JSON.stringify({
+      type: 'session:created',
+      requestId,
+      session: {
+        id,
+        worktreeId,
+        cwd,
+        createdAt: session.createdAt.toISOString(),
+      },
+    }));
+
+    console.log(`Created session ${id} for worktree ${worktreeId}`);
+  }
+
+  private destroySession(ws: WebSocket, sessionId: string, requestId?: string) {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      ws.send(JSON.stringify({ type: 'session:error', requestId, error: 'Session not found' }));
+      return;
+    }
+
+    session.pty.kill();
+    this.sessions.delete(sessionId);
+    this.persistSessions();
+
+    ws.send(JSON.stringify({ type: 'session:destroyed', requestId, sessionId }));
+    console.log(`Destroyed session ${sessionId}`);
+  }
+
+  private listSessions(ws: WebSocket, requestId?: string) {
+    const sessions = Array.from(this.sessions.values()).map((s) => ({
+      id: s.id,
+      worktreeId: s.worktreeId,
+      cwd: s.cwd,
+      createdAt: s.createdAt.toISOString(),
+      subscriberCount: s.subscribers.size,
+    }));
+    ws.send(JSON.stringify({ type: 'session:list', requestId, sessions }));
+  }
+
+  private getSession(ws: WebSocket, sessionId: string, requestId?: string) {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      ws.send(JSON.stringify({ type: 'session:error', requestId, error: 'Session not found', sessionId }));
+      return;
+    }
+    ws.send(JSON.stringify({
+      type: 'session:info',
+      requestId,
+      session: {
+        id: session.id,
+        worktreeId: session.worktreeId,
+        cwd: session.cwd,
+        createdAt: session.createdAt.toISOString(),
+        subscriberCount: session.subscribers.size,
+      },
+    }));
+  }
+
+  private subscribeToSession(ws: WebSocket, sessionId: string) {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      ws.send(JSON.stringify({ type: 'terminal:error', error: 'Session not found', sessionId }));
+      return;
+    }
+
+    session.subscribers.add(ws);
+
+    // Send scrollback
+    ws.send(JSON.stringify({
+      type: 'terminal:scrollback',
+      sessionId,
+      data: session.scrollback,
+    }));
+  }
+
+  private unsubscribeFromSession(ws: WebSocket, sessionId: string) {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      session.subscribers.delete(ws);
+    }
+  }
+
+  private writeToSession(sessionId: string, data: string) {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      session.pty.write(data);
+    }
+  }
+
+  private resizeSession(sessionId: string, cols: number, rows: number) {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      session.pty.resize(cols, rows);
+    }
+  }
+
+  private acknowledgeData(sessionId: string, count: number) {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      session.unackedData = Math.max(0, session.unackedData - count);
+    }
+  }
+
+  private persistSessions() {
+    const sessionsData: SessionInfo[] = Array.from(this.sessions.values()).map((s) => ({
+      id: s.id,
+      worktreeId: s.worktreeId,
+      cwd: s.cwd,
+      createdAt: s.createdAt.toISOString(),
+    }));
+    writeFileSync(SESSIONS_FILE, JSON.stringify(sessionsData, null, 2));
+  }
+
+  private loadPersistedSessions() {
+    // Note: We can't restore PTY processes, but we log what was running
+    if (existsSync(SESSIONS_FILE)) {
+      try {
+        const data = JSON.parse(readFileSync(SESSIONS_FILE, 'utf-8'));
+        if (data.length > 0) {
+          console.log(`Found ${data.length} previous sessions (PTY processes cannot be restored):`);
+          data.forEach((s: SessionInfo) => {
+            console.log(`  - ${s.id}: ${s.worktreeId} @ ${s.cwd}`);
+          });
+        }
+        // Clear the file since we can't restore
+        writeFileSync(SESSIONS_FILE, '[]');
+      } catch {
+        // Ignore parse errors
+      }
+    }
+  }
+
+  private shutdown() {
+    console.log('\nShutting down terminal daemon...');
+
+    // Kill all PTY processes
+    this.sessions.forEach((session) => {
+      try {
+        session.pty.kill();
+      } catch {
+        // Ignore errors
+      }
+    });
+
+    // Clear persisted sessions since PTYs are gone
+    writeFileSync(SESSIONS_FILE, '[]');
+
+    this.wss.close(() => {
+      console.log('Terminal daemon stopped');
+      process.exit(0);
+    });
+  }
+}
+
+// Start daemon
+new TerminalDaemon();
