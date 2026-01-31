@@ -9,6 +9,7 @@ import { filesRoutes } from './routes/files.js';
 import { messagesRoutes } from './routes/messages.js';
 import { handleTerminalWebSocket } from './websocket/terminal.handler.js';
 import { projectService } from './services/project.service.js';
+import { messageQueueService } from './services/message-queue.service.js';
 
 const fastify = Fastify({
   logger: true,
@@ -22,6 +23,7 @@ await fastify.register(websocket);
 
 // Initialize services
 await projectService.initialize();
+await messageQueueService.initialize(); // Load persisted messages, clean up old ones
 
 // Health check endpoint
 fastify.get('/health', async () => {
