@@ -74,20 +74,23 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
                 onClick={() => setActiveWorktree(worktree.id)}
                 className={`w-full flex items-center gap-2 px-3 py-2 rounded text-left group ${
                   activeWorktreeId === worktree.id ? 'bg-zinc-300 dark:bg-zinc-600' : 'hover:bg-zinc-200/50 dark:hover:bg-zinc-700/50'
-                } ${worktree.merged ? 'opacity-60' : ''}`}
+                } ${worktree.archived ? 'opacity-40' : worktree.merged ? 'opacity-60' : ''}`}
               >
-                {worktree.merged ? (
+                {worktree.archived ? (
+                  <Archive size={14} className="text-zinc-400 flex-shrink-0" />
+                ) : worktree.merged ? (
                   <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
                 ) : (
                   <GitBranch size={14} className="text-zinc-500 dark:text-zinc-400 flex-shrink-0" />
                 )}
-                <span className={`flex-1 truncate text-sm ${worktree.merged ? 'text-zinc-400 dark:text-zinc-500' : ''}`}>
+                <span className={`flex-1 truncate text-sm ${worktree.archived || worktree.merged ? 'text-zinc-400 dark:text-zinc-500' : ''}`}>
                   {worktree.branch}
                   {worktree.isMain && <span className="text-zinc-400 dark:text-zinc-500 ml-1">(main)</span>}
-                  {worktree.merged && <span className="text-green-500 ml-1">(merged)</span>}
+                  {worktree.archived && <span className="text-zinc-400 ml-1">(archived)</span>}
+                  {!worktree.archived && worktree.merged && <span className="text-green-500 ml-1">(merged)</span>}
                 </span>
-                {!worktree.merged && getStatusIndicator(worktree)}
-                {!worktree.isMain && (
+                {!worktree.archived && !worktree.merged && getStatusIndicator(worktree)}
+                {!worktree.isMain && !worktree.archived && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();

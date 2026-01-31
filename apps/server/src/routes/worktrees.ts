@@ -134,7 +134,7 @@ export async function worktreesRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Archive worktree - close all terminal sessions for this worktree
+  // Archive worktree - close all terminal sessions and mark as archived
   fastify.post<{ Params: { id: string } }>('/worktrees/:id/archive', async (request, reply) => {
     const worktree = worktreeService.getWorktree(request.params.id);
     if (!worktree) {
@@ -160,6 +160,12 @@ export async function worktreesRoutes(fastify: FastifyInstance) {
       }
     }
 
-    return { success: true, sessionsDestroyed };
+    // Mark worktree as archived (persists to disk)
+    const archivedWorktree = await worktreeService.archiveWorktree(request.params.id);
+    if (!archivedWorktree) {
+      return reply.status(500).send({ error: 'Failed to archive worktree' });
+    }
+
+    return { success: true, sessionsDestroyed, worktree: archivedWorktree };
   });
 }

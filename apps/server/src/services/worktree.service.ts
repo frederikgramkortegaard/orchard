@@ -1,6 +1,6 @@
 import { simpleGit } from 'simple-git';
 import { existsSync } from 'fs';
-import { mkdir, writeFile } from 'fs/promises';
+import { mkdir, writeFile, readFile } from 'fs/promises';
 import { join, basename } from 'path';
 import { randomUUID, createHash } from 'crypto';
 import { projectService } from './project.service.js';
@@ -12,6 +12,7 @@ export interface Worktree {
   branch: string;
   isMain: boolean;
   merged: boolean;
+  archived: boolean;
   status: WorktreeStatus;
 }
 
@@ -25,6 +26,33 @@ export interface WorktreeStatus {
 
 class WorktreeService {
   private worktrees = new Map<string, Worktree>();
+  private archivedWorktrees = new Set<string>(); // worktree IDs that are archived
+
+  // Load archived worktrees from project-local storage
+  private async loadArchivedWorktrees(projectPath: string): Promise<Set<string>> {
+    const archivePath = join(projectPath, '.orchard', 'archived-worktrees.json');
+    if (!existsSync(archivePath)) {
+      return new Set();
+    }
+    try {
+      const data = await readFile(archivePath, 'utf-8');
+      const archived: string[] = JSON.parse(data);
+      return new Set(archived);
+    } catch {
+      return new Set();
+    }
+  }
+
+  // Save archived worktrees to project-local storage
+  private async saveArchivedWorktrees(projectPath: string): Promise<void> {
+    const orchardDir = join(projectPath, '.orchard');
+    if (!existsSync(orchardDir)) {
+      await mkdir(orchardDir, { recursive: true });
+    }
+    const archivePath = join(orchardDir, 'archived-worktrees.json');
+    const archived = Array.from(this.archivedWorktrees);
+    await writeFile(archivePath, JSON.stringify(archived, null, 2));
+  }
 
   async getDefaultBranch(projectId: string): Promise<string> {
     const mainPath = projectService.getMainWorktreePath(projectId);
@@ -62,6 +90,13 @@ class WorktreeService {
     const mainPath = projectService.getMainWorktreePath(projectId);
     if (!mainPath || !existsSync(mainPath)) return [];
 
+    // Load archived worktrees from persistent storage
+    const archivedSet = await this.loadArchivedWorktrees(project.path);
+    // Merge with in-memory set
+    for (const id of archivedSet) {
+      this.archivedWorktrees.add(id);
+    }
+
     const git = simpleGit(mainPath);
 
     try {
@@ -91,6 +126,7 @@ class WorktreeService {
           const id = this.getOrCreateId(projectId, path);
 
           const status = await this.getWorktreeStatus(path);
+          const archived = this.archivedWorktrees.has(id);
 
           // Check if this branch has been merged into default branch
           // Only mark merged if: all commits in main AND no uncommitted changes AND no ahead commits
@@ -105,6 +141,7 @@ class WorktreeService {
             branch: branch || 'detached',
             isMain,
             merged,
+            archived,
             status,
           };
 
@@ -169,6 +206,7 @@ class WorktreeService {
       branch,
       isMain: false,
       merged: false,
+      archived: false,
       status,
     };
 
@@ -313,14 +351,47 @@ class WorktreeService {
     }
   }
 
-  // Mark worktree as having new activity (un-merge it)
+  // Mark worktree as having new activity (un-archive it)
   markWorktreeActive(worktreeId: string): Worktree | undefined {
     const worktree = this.worktrees.get(worktreeId);
     if (!worktree) return undefined;
 
     worktree.merged = false;
+    worktree.archived = false;
+    this.archivedWorktrees.delete(worktreeId);
     this.worktrees.set(worktreeId, worktree);
+
+    // Save to persistent storage
+    const project = projectService.getProject(worktree.projectId);
+    if (project) {
+      this.saveArchivedWorktrees(project.path).catch(console.error);
+    }
+
     return worktree;
+  }
+
+  // Archive a worktree (mark as archived, sessions should be closed by caller)
+  async archiveWorktree(worktreeId: string): Promise<Worktree | undefined> {
+    const worktree = this.worktrees.get(worktreeId);
+    if (!worktree || worktree.isMain) return undefined;
+
+    worktree.archived = true;
+    this.archivedWorktrees.add(worktreeId);
+    this.worktrees.set(worktreeId, worktree);
+
+    // Save to persistent storage
+    const project = projectService.getProject(worktree.projectId);
+    if (project) {
+      await this.saveArchivedWorktrees(project.path);
+    }
+
+    return worktree;
+  }
+
+  // Get merged but not archived worktrees (candidates for auto-archive)
+  getMergedNotArchivedWorktrees(projectId: string): Worktree[] {
+    return this.getWorktreesForProject(projectId)
+      .filter(w => w.merged && !w.archived && !w.isMain);
   }
 
   // Generate deterministic ID based on path so it survives restarts

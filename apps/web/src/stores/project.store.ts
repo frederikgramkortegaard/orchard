@@ -15,6 +15,7 @@ export interface Worktree {
   branch: string;
   isMain: boolean;
   merged: boolean;
+  archived: boolean;
   status: {
     ahead: number;
     behind: number;
