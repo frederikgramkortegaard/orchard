@@ -8,6 +8,7 @@ import { useWebSocket } from '../../contexts/WebSocketContext';
 interface SplitTerminalPaneProps {
   worktreeId?: string;
   worktreePath?: string;
+  projectPath?: string;
 }
 
 interface TerminalPanel {
@@ -15,7 +16,7 @@ interface TerminalPanel {
   sessionId: string | null;
 }
 
-export function SplitTerminalPane({ worktreeId, worktreePath }: SplitTerminalPaneProps) {
+export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: SplitTerminalPaneProps) {
   const { send, subscribe, isConnected } = useWebSocket();
   const { sessions, addSession, removeSession } = useTerminalStore();
   const [panels, setPanels] = useState<TerminalPanel[]>([{ id: 'left', sessionId: null }]);
@@ -72,7 +73,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath }: SplitTerminalPan
       );
 
   const createTerminal = useCallback(async (panelId: string) => {
-    if (!worktreeId || !worktreePath) return;
+    if (!worktreeId || !worktreePath || !projectPath) return;
 
     setIsCreating(true);
     try {
@@ -81,6 +82,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath }: SplitTerminalPan
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           worktreeId,
+          projectPath,
           cwd: worktreePath,
         }),
       });
@@ -105,7 +107,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath }: SplitTerminalPan
     } finally {
       setIsCreating(false);
     }
-  }, [worktreeId, worktreePath, addSession]);
+  }, [worktreeId, worktreePath, projectPath, addSession]);
 
   const closeTerminal = useCallback(async (sessionId: string) => {
     try {
@@ -184,7 +186,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath }: SplitTerminalPan
 
           <button
             onClick={() => createTerminal(panel.id)}
-            disabled={isCreating || !worktreeId || !isConnected}
+            disabled={isCreating || !worktreeId || !projectPath || !isConnected}
             className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded disabled:opacity-50"
             title="New terminal"
           >
@@ -243,7 +245,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath }: SplitTerminalPan
             <div className="flex items-center justify-center h-full text-zinc-500">
               <button
                 onClick={() => createTerminal(panel.id)}
-                disabled={!worktreeId || !isConnected}
+                disabled={!worktreeId || !projectPath || !isConnected}
                 className="px-4 py-2 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 rounded disabled:opacity-50"
               >
                 Create Terminal

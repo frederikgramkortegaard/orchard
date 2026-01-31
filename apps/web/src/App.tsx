@@ -169,6 +169,7 @@ function App() {
             <SplitTerminalPane
               worktreeId={activeWorktreeId || undefined}
               worktreePath={activeWorktree?.path}
+              projectPath={activeProject?.path}
             />
           </Panel>
           </Group>
