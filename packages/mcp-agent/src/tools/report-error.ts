@@ -1,7 +1,7 @@
 import { logActivity } from '../utils/log-activity.js';
 
 export interface ReportErrorArgs {
-  worktreeId: string;
+  worktreeId?: string;
   error: string;
   severity?: 'warning' | 'error' | 'blocker';
   context?: string;

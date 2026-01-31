@@ -14,6 +14,16 @@ import { reportError, ReportErrorArgs } from './tools/report-error.js';
 
 // Orchard server base URL (configurable via env)
 const ORCHARD_API = process.env.ORCHARD_API || 'http://localhost:3001';
+// Worktree ID from env (set when Claude is launched in a worktree)
+const WORKTREE_ID = process.env.WORKTREE_ID || '';
+
+// Helper to inject worktreeId from env if not provided
+function withWorktreeId<T extends { worktreeId?: string }>(args: T): T & { worktreeId: string } {
+  return {
+    ...args,
+    worktreeId: args.worktreeId || WORKTREE_ID,
+  };
+}
 
 // Tool definitions
 const tools: Tool[] = [
@@ -25,7 +35,7 @@ const tools: Tool[] = [
       properties: {
         worktreeId: {
           type: 'string',
-          description: 'The worktree ID this agent is running in',
+          description: 'The worktree ID (auto-injected from environment, usually not needed)',
         },
         summary: {
           type: 'string',
@@ -36,7 +46,7 @@ const tools: Tool[] = [
           description: 'Detailed description of the changes made (optional)',
         },
       },
-      required: ['worktreeId', 'summary'],
+      required: ['summary'],
     },
   },
   {
@@ -47,7 +57,7 @@ const tools: Tool[] = [
       properties: {
         worktreeId: {
           type: 'string',
-          description: 'The worktree ID this agent is running in',
+          description: 'The worktree ID (auto-injected from environment, usually not needed)',
         },
         question: {
           type: 'string',
@@ -63,7 +73,7 @@ const tools: Tool[] = [
           description: 'Possible answer options if applicable (optional)',
         },
       },
-      required: ['worktreeId', 'question'],
+      required: ['question'],
     },
   },
   {
@@ -74,7 +84,7 @@ const tools: Tool[] = [
       properties: {
         worktreeId: {
           type: 'string',
-          description: 'The worktree ID this agent is running in',
+          description: 'The worktree ID (auto-injected from environment, usually not needed)',
         },
         status: {
           type: 'string',
@@ -95,7 +105,7 @@ const tools: Tool[] = [
           description: 'Additional details about progress (optional)',
         },
       },
-      required: ['worktreeId', 'status'],
+      required: ['status'],
     },
   },
   {
@@ -106,7 +116,7 @@ const tools: Tool[] = [
       properties: {
         worktreeId: {
           type: 'string',
-          description: 'The worktree ID this agent is running in',
+          description: 'The worktree ID (auto-injected from environment, usually not needed)',
         },
         error: {
           type: 'string',
@@ -126,17 +136,17 @@ const tools: Tool[] = [
           description: 'Suggested action to resolve the issue',
         },
       },
-      required: ['worktreeId', 'error'],
+      required: ['error'],
     },
   },
 ];
 
-// Tool handlers
+// Tool handlers - automatically inject worktreeId from env if not provided
 const toolHandlers: Record<string, (args: Record<string, unknown>) => Promise<string>> = {
-  report_completion: async (args) => reportCompletion(ORCHARD_API, args as unknown as ReportCompletionArgs),
-  ask_question: async (args) => askQuestion(ORCHARD_API, args as unknown as AskQuestionArgs),
-  report_progress: async (args) => reportProgress(ORCHARD_API, args as unknown as ReportProgressArgs),
-  report_error: async (args) => reportError(ORCHARD_API, args as unknown as ReportErrorArgs),
+  report_completion: async (args) => reportCompletion(ORCHARD_API, withWorktreeId(args as unknown as ReportCompletionArgs)),
+  ask_question: async (args) => askQuestion(ORCHARD_API, withWorktreeId(args as unknown as AskQuestionArgs)),
+  report_progress: async (args) => reportProgress(ORCHARD_API, withWorktreeId(args as unknown as ReportProgressArgs)),
+  report_error: async (args) => reportError(ORCHARD_API, withWorktreeId(args as unknown as ReportErrorArgs)),
 };
 
 // Create and configure server

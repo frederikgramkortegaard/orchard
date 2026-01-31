@@ -1,7 +1,7 @@
 import { logActivity } from '../utils/log-activity.js';
 
 export interface AskQuestionArgs {
-  worktreeId: string;
+  worktreeId?: string;
   question: string;
   context?: string;
   options?: string[];

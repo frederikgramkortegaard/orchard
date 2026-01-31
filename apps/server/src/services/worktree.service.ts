@@ -1,7 +1,8 @@
 import { simpleGit } from 'simple-git';
 import { existsSync } from 'fs';
 import { mkdir, writeFile, readFile } from 'fs/promises';
-import { join, basename } from 'path';
+import { join, basename, resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { randomUUID, createHash } from 'crypto';
 import { projectService } from './project.service.js';
 import { daemonClient } from '../pty/daemon-client.js';
@@ -211,6 +212,9 @@ class WorktreeService {
     // Set up Claude permissions for this worktree
     await this.setupClaudePermissions(worktreePath, project.path);
 
+    // Set up agent MCP config so Claude has access to agent tools
+    await this.setupAgentMcp(worktreePath, id, project.path);
+
     const worktree: Worktree = {
       id,
       projectId,
@@ -263,6 +267,32 @@ class WorktreeService {
       await writeFile(settingsPath, JSON.stringify(settings, null, 2));
     } catch (err) {
       console.error('Error setting up Claude permissions:', err);
+    }
+  }
+
+  // Set up MCP config for agent to communicate with orchestrator
+  private async setupAgentMcp(worktreePath: string, worktreeId: string, projectPath: string): Promise<void> {
+    const mcpConfigPath = join(worktreePath, '.mcp.json');
+
+    try {
+      const agentMcpPath = resolve(projectPath, 'packages/mcp-agent/dist/index.js');
+
+      const mcpConfig = {
+        mcpServers: {
+          'orchard-agent': {
+            command: 'node',
+            args: [agentMcpPath],
+            env: {
+              ORCHARD_API: 'http://localhost:3001',
+              WORKTREE_ID: worktreeId,
+            },
+          },
+        },
+      };
+
+      await writeFile(mcpConfigPath, JSON.stringify(mcpConfig, null, 2));
+    } catch (err) {
+      console.error('Error setting up agent MCP:', err);
     }
   }
 

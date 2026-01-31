@@ -1,7 +1,7 @@
 import { logActivity } from '../utils/log-activity.js';
 
 export interface ReportProgressArgs {
-  worktreeId: string;
+  worktreeId?: string;
   status: string;
   percentComplete?: number;
   currentStep?: string;

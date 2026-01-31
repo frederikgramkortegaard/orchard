@@ -1,7 +1,7 @@
 import { logActivity } from '../utils/log-activity.js';
 
 export interface ReportCompletionArgs {
-  worktreeId: string;
+  worktreeId?: string;
   summary: string;
   details?: string;
 }
