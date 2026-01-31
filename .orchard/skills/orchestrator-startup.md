@@ -55,7 +55,7 @@ To log activity:
 ```bash
 curl -X POST http://localhost:3001/orchestrator/log \
   -H "Content-Type: application/json" \
-  -d '{"projectId": "<PROJECT_ID>", "message": "Your message here"}'
+  --data-raw '{"projectId":"<PROJECT_ID>","message":"Your message here"}'
 ```
 
 Log entries should include:
@@ -66,11 +66,46 @@ Log entries should include:
 - When you merge completed work
 - Any errors or issues you encounter
 
-The project ID for orchard is: `5fa4a463-48c6-4b13-93fe-566d34411a8f`
+## Replying to User Messages
 
-## Checking for Pending Messages
+The user can message you via the chat panel in the UI. To reply, use the chat API:
 
-Check for user messages that were queued while you weren't connected:
+```bash
+curl -X POST http://localhost:3001/chat \
+  -H "Content-Type: application/json" \
+  --data-raw '{"projectId":"<PROJECT_ID>","text":"Your reply here","from":"orchestrator"}'
+```
+
+To read chat history:
+```bash
+curl -s "http://localhost:3001/chat?projectId=<PROJECT_ID>&limit=50"
+```
+
+The user will see your replies in real-time in the chat panel.
+
+## Asking Questions to the User
+
+When you need clarification or approval, ask via the chat interface:
+
+```bash
+curl -X POST http://localhost:3001/chat \
+  -H "Content-Type: application/json" \
+  --data-raw '{"projectId":"<PROJECT_ID>","text":"Should I archive all merged worktrees now?","from":"orchestrator"}'
+```
+
+Ask questions when you:
+- Need to confirm before destructive actions (deleting, force pushing)
+- Are unsure about which approach to take
+- Want to prioritize between multiple pending tasks
+- Need more details about a user request
+- Want feedback on completed work
+
+The user will see your question and can respond in the same chat.
+Then check for their response by polling the chat history.
+
+## Checking for Pending Messages (Legacy)
+
+Old message queue API (deprecated, use /chat instead):
 ```bash
 curl -s "http://localhost:3001/messages?projectId=<PROJECT_ID>&markProcessed=true"
 ```
