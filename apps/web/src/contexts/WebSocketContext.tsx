@@ -24,6 +24,8 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   const pingIntervalRef = useRef<number | null>(null);
   const pongTimeoutRef = useRef<number | null>(null);
   const lastPongRef = useRef<number>(Date.now());
+  // Track if component is mounted to prevent reconnects after unmount
+  const isMountedRef = useRef(true);
 
   const clearPingPong = useCallback(() => {
     if (pingIntervalRef.current) {
@@ -61,8 +63,11 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       reconnectTimeoutRef.current = null;
     }
 
-    // Don't connect if already connected
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
+    // Don't connect if already connected or connecting
+    // CRITICAL: Must check CONNECTING state to prevent race condition where
+    // multiple WebSocket connections are created during fast re-renders
+    if (wsRef.current?.readyState === WebSocket.OPEN ||
+        wsRef.current?.readyState === WebSocket.CONNECTING) {
       return;
     }
 
@@ -86,6 +91,11 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     ws.onclose = () => {
       setIsConnected(false);
       clearPingPong();
+      // Only auto-reconnect if still mounted
+      // This prevents reconnect attempts after component unmount
+      if (!isMountedRef.current) {
+        return;
+      }
       // Auto-reconnect with exponential backoff (max 5 seconds)
       const delay = Math.min(1000 * Math.pow(1.5, reconnectAttempts.current), 5000);
       reconnectAttempts.current++;
@@ -123,9 +133,12 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   }, [clearPingPong, startPingPong]);
 
   useEffect(() => {
+    isMountedRef.current = true;
     connect();
 
     return () => {
+      // Mark as unmounted BEFORE cleanup to prevent reconnects
+      isMountedRef.current = false;
       clearPingPong();
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
