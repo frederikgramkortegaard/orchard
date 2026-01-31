@@ -35,5 +35,16 @@ export async function sendTask(
     throw new Error(`Failed to send message: ${res.statusText}`);
   }
 
+  // Send multiple enter presses after the message to ensure the agent wakes up
+  const enterCount = 5;
+  for (let i = 0; i < enterCount; i++) {
+    await new Promise(resolve => setTimeout(resolve, 100));
+    await fetch(`${apiBase}/terminals/${sessionId}/input`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ input: '\r', sendEnter: false }),
+    });
+  }
+
   return `Sent task to agent ${worktreeId}:\n\n${message}`;
 }
