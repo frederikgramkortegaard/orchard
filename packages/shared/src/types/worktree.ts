@@ -5,6 +5,7 @@ export interface Worktree {
   branch: string;
   isMain: boolean;
   isLocked: boolean;
+  merged: boolean;        // True if worktree branch has been merged
   status: WorktreeStatus;
   terminalSessions: string[];
 }

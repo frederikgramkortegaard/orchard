@@ -90,3 +90,14 @@ export async function fetchBranches(projectId: string): Promise<{ local: string[
   if (!res.ok) throw new Error('Failed to fetch branches');
   return res.json();
 }
+
+export async function markWorktreeMerged(worktreeId: string): Promise<Worktree> {
+  const res = await fetch(`${API_BASE}/worktrees/${worktreeId}/mark-merged`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to mark worktree as merged');
+  }
+  return res.json();
+}
