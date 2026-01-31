@@ -39,6 +39,9 @@ class DaemonClient extends EventEmitter {
         this.connected = true;
         this.reconnecting = false;
         this.emit('connected');
+
+        // Re-subscribe to all sessions that have active client subscribers
+        this.resubscribeAllSessions();
       });
 
       this.ws.on('message', (raw) => {
@@ -54,6 +57,7 @@ class DaemonClient extends EventEmitter {
         console.log('Disconnected from terminal daemon');
         this.connected = false;
         this.ws = null;
+        this.emit('disconnected');
         this.scheduleReconnect();
       });
 
@@ -194,6 +198,19 @@ class DaemonClient extends EventEmitter {
 
   isConnected(): boolean {
     return this.connected;
+  }
+
+  /**
+   * Re-subscribe to all sessions that have active client subscribers.
+   * Called when reconnecting to the daemon.
+   */
+  private resubscribeAllSessions(): void {
+    for (const [sessionId, subscribers] of this.clientSubscribers) {
+      if (subscribers.size > 0) {
+        console.log(`Re-subscribing to session ${sessionId} after daemon reconnect`);
+        this.send({ type: 'terminal:subscribe', sessionId });
+      }
+    }
   }
 
   // Session management

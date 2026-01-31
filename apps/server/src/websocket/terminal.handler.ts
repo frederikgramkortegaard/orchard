@@ -13,6 +13,30 @@ interface TerminalMessage {
 export function handleTerminalWebSocket(ws: WebSocket) {
   const subscribedSessions = new Set<string>();
 
+  // Listen for daemon connection status changes
+  const onDaemonConnected = () => {
+    if (ws.readyState === 1) { // WebSocket.OPEN
+      ws.send(JSON.stringify({
+        type: 'daemon:status',
+        connected: true,
+        timestamp: Date.now(),
+      }));
+    }
+  };
+
+  const onDaemonDisconnected = () => {
+    if (ws.readyState === 1) { // WebSocket.OPEN
+      ws.send(JSON.stringify({
+        type: 'daemon:status',
+        connected: false,
+        timestamp: Date.now(),
+      }));
+    }
+  };
+
+  daemonClient.on('connected', onDaemonConnected);
+  daemonClient.on('disconnected', onDaemonDisconnected);
+
   ws.on('message', (rawMessage: Buffer) => {
     try {
       const message: TerminalMessage = JSON.parse(rawMessage.toString());
@@ -61,6 +85,10 @@ export function handleTerminalWebSocket(ws: WebSocket) {
   });
 
   ws.on('close', () => {
+    // Clean up daemon event listeners
+    daemonClient.off('connected', onDaemonConnected);
+    daemonClient.off('disconnected', onDaemonDisconnected);
+
     // Unsubscribe from all sessions
     subscribedSessions.forEach((sessionId) => {
       daemonClient.unsubscribeFromSession(sessionId, ws);

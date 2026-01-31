@@ -14,9 +14,10 @@ interface TerminalInstanceProps {
   fontSize?: number;
   readOnly?: boolean;
   rateLimit?: RateLimitStatus;
+  connectionId?: number; // Triggers re-subscription when connection is restored
 }
 
-export function TerminalInstance({ sessionId, send, subscribe, isActive, fontSize = 14, readOnly = false, rateLimit }: TerminalInstanceProps) {
+export function TerminalInstance({ sessionId, send, subscribe, isActive, fontSize = 14, readOnly = false, rateLimit, connectionId }: TerminalInstanceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -99,6 +100,25 @@ export function TerminalInstance({ sessionId, send, subscribe, isActive, fontSiz
       terminal.dispose();
     };
   }, [sessionId, send]);
+
+  // Re-subscribe when WebSocket connects or reconnects (connectionId changes)
+  useEffect(() => {
+    // Skip before first connection (connectionId starts at 0, becomes 1+ after connect)
+    if (connectionId === undefined || connectionId === 0) return;
+
+    // Re-subscribe to session after connection/reconnection
+    send({ type: 'terminal:subscribe', sessionId });
+
+    // Re-send resize to ensure terminal dimensions are correct
+    if (terminalRef.current) {
+      send({
+        type: 'terminal:resize',
+        sessionId,
+        cols: terminalRef.current.cols,
+        rows: terminalRef.current.rows,
+      });
+    }
+  }, [connectionId, sessionId, send]);
 
   // Subscribe to terminal data
   useEffect(() => {

@@ -9,7 +9,7 @@ interface TerminalPaneProps {
 }
 
 export function TerminalPane({ worktreeId }: TerminalPaneProps) {
-  const { send, subscribe, isConnected } = useWebSocket();
+  const { send, subscribe, isConnected, connectionId } = useWebSocket();
   const { sessions, activeSessionId, setActiveSession, addSession, removeSession, setSessionRateLimited, clearSessionRateLimit } = useTerminalStore();
   const [isCreating, setIsCreating] = useState(false);
 
@@ -154,6 +154,7 @@ export function TerminalPane({ worktreeId }: TerminalPaneProps) {
                 subscribe={subscribe}
                 isActive={activeSessionId === session.id}
                 rateLimit={session.rateLimit}
+                connectionId={connectionId}
               />
             ))}
           </>

@@ -120,6 +120,14 @@ class TerminalDaemon {
     this.wss.on('connection', (ws) => {
       console.log('Client connected to terminal daemon');
 
+      // Mark connection as alive
+      (ws as any).isAlive = true;
+
+      ws.on('pong', () => {
+        // Client responded to ping - connection is alive
+        (ws as any).isAlive = true;
+      });
+
       ws.on('message', (raw) => {
         try {
           const msg = JSON.parse(raw.toString());
@@ -138,6 +146,23 @@ class TerminalDaemon {
 
       // Send connected acknowledgment
       ws.send(JSON.stringify({ type: 'daemon:connected', timestamp: Date.now() }));
+    });
+
+    // Heartbeat interval to detect dead connections
+    const heartbeatInterval = setInterval(() => {
+      this.wss.clients.forEach((ws) => {
+        if ((ws as any).isAlive === false) {
+          // Client didn't respond to last ping - terminate
+          console.log('Terminating unresponsive client connection');
+          return ws.terminate();
+        }
+        (ws as any).isAlive = false;
+        ws.ping();
+      });
+    }, 30000); // Ping every 30 seconds
+
+    this.wss.on('close', () => {
+      clearInterval(heartbeatInterval);
     });
 
     // Graceful shutdown
