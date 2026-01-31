@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { readdir, stat, readFile } from 'fs/promises';
+import { readdir, stat, readFile, writeFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join, basename, extname } from 'path';
 import { homedir } from 'os';
@@ -213,6 +213,39 @@ export async function filesRoutes(fastify: FastifyInstance) {
 
       const content = await readFile(filePath, 'utf-8');
       return { path: filePath, content };
+    } catch (err: any) {
+      return reply.status(500).send({ error: err.message });
+    }
+  });
+
+  // Save file content
+  fastify.post<{
+    Body: { path: string; content: string };
+  }>('/files/save', async (request, reply) => {
+    const { path: filePath, content } = request.body;
+
+    if (!filePath) {
+      return reply.status(400).send({ error: 'File path is required' });
+    }
+
+    if (!existsSync(filePath)) {
+      return reply.status(404).send({ error: 'File not found' });
+    }
+
+    try {
+      const stats = await stat(filePath);
+
+      if (stats.isDirectory()) {
+        return reply.status(400).send({ error: 'Path is a directory' });
+      }
+
+      const ext = extname(filePath).toLowerCase();
+      if (BINARY_EXTENSIONS.has(ext)) {
+        return reply.status(400).send({ error: 'Binary files cannot be saved' });
+      }
+
+      await writeFile(filePath, content, 'utf-8');
+      return { path: filePath, saved: true };
     } catch (err: any) {
       return reply.status(500).send({ error: err.message });
     }
