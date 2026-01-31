@@ -123,7 +123,7 @@ function App() {
       {/* Main content */}
       <Group orientation="horizontal" className="flex-1 overflow-hidden">
         {/* Resizable sidebar */}
-        <Panel defaultSize="20%" minSize="15%" maxSize="40%">
+        <Panel defaultSize="25%" minSize="15%" maxSize="40%">
           <Sidebar
             onOpenProject={() => setShowProjectModal(true)}
             onCreateWorktree={() => setShowWorktreeModal(true)}

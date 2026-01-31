@@ -7,6 +7,7 @@ export interface TerminalSession {
   createdAt: string;
   isConnected: boolean;
   isClaudeSession?: boolean; // If true, terminal is read-only (controlled by orchestrator)
+  name?: string; // Display name for the terminal
 }
 
 interface TerminalState {

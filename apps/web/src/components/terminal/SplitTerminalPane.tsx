@@ -90,6 +90,15 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
 
       if (res.ok) {
         const session = await res.json();
+
+        // Generate terminal name: worktreename-N (where N is next available number)
+        const worktreeName = worktreePath?.split('/').pop() || 'terminal';
+        const existingCustomTerminals = Array.from(sessions.values()).filter(
+          s => s.worktreeId === worktreeId && s.isClaudeSession === false
+        );
+        const terminalNumber = existingCustomTerminals.length + 1;
+        const terminalName = `${worktreeName}-${terminalNumber}`;
+
         addSession({
           id: session.id,
           worktreeId: session.worktreeId,
@@ -97,6 +106,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
           createdAt: session.createdAt,
           isConnected: true,
           isClaudeSession: false, // Manually created terminals are not Claude sessions
+          name: terminalName,
         });
 
         // Assign to panel
@@ -176,11 +186,11 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
           >
             <option value="">Select terminal...</option>
             {availableSessions.map((s) => {
-              // Extract name from cwd path (last directory name)
-              const name = s.cwd.split('/').pop() || s.id.slice(0, 8);
+              // Use session name if available, otherwise fall back to cwd or id
+              const name = s.name || s.cwd.split('/').pop() || s.id.slice(0, 8);
               return (
                 <option key={s.id} value={s.id}>
-                  {name}
+                  {name}{s.isClaudeSession ? ' (claude)' : ''}
                 </option>
               );
             })}
