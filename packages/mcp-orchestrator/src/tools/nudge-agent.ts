@@ -22,22 +22,21 @@ export async function nudgeAgent(
 
   const sessionId = sessions[0].id;
 
-  // Send enter press to wake up the agent
-  await fetch(`${apiBase}/terminals/${sessionId}/input`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ input: '\r', sendEnter: false }),
-  });
-
-  // Send another after a short delay
-  await new Promise(resolve => setTimeout(resolve, 500));
-  await fetch(`${apiBase}/terminals/${sessionId}/input`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ input: '\r', sendEnter: false }),
-  });
+  // Send multiple enter presses to reliably wake up the agent
+  const enterCount = 10;
+  for (let i = 0; i < enterCount; i++) {
+    await fetch(`${apiBase}/terminals/${sessionId}/input`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ input: '\r', sendEnter: false }),
+    });
+    // Small delay between presses
+    if (i < enterCount - 1) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
 
   await logActivity(apiBase, 'action', 'agent', `MCP: Nudged agent ${worktreeId}`, { worktreeId });
 
-  return `Nudged agent in ${worktreeId}`;
+  return `Nudged agent in ${worktreeId} with ${enterCount} enter presses`;
 }
