@@ -111,6 +111,38 @@ class DaemonClient extends EventEmitter {
       return;
     }
 
+    // Handle rate limit notifications from daemon
+    if (msg.type === 'agent:rate-limited') {
+      console.log(`Rate limit detected: session ${msg.rateLimit.sessionId}, worktree ${msg.rateLimit.worktreeId}`);
+      this.emit('rate-limited', msg);
+      // Forward to all client subscribers
+      this.clientSubscribers.forEach((subscribers) => {
+        const message = JSON.stringify(msg);
+        subscribers.forEach((client) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(message);
+          }
+        });
+      });
+      return;
+    }
+
+    // Handle rate limit cleared notifications from daemon
+    if (msg.type === 'agent:rate-limit-cleared') {
+      console.log(`Rate limit cleared: session ${msg.sessionId}, worktree ${msg.worktreeId}`);
+      this.emit('rate-limit-cleared', msg);
+      // Forward to all client subscribers
+      this.clientSubscribers.forEach((subscribers) => {
+        const message = JSON.stringify(msg);
+        subscribers.forEach((client) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(message);
+          }
+        });
+      });
+      return;
+    }
+
     // Handle terminal data - forward to client subscribers
     if (msg.type === 'terminal:data' || msg.type === 'terminal:scrollback' ||
         msg.type === 'terminal:exit' || msg.type === 'terminal:error') {

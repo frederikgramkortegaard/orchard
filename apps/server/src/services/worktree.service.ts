@@ -134,7 +134,7 @@ class WorktreeService {
           let merged = false;
           if (!isMain && branch && status.modified === 0 && status.staged === 0 && status.untracked === 0 && status.ahead === 0) {
             // Check for active terminal sessions first
-            const hasActiveSessions = await this.hasActiveTerminalSessions(worktreeId);
+            const hasActiveSessions = await this.hasActiveTerminalSessions(id);
             if (!hasActiveSessions) {
               merged = await this.checkIfMerged(projectId, branch);
             }

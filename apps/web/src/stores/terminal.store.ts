@@ -1,5 +1,12 @@
 import { create } from 'zustand';
 
+export interface RateLimitStatus {
+  isLimited: boolean;
+  message?: string;
+  detectedAt?: number;
+  resumedAt?: number;
+}
+
 export interface TerminalSession {
   id: string;
   worktreeId: string;
@@ -8,6 +15,7 @@ export interface TerminalSession {
   isConnected: boolean;
   isClaudeSession?: boolean; // If true, terminal is read-only (controlled by orchestrator)
   name?: string; // Display name for the terminal
+  rateLimit?: RateLimitStatus; // Rate limit status for Claude sessions
 }
 
 interface TerminalState {
@@ -19,7 +27,10 @@ interface TerminalState {
   removeSession: (sessionId: string) => void;
   setActiveSession: (sessionId: string | null) => void;
   setSessionConnected: (sessionId: string, connected: boolean) => void;
+  setSessionRateLimited: (sessionId: string, rateLimit: RateLimitStatus) => void;
+  clearSessionRateLimit: (sessionId: string) => void;
   getSessionsForWorktree: (worktreeId: string) => TerminalSession[];
+  getRateLimitedSessions: () => TerminalSession[];
 }
 
 export const useTerminalStore = create<TerminalState>((set, get) => ({
@@ -60,7 +71,36 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     });
   },
 
+  setSessionRateLimited: (sessionId, rateLimit) => {
+    set((state) => {
+      const sessions = new Map(state.sessions);
+      const session = sessions.get(sessionId);
+      if (session) {
+        sessions.set(sessionId, { ...session, rateLimit });
+      }
+      return { sessions };
+    });
+  },
+
+  clearSessionRateLimit: (sessionId) => {
+    set((state) => {
+      const sessions = new Map(state.sessions);
+      const session = sessions.get(sessionId);
+      if (session) {
+        sessions.set(sessionId, {
+          ...session,
+          rateLimit: { isLimited: false, resumedAt: Date.now() },
+        });
+      }
+      return { sessions };
+    });
+  },
+
   getSessionsForWorktree: (worktreeId) => {
     return Array.from(get().sessions.values()).filter(s => s.worktreeId === worktreeId);
+  },
+
+  getRateLimitedSessions: () => {
+    return Array.from(get().sessions.values()).filter(s => s.rateLimit?.isLimited);
   },
 }));

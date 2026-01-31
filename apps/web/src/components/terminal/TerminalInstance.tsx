@@ -2,7 +2,9 @@ import { useEffect, useRef, useCallback } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
+import { Clock } from 'lucide-react';
 import '@xterm/xterm/css/xterm.css';
+import type { RateLimitStatus } from '../../stores/terminal.store';
 
 interface TerminalInstanceProps {
   sessionId: string;
@@ -11,9 +13,10 @@ interface TerminalInstanceProps {
   isActive: boolean;
   fontSize?: number;
   readOnly?: boolean;
+  rateLimit?: RateLimitStatus;
 }
 
-export function TerminalInstance({ sessionId, send, subscribe, isActive, fontSize = 14, readOnly = false }: TerminalInstanceProps) {
+export function TerminalInstance({ sessionId, send, subscribe, isActive, fontSize = 14, readOnly = false, rateLimit }: TerminalInstanceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -142,11 +145,44 @@ export function TerminalInstance({ sessionId, send, subscribe, isActive, fontSiz
     }
   }, [isActive, handleResize]);
 
+  // Format the time since rate limit was detected
+  const getWaitTime = () => {
+    if (!rateLimit?.detectedAt) return '';
+    const elapsed = Math.floor((Date.now() - rateLimit.detectedAt) / 1000);
+    const minutes = Math.floor(elapsed / 60);
+    const seconds = elapsed % 60;
+    return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+  };
+
   return (
     <div
-      ref={containerRef}
-      className="h-full w-full bg-zinc-900"
+      className="h-full w-full bg-zinc-900 relative"
       style={{ display: isActive ? 'block' : 'none' }}
-    />
+    >
+      <div ref={containerRef} className="h-full w-full" />
+
+      {/* Rate limit overlay */}
+      {rateLimit?.isLimited && (
+        <div className="absolute inset-0 bg-zinc-900/80 flex items-center justify-center z-10">
+          <div className="bg-zinc-800 border border-amber-500/50 rounded-lg p-6 max-w-md text-center">
+            <div className="flex items-center justify-center gap-2 text-amber-500 mb-3">
+              <Clock size={24} className="animate-pulse" />
+              <span className="text-lg font-semibold">Session Paused</span>
+            </div>
+            <p className="text-zinc-300 text-sm mb-2">
+              Claude has hit a rate limit and is waiting to resume.
+            </p>
+            {rateLimit.message && (
+              <p className="text-zinc-400 text-xs bg-zinc-900 rounded p-2 mb-2 max-h-20 overflow-auto">
+                {rateLimit.message}
+              </p>
+            )}
+            <p className="text-zinc-500 text-xs">
+              Waiting: {getWaitTime()}
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
-import { Plus, X, SplitSquareHorizontal, Square } from 'lucide-react';
+import { Plus, X, SplitSquareHorizontal, Square, Clock } from 'lucide-react';
 import { useTerminalStore } from '../../stores/terminal.store';
 import { TerminalInstance } from './TerminalInstance';
 import { useWebSocket } from '../../contexts/WebSocketContext';
@@ -18,10 +18,31 @@ interface TerminalPanel {
 
 export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: SplitTerminalPaneProps) {
   const { send, subscribe, isConnected } = useWebSocket();
-  const { sessions, addSession, removeSession } = useTerminalStore();
+  const { sessions, addSession, removeSession, setSessionRateLimited, clearSessionRateLimit } = useTerminalStore();
   const [panels, setPanels] = useState<TerminalPanel[]>([{ id: 'left', sessionId: null }]);
   const [activePanelId, setActivePanelId] = useState('left');
   const [isCreating, setIsCreating] = useState(false);
+
+  // Subscribe to rate limit events
+  useEffect(() => {
+    const unsubRateLimited = subscribe('agent:rate-limited', (msg: any) => {
+      const { rateLimit } = msg;
+      setSessionRateLimited(rateLimit.sessionId, {
+        isLimited: true,
+        message: rateLimit.message,
+        detectedAt: rateLimit.detectedAt,
+      });
+    });
+
+    const unsubRateLimitCleared = subscribe('agent:rate-limit-cleared', (msg: any) => {
+      clearSessionRateLimit(msg.sessionId);
+    });
+
+    return () => {
+      unsubRateLimited();
+      unsubRateLimitCleared();
+    };
+  }, [subscribe, setSessionRateLimited, clearSessionRateLimit]);
 
   // Reset panels and fetch existing sessions when worktree changes
   // NOTE: Only the orchestrator creates sessions - UI just views them
@@ -173,7 +194,10 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
         onClick={() => setActivePanelId(panel.id)}
       >
         {/* Panel header */}
-        <div className="flex items-center gap-1 px-2 py-1 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700">
+        <div className={`flex items-center gap-1 px-2 py-1 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700 ${session?.rateLimit?.isLimited ? 'border-b-amber-500' : ''}`}>
+          {session?.rateLimit?.isLimited && (
+            <Clock size={14} className="text-amber-500 animate-pulse" />
+          )}
           {/* Session selector */}
           <select
             value={panel.sessionId || ''}
@@ -188,9 +212,10 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
             {availableSessions.map((s) => {
               // Use session name if available, otherwise fall back to cwd or id
               const name = s.name || s.cwd.split('/').pop() || s.id.slice(0, 8);
+              const suffix = s.rateLimit?.isLimited ? ' (paused)' : s.isClaudeSession ? ' (claude)' : '';
               return (
                 <option key={s.id} value={s.id}>
-                  {name}{s.isClaudeSession ? ' (claude)' : ''}
+                  {name}{suffix}
                 </option>
               );
             })}
@@ -252,6 +277,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
               subscribe={subscribe}
               isActive={activePanelId === panel.id}
               readOnly={session.isClaudeSession !== false}
+              rateLimit={session.rateLimit}
             />
           ) : (
             <div className="flex items-center justify-center h-full text-zinc-500">

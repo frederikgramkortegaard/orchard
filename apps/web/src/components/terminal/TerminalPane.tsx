@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTerminalStore } from '../../stores/terminal.store';
 import { TerminalInstance } from './TerminalInstance';
 import { useWebSocket } from '../../contexts/WebSocketContext';
+import { Clock } from 'lucide-react';
 
 interface TerminalPaneProps {
   worktreeId?: string;
@@ -9,8 +10,29 @@ interface TerminalPaneProps {
 
 export function TerminalPane({ worktreeId }: TerminalPaneProps) {
   const { send, subscribe, isConnected } = useWebSocket();
-  const { sessions, activeSessionId, setActiveSession, addSession, removeSession } = useTerminalStore();
+  const { sessions, activeSessionId, setActiveSession, addSession, removeSession, setSessionRateLimited, clearSessionRateLimit } = useTerminalStore();
   const [isCreating, setIsCreating] = useState(false);
+
+  // Subscribe to rate limit events
+  useEffect(() => {
+    const unsubRateLimited = subscribe('agent:rate-limited', (msg: any) => {
+      const { rateLimit } = msg;
+      setSessionRateLimited(rateLimit.sessionId, {
+        isLimited: true,
+        message: rateLimit.message,
+        detectedAt: rateLimit.detectedAt,
+      });
+    });
+
+    const unsubRateLimitCleared = subscribe('agent:rate-limit-cleared', (msg: any) => {
+      clearSessionRateLimit(msg.sessionId);
+    });
+
+    return () => {
+      unsubRateLimited();
+      unsubRateLimitCleared();
+    };
+  }, [subscribe, setSessionRateLimited, clearSessionRateLimit]);
 
   const filteredSessions = worktreeId
     ? Array.from(sessions.values()).filter(s => s.worktreeId === worktreeId)
@@ -69,10 +91,18 @@ export function TerminalPane({ worktreeId }: TerminalPaneProps) {
               activeSessionId === session.id
                 ? 'bg-zinc-700 text-white'
                 : 'text-zinc-400 hover:text-white hover:bg-zinc-700/50'
-            }`}
+            } ${session.rateLimit?.isLimited ? 'ring-1 ring-amber-500' : ''}`}
+            title={session.rateLimit?.isLimited ? `Rate limited: ${session.rateLimit.message || 'Waiting...'}` : undefined}
           >
-            <span className={`w-2 h-2 rounded-full ${session.isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-            <span>Terminal</span>
+            {session.rateLimit?.isLimited ? (
+              <Clock size={12} className="text-amber-500 animate-pulse" />
+            ) : (
+              <span className={`w-2 h-2 rounded-full ${session.isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+            )}
+            <span>{session.name || 'Terminal'}</span>
+            {session.rateLimit?.isLimited && (
+              <span className="text-xs text-amber-500">paused</span>
+            )}
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -115,15 +145,18 @@ export function TerminalPane({ worktreeId }: TerminalPaneProps) {
             )}
           </div>
         ) : (
-          filteredSessions.map((session) => (
-            <TerminalInstance
-              key={session.id}
-              sessionId={session.id}
-              send={send}
-              subscribe={subscribe}
-              isActive={activeSessionId === session.id}
-            />
-          ))
+          <>
+            {filteredSessions.map((session) => (
+              <TerminalInstance
+                key={session.id}
+                sessionId={session.id}
+                send={send}
+                subscribe={subscribe}
+                isActive={activeSessionId === session.id}
+                rateLimit={session.rateLimit}
+              />
+            ))}
+          </>
         )}
       </div>
     </div>
