@@ -478,6 +478,28 @@ class TerminalMonitorService extends EventEmitter {
 
     return removed;
   }
+
+  /**
+   * Get recent output from a session buffer
+   * @param sessionId The session ID to get output from
+   * @param lines Approximate number of lines to return (based on average line length)
+   * @returns The recent terminal output, with ANSI codes stripped
+   */
+  getRecentOutput(sessionId: string, lines: number = 50): string {
+    const buffer = this.outputBuffers.get(sessionId);
+    if (!buffer) {
+      return '';
+    }
+
+    // Strip ANSI codes and get recent content
+    const cleanBuffer = this.stripAnsi(buffer);
+
+    // Split into lines and get last N lines
+    const allLines = cleanBuffer.split('\n');
+    const recentLines = allLines.slice(-lines);
+
+    return recentLines.join('\n');
+  }
 }
 
 export const terminalMonitorService = new TerminalMonitorService();

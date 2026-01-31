@@ -391,4 +391,42 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: err.message });
     }
   });
+
+  // Update loop configuration (e.g., model selection)
+  fastify.post<{
+    Body: { model?: string; tickIntervalMs?: number; enabled?: boolean };
+  }>('/orchestrator/loop/config', async (request) => {
+    const { model, tickIntervalMs, enabled } = request.body;
+
+    const updates: Record<string, any> = {};
+    if (model !== undefined) updates.model = model;
+    if (tickIntervalMs !== undefined) updates.tickIntervalMs = tickIntervalMs;
+    if (enabled !== undefined) updates.enabled = enabled;
+
+    if (Object.keys(updates).length > 0) {
+      orchestratorLoopService.updateConfig(updates);
+    }
+
+    return orchestratorLoopService.getStatus();
+  });
+
+  // Get available Ollama models
+  fastify.get('/orchestrator/loop/models', async (_request, reply) => {
+    try {
+      const response = await fetch('http://localhost:11434/api/tags');
+      if (!response.ok) {
+        return reply.status(502).send({ error: 'Failed to fetch Ollama models' });
+      }
+      const data = await response.json() as { models: Array<{ name: string; size: number; modified_at: string }> };
+      return {
+        models: data.models?.map(m => ({
+          name: m.name,
+          size: m.size,
+          modified: m.modified_at,
+        })) || [],
+      };
+    } catch (err: any) {
+      return reply.status(502).send({ error: `Ollama not available: ${err.message}` });
+    }
+  });
 }
