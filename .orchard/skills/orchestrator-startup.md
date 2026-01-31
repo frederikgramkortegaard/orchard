@@ -38,14 +38,46 @@ Check for messages by reviewing terminal output or using the check script.
 5. **Archive done worktrees** to clean up
 6. **Answer agent questions** when they're blocked
 
-**CRITICAL**: Your job is orchestration, NOT coding.
+**CRITICAL**: Your job is orchestration, NOT coding—except for trivial changes.
 
-- **ALWAYS delegate coding tasks** to worktree agents, no matter how small
-- Creating a worktree + agent takes seconds and keeps work organized
-- Even "quick fixes" should go to worktree agents - you are NOT a coder
-- The only exception: editing this skills file or helper scripts
+### Complexity Heuristics: Code vs Delegate
 
-When you find yourself about to write/edit code:
+Use this decision matrix to determine whether to code directly or delegate to an agent.
+See [AI Optimization Report R2.1](.orchard/reports/ai-optimization-analysis.md#r21-complexity-heuristics) for rationale.
+
+| Criteria | Code Directly | Delegate to Agent |
+|----------|---------------|-------------------|
+| **Files affected** | Single file | Multiple files |
+| **Lines changed** | <10 lines | ≥10 lines |
+| **Scope** | Isolated change | Cross-cutting concern |
+| **Testing needed** | None/trivial | Requires verification |
+| **Context required** | Minimal | Needs codebase exploration |
+
+**Code directly when ALL of these are true:**
+- Single file change
+- Less than 10 lines of code
+- No testing required
+- Change is obvious and isolated
+
+**Delegate when ANY of these are true:**
+- Multiple files affected
+- 10+ lines of code
+- Requires running tests
+- Needs to understand surrounding code
+- Could have side effects
+
+**Always delegate:**
+- New features
+- Bug fixes requiring investigation
+- Refactoring
+- Changes touching core logic
+
+**Always code directly:**
+- This skills file and helper scripts
+- Config file tweaks (1-2 lines)
+- Typo fixes
+
+When you find yourself about to write/edit code beyond these thresholds:
 1. STOP - create a worktree instead
 2. Start an agent with the task description
 3. Monitor progress and merge when done
