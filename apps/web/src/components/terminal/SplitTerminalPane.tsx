@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import { Plus, X, SplitSquareHorizontal, Square, Clock } from 'lucide-react';
 import { useTerminalStore } from '../../stores/terminal.store';
@@ -11,12 +11,17 @@ interface SplitTerminalPaneProps {
   projectPath?: string;
 }
 
+export interface SplitTerminalPaneHandle {
+  createTerminalInActivePanel: () => void;
+}
+
 interface TerminalPanel {
   id: string;
   sessionId: string | null;
 }
 
-export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: SplitTerminalPaneProps) {
+export const SplitTerminalPane = forwardRef<SplitTerminalPaneHandle, SplitTerminalPaneProps>(
+  function SplitTerminalPane({ worktreeId, worktreePath, projectPath }, ref) {
   const { send, subscribe, isConnected, connectionId } = useWebSocket();
   const { sessions, addSession, removeSession, setSessionRateLimited, clearSessionRateLimit } = useTerminalStore();
   const [panels, setPanels] = useState<TerminalPanel[]>([{ id: 'left', sessionId: null }]);
@@ -141,6 +146,13 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
       setIsCreating(false);
     }
   }, [worktreeId, worktreePath, projectPath, addSession]);
+
+  // Expose createTerminalInActivePanel for keyboard shortcuts
+  useImperativeHandle(ref, () => ({
+    createTerminalInActivePanel: () => {
+      createTerminal(activePanelId);
+    },
+  }), [createTerminal, activePanelId]);
 
   const closeTerminal = useCallback(async (sessionId: string) => {
     try {
@@ -319,4 +331,4 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
       </Panel>
     </Group>
   );
-}
+});

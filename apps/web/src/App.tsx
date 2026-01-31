@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import { Sun, Moon, Flower2 } from 'lucide-react';
 import { useProjectStore } from './stores/project.store';
@@ -7,11 +7,12 @@ import { useEditorStore } from './stores/editor.store';
 import { useTheme } from './contexts/ThemeContext';
 import { ProjectTabBar } from './components/layout/ProjectTabBar';
 import { Sidebar } from './components/sidebar/Sidebar';
-import { SplitTerminalPane } from './components/terminal/SplitTerminalPane';
+import { SplitTerminalPane, SplitTerminalPaneHandle } from './components/terminal/SplitTerminalPane';
 import { CreateProjectModal } from './components/modals/CreateProjectModal';
 import { CreateWorktreeModal } from './components/modals/CreateWorktreeModal';
 import { EditorPane } from './components/editor';
 import { OrchestratorLog } from './components/orchestrator/OrchestratorLog';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import * as api from './api/projects';
 
 function App() {
@@ -84,11 +85,19 @@ function App() {
   const activeWorktree = worktrees.find((w) => w.id === activeWorktreeId);
   const activeProject = projects.find((p) => p.id === activeProjectId);
   const { closeAllFiles } = useEditorStore();
+  const terminalPaneRef = useRef<SplitTerminalPaneHandle>(null);
 
   // Close all open files when worktree changes
   useEffect(() => {
     closeAllFiles();
   }, [activeWorktreeId, closeAllFiles]);
+
+  // Keyboard shortcuts
+  useKeyboardShortcuts({
+    onNewTerminal: useCallback(() => {
+      terminalPaneRef.current?.createTerminalInActivePanel();
+    }, []),
+  });
 
   return (
     <div className="h-screen flex flex-col bg-white dark:bg-zinc-900 pink:bg-pink-50 text-zinc-900 dark:text-zinc-100 pink:text-pink-900">
@@ -172,6 +181,7 @@ function App() {
           {/* Terminal area */}
           <Panel defaultSize={45} minSize={5}>
             <SplitTerminalPane
+              ref={terminalPaneRef}
               worktreeId={activeWorktreeId || undefined}
               worktreePath={activeWorktree?.path}
               projectPath={activeProject?.path}
