@@ -26,6 +26,13 @@ export function FileTabs({ files, activeFilePath, onTabClick, onTabClose }: File
                 : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700/50'
             }`}
             onClick={() => onTabClick(file.path)}
+            onMouseDown={(e) => {
+              // Middle mouse button closes tab
+              if (e.button === 1) {
+                e.preventDefault();
+                onTabClose(file.path);
+              }
+            }}
           >
             <span className="truncate text-sm max-w-[150px]">{file.name}</span>
             {file.isDirty && (
