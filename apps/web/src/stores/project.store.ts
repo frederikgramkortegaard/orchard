@@ -23,6 +23,8 @@ export interface Worktree {
     staged: number;
     untracked: number;
   };
+  lastCommitDate: string | null;  // ISO date string of the most recent commit
+  createdAt: string | null;       // ISO date string when worktree was created
 }
 
 interface ProjectState {

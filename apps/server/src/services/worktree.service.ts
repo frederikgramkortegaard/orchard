@@ -15,6 +15,8 @@ export interface Worktree {
   merged: boolean;
   archived: boolean;
   status: WorktreeStatus;
+  lastCommitDate: string | null;  // ISO date string of the most recent commit
+  createdAt: string | null;       // ISO date string when worktree was created (first commit on branch)
 }
 
 export interface WorktreeStatus {
@@ -128,13 +130,14 @@ class WorktreeService {
 
           const status = await this.getWorktreeStatus(path);
           const archived = this.archivedWorktrees.has(id);
+          const { lastCommitDate, createdAt } = await this.getWorktreeDates(path, branch || 'HEAD', projectId);
 
           // Check if this branch has been merged into default branch
           // Only mark merged if: all commits in main AND no uncommitted changes AND no ahead commits AND no active terminal sessions
           let merged = false;
           if (!isMain && branch && status.modified === 0 && status.staged === 0 && status.untracked === 0 && status.ahead === 0) {
             // Check for active terminal sessions first
-            const hasActiveSessions = await this.hasActiveTerminalSessions(worktreeId);
+            const hasActiveSessions = await this.hasActiveTerminalSessions(id);
             if (!hasActiveSessions) {
               merged = await this.checkIfMerged(projectId, branch);
             }
@@ -149,6 +152,8 @@ class WorktreeService {
             merged,
             archived,
             status,
+            lastCommitDate,
+            createdAt,
           };
 
           worktrees.push(worktree);
@@ -201,6 +206,7 @@ class WorktreeService {
 
     const id = this.getOrCreateId(projectId, worktreePath);
     const status = await this.getWorktreeStatus(worktreePath);
+    const { lastCommitDate, createdAt } = await this.getWorktreeDates(worktreePath, branch, projectId);
 
     // Set up Claude permissions for this worktree
     await this.setupClaudePermissions(worktreePath, project.path);
@@ -214,6 +220,8 @@ class WorktreeService {
       merged: false,
       archived: false,
       status,
+      lastCommitDate,
+      createdAt,
     };
 
     this.worktrees.set(id, worktree);
@@ -305,6 +313,43 @@ class WorktreeService {
       };
     } catch {
       return { ahead: 0, behind: 0, modified: 0, staged: 0, untracked: 0 };
+    }
+  }
+
+  // Get the last commit date and branch creation date for a worktree
+  async getWorktreeDates(worktreePath: string, branch: string, projectId: string): Promise<{ lastCommitDate: string | null; createdAt: string | null }> {
+    if (!existsSync(worktreePath)) {
+      return { lastCommitDate: null, createdAt: null };
+    }
+
+    const git = simpleGit(worktreePath);
+    const defaultBranch = await this.getDefaultBranch(projectId);
+
+    try {
+      // Get the most recent commit date
+      const lastCommitResult = await git.raw(['log', '-1', '--format=%cI']);
+      const lastCommitDate = lastCommitResult.trim() || null;
+
+      // Get the branch creation date (first commit unique to this branch)
+      // This is the first commit after the branch diverged from the default branch
+      let createdAt: string | null = null;
+      try {
+        // Find the merge-base and get the first commit after that
+        const mergeBase = await git.raw(['merge-base', branch, defaultBranch]);
+        if (mergeBase.trim()) {
+          // Get the first commit after the merge base on this branch
+          const firstCommit = await git.raw(['log', '--format=%cI', '--reverse', `${mergeBase.trim()}..${branch}`]);
+          const firstLine = firstCommit.trim().split('\n')[0];
+          createdAt = firstLine || lastCommitDate; // Fall back to last commit if no unique commits
+        }
+      } catch {
+        // If merge-base fails (e.g., for main branch), use the last commit date
+        createdAt = lastCommitDate;
+      }
+
+      return { lastCommitDate, createdAt };
+    } catch {
+      return { lastCommitDate: null, createdAt: null };
     }
   }
 
