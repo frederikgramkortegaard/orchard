@@ -43,5 +43,13 @@ sleep 3
 printf '{"input":"%s\\n\\nLet me know when done with :ORCHESTRATOR: TASK COMPLETE","sendEnter":true}' "$TASK" | \
   curl -s -X POST "http://localhost:3001/terminals/$SESSION_ID/input" -H "Content-Type: application/json" -d @- > /dev/null
 
+# Send extra enters to ensure the task is received
+sleep 2
+for i in {1..5}; do
+  printf '{"input":"","sendEnter":true}' | \
+    curl -s -X POST "http://localhost:3001/terminals/$SESSION_ID/input" -H "Content-Type: application/json" -d @- > /dev/null
+  sleep 0.5
+done
+
 echo "Agent started in $BRANCH (session: $SESSION_ID)"
 echo "Task: $TASK"
