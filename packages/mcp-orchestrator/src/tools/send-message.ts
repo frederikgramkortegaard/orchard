@@ -1,7 +1,5 @@
-import { logActivity } from '../utils/log-activity.js';
-
 /**
- * Send a message to the user via the orchestrator chat
+ * Send a message to the activity log
  */
 export async function sendMessage(
   apiBase: string,
@@ -9,14 +7,16 @@ export async function sendMessage(
 ): Promise<string> {
   const { projectId, message } = args;
 
-  // Post message to /chat endpoint (the actual chat UI)
-  const res = await fetch(`${apiBase}/chat`, {
+  // Post directly to activity log instead of chat
+  const res = await fetch(`${apiBase}/orchestrator/activity`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       projectId,
-      text: message,
-      from: 'orchestrator',
+      type: 'event',
+      category: 'orchestrator',
+      summary: message,
+      details: { source: 'mcp', activityType: 'orchestrator' },
     }),
   });
 
@@ -24,7 +24,5 @@ export async function sendMessage(
     throw new Error(`Failed to send message: ${res.statusText}`);
   }
 
-  await logActivity(apiBase, 'event', 'orchestrator', `MCP: Sent message to user`, { message: message.slice(0, 100) }, projectId);
-
-  return `Message sent: ${message}`;
+  return `Message logged: ${message}`;
 }

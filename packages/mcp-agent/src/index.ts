@@ -11,6 +11,7 @@ import { reportCompletion, ReportCompletionArgs } from './tools/report-completio
 import { askQuestion, AskQuestionArgs } from './tools/ask-question.js';
 import { reportProgress, ReportProgressArgs } from './tools/report-progress.js';
 import { reportError, ReportErrorArgs } from './tools/report-error.js';
+import { logActivityTool, LogActivityArgs } from './tools/log-activity.js';
 
 // Orchard server base URL (configurable via env)
 const ORCHARD_API = process.env.ORCHARD_API || 'http://localhost:3001';
@@ -139,6 +140,33 @@ const tools: Tool[] = [
       required: ['error'],
     },
   },
+  {
+    name: 'log_activity',
+    description: 'Log an activity to the activity feed. Use this to report file edits, commands run, commits, or other significant actions.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        worktreeId: {
+          type: 'string',
+          description: 'The worktree ID (auto-injected from environment, usually not needed)',
+        },
+        activityType: {
+          type: 'string',
+          enum: ['file_edit', 'command', 'commit', 'question', 'task_complete', 'error', 'progress'],
+          description: 'Type of activity being logged',
+        },
+        summary: {
+          type: 'string',
+          description: 'Brief description of the activity',
+        },
+        details: {
+          type: 'object',
+          description: 'Additional details about the activity (optional)',
+        },
+      },
+      required: ['activityType', 'summary'],
+    },
+  },
 ];
 
 // Tool handlers - automatically inject worktreeId from env if not provided
@@ -147,6 +175,7 @@ const toolHandlers: Record<string, (args: Record<string, unknown>) => Promise<st
   ask_question: async (args) => askQuestion(ORCHARD_API, withWorktreeId(args as unknown as AskQuestionArgs)),
   report_progress: async (args) => reportProgress(ORCHARD_API, withWorktreeId(args as unknown as ReportProgressArgs)),
   report_error: async (args) => reportError(ORCHARD_API, withWorktreeId(args as unknown as ReportErrorArgs)),
+  log_activity: async (args) => logActivityTool(ORCHARD_API, withWorktreeId(args as unknown as LogActivityArgs)),
 };
 
 // Create and configure server

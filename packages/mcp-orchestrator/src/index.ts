@@ -161,7 +161,7 @@ const tools: Tool[] = [
   },
   {
     name: 'send_message',
-    description: 'Send a message to the user via the orchestrator chat',
+    description: 'Send a message to the activity log',
     inputSchema: {
       type: 'object',
       properties: {
@@ -171,7 +171,7 @@ const tools: Tool[] = [
         },
         message: {
           type: 'string',
-          description: 'The message to send to the user',
+          description: 'The message to log',
         },
       },
       required: ['projectId', 'message'],
