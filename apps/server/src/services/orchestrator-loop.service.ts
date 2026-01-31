@@ -907,8 +907,31 @@ class OrchestratorLoopService extends EventEmitter {
     const projectId = this.projectId;
     if (!projectId) throw new Error('No project context');
 
-    // Add to message queue
-    await messageQueueService.addMessage(projectId, `[Orchestrator] ${message}`);
+    // Add to chat.json (not message queue)
+    const project = projectService.getProject(projectId);
+    if (project?.path) {
+      const chatPath = join(project.path, '.orchard', 'chat.json');
+      let messages: Array<{ id: string; projectId: string; text: string; timestamp: string; from: string }> = [];
+
+      try {
+        if (existsSync(chatPath)) {
+          const data = await readFile(chatPath, 'utf-8');
+          messages = JSON.parse(data);
+        }
+      } catch {
+        messages = [];
+      }
+
+      messages.push({
+        id: randomUUID(),
+        projectId,
+        text: message,
+        timestamp: new Date().toISOString(),
+        from: 'orchestrator',
+      });
+
+      await writeFile(chatPath, JSON.stringify(messages, null, 2), 'utf-8');
+    }
 
     await activityLoggerService.log({
       type: 'event',

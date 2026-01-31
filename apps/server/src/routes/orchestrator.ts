@@ -347,4 +347,28 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
     orchestratorService.clearCompletions();
     return { success: true };
   });
+
+  // Orchestrator loop control endpoints
+  const { orchestratorLoopService } = await import('../services/orchestrator-loop.service.js');
+
+  fastify.get('/orchestrator/loop/status', async () => {
+    return orchestratorLoopService.getStatus();
+  });
+
+  fastify.post<{
+    Querystring: { projectId?: string };
+  }>('/orchestrator/loop/start', async (request) => {
+    await orchestratorLoopService.start(request.query.projectId);
+    return { success: true, status: orchestratorLoopService.getStatus() };
+  });
+
+  fastify.post('/orchestrator/loop/stop', async () => {
+    await orchestratorLoopService.stop();
+    return { success: true, status: orchestratorLoopService.getStatus() };
+  });
+
+  fastify.post('/orchestrator/loop/tick', async () => {
+    await orchestratorLoopService.manualTick();
+    return { success: true };
+  });
 }

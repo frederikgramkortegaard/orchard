@@ -102,8 +102,9 @@ Respond to user requests by:
 **IMPORTANT**: Always announce what you're doing before starting a task.
 
 1. **Before starting work**: Send a message like "On it - will [description] now."
-2. **During longer tasks**: Provide status updates if the task takes time
-3. **After completion**: Confirm what was done
+2. **Before investigating/checking**: Say "Checking [thing]..." before looking up status
+3. **During longer tasks**: Provide status updates if the task takes time
+4. **After completion**: Confirm what was done
 
 When the user gives you advice or feedback:
 - Acknowledge it in the chat
@@ -196,9 +197,23 @@ curl -s "http://localhost:3001/messages?projectId=<PROJECT_ID>&markProcessed=tru
 
 ## Periodic Tasks
 
+**IMPORTANT**: Regularly check for user messages and agent progress. Don't get lost in one task.
+
 Every few minutes, you should:
-1. Run `agent-status.sh` to see overall status
-2. Archive any [MERGED] worktrees
-3. Check if any agents need nudging (stuck waiting for input)
-4. Review if any tasks are complete and ready to merge
-5. **Log your activity** so the user can see what you're doing
+1. **Check chat messages first** - Read `.orchard/chat.json` for new user messages and respond promptly
+2. Run `agent-status.sh` to see overall status
+3. Check agent worktrees for new commits (indicates completed work)
+4. Archive any [MERGED] worktrees
+5. Check if any agents need nudging (stuck waiting for input)
+6. Review if any tasks are complete and ready to merge
+7. **Log your activity** so the user can see what you're doing
+
+**Priority order**: User messages > Agent completions > Periodic maintenance
+
+To check for new commits in agent worktrees:
+```bash
+for dir in .worktrees/*/; do
+  echo "=== $(basename $dir) ==="
+  cd "$dir" && git log --oneline -3 && cd -
+done
+```

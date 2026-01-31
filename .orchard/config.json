@@ -2,5 +2,12 @@
   "id": "5fa4a463-48c6-4b13-93fe-566d34411a8f",
   "name": "orchard",
   "createdAt": "2026-01-31T14:47:59.716Z",
-  "inPlace": true
+  "inPlace": true,
+  "orchestratorLoop": {
+    "enabled": true,
+    "provider": "ollama",
+    "baseUrl": "http://localhost:11434/v1",
+    "model": "llama3.1:8b",
+    "tickIntervalMs": 30000
+  }
 }
