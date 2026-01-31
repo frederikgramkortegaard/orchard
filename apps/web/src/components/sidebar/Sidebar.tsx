@@ -128,7 +128,7 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
       {activeProjectId && activeProject ? (
         <Group orientation="vertical" className="h-full">
           {/* Orchestrator chat panel - resizable */}
-          <Panel defaultSize="30%" minSize="15%" maxSize="60%">
+          <Panel defaultSize={40} minSize={5}>
             <div className="h-full p-2">
               <OrchestratorPanel projectId={activeProjectId} projectPath={activeProject.path} />
             </div>
@@ -137,7 +137,7 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
           <Separator className="h-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-row-resize" />
 
           {/* Worktrees section */}
-          <Panel>
+          <Panel defaultSize={60} minSize={5}>
             {worktreesContent}
           </Panel>
         </Group>

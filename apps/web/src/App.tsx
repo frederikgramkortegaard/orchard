@@ -123,7 +123,7 @@ function App() {
       {/* Main content */}
       <Group orientation="horizontal" className="flex-1 overflow-hidden">
         {/* Resizable sidebar */}
-        <Panel defaultSize="25%" minSize="15%" maxSize="40%">
+        <Panel defaultSize={20} minSize={5}>
           <Sidebar
             onOpenProject={() => setShowProjectModal(true)}
             onCreateWorktree={() => setShowWorktreeModal(true)}
@@ -134,10 +134,10 @@ function App() {
 
         <Separator className="w-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-col-resize" />
 
-        <Panel>
+        <Panel defaultSize={60} minSize={5}>
           <Group orientation="vertical" className="h-full">
           {/* Editor area */}
-          <Panel defaultSize="60%" minSize="20%">
+          <Panel defaultSize={55} minSize={5}>
             {activeWorktree ? (
               <EditorPane worktreePath={activeWorktree.path} />
             ) : (
@@ -170,7 +170,7 @@ function App() {
           <Separator className="h-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-row-resize" />
 
           {/* Terminal area */}
-          <Panel defaultSize="40%" minSize="15%">
+          <Panel defaultSize={45} minSize={5}>
             <SplitTerminalPane
               worktreeId={activeWorktreeId || undefined}
               worktreePath={activeWorktree?.path}
@@ -184,7 +184,7 @@ function App() {
         {activeProjectId && (
           <>
             <Separator className="w-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-col-resize" />
-            <Panel defaultSize="20%" minSize="15%" maxSize="35%">
+            <Panel defaultSize={20} minSize={5}>
               <div className="h-full p-2 bg-zinc-100 dark:bg-zinc-800">
                 <OrchestratorLog projectId={activeProjectId} />
               </div>

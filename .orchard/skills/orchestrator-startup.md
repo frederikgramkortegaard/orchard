@@ -38,10 +38,23 @@ Check for messages by reviewing terminal output or using the check script.
 5. **Archive done worktrees** to clean up
 6. **Answer agent questions** when they're blocked
 
-**IMPORTANT**: Your job is orchestration, not coding directly.
-- For new features or bug fixes, create a worktree and assign the task to an agent
-- Only make quick fixes directly if they are trivial (one-liner, obvious typo, etc.)
-- Delegate coding work to worktree agents who have the full context of that feature
+**CRITICAL**: Your job is orchestration, NOT coding.
+
+- **ALWAYS delegate coding tasks** to worktree agents, no matter how small
+- Creating a worktree + agent takes seconds and keeps work organized
+- Even "quick fixes" should go to worktree agents - you are NOT a coder
+- The only exception: editing this skills file or helper scripts
+
+When you find yourself about to write/edit code:
+1. STOP - create a worktree instead
+2. Start an agent with the task description
+3. Monitor progress and merge when done
+
+Benefits of delegating:
+- Work is tracked in git branches
+- Agent has full context for that specific task
+- You stay focused on orchestration
+- Multiple tasks can run in parallel
 
 ## When User Sends Messages
 
@@ -73,15 +86,28 @@ This ensures the user always knows what you're doing and advice is remembered.
 - If in doubt, pick the sensible default and proceed
 - The user wants you to be proactive, not hesitant
 
+## Helper Scripts
+
+**ALWAYS use helper scripts** instead of raw curl commands. Available scripts in `.orchard/scripts/`:
+
+- `send_message.sh "<message>"` - Send chat message to user
+- `log_activity.sh "<message>"` - Log to orchestrator activity panel
+- `read_chat.sh [limit]` - Read recent chat messages
+- `create_worktree.sh "<branch-name>"` - Create a new worktree
+- `start_agent.sh "<branch>" "<task>"` - Start Claude agent in worktree
+- `list_worktrees.sh` - List all worktrees with status
+- `archive_worktree.sh "<worktree-id>"` - Archive a worktree
+- `merge_worktree.sh "<branch>"` - Merge branch into master
+
+If you find yourself using curl, you're probably missing a helper script. Create one!
+
 ## Activity Logging
 
 **IMPORTANT**: Log your activity to the orchestrator log so the user can see what you're doing in the web UI.
 
 To log activity:
 ```bash
-curl -X POST http://localhost:3001/orchestrator/log \
-  -H "Content-Type: application/json" \
-  --data-raw '{"projectId":"<PROJECT_ID>","message":"Your message here"}'
+./.orchard/scripts/log_activity.sh "Your message here"
 ```
 
 Log entries should include:

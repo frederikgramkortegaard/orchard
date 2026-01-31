@@ -283,11 +283,11 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
 
   return (
     <Group orientation="horizontal" className="h-full bg-zinc-50 dark:bg-zinc-900">
-      <Panel defaultSize="50%" minSize="25%">
+      <Panel defaultSize={50} minSize={5}>
         {renderPanel(panels[0])}
       </Panel>
       <Separator className="w-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-col-resize" />
-      <Panel defaultSize="50%" minSize="25%">
+      <Panel defaultSize={50} minSize={5}>
         {renderPanel(panels[1])}
       </Panel>
     </Group>

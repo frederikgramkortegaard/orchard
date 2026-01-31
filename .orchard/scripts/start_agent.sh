@@ -24,8 +24,8 @@ fi
 WORKTREE_ID=$(echo "$WORKTREE_JSON" | jq -r '.id')
 WORKTREE_PATH=$(echo "$WORKTREE_JSON" | jq -r '.path')
 
-# Create terminal session with Claude
-SESSION_JSON=$(printf '{"worktreeId":"%s","projectPath":"%s","cwd":"%s","initialCommand":"claude"}' \
+# Create terminal session with Claude (with permission bypass)
+SESSION_JSON=$(printf '{"worktreeId":"%s","projectPath":"%s","cwd":"%s","initialCommand":"claude --dangerously-skip-permissions"}' \
   "$WORKTREE_ID" "$PROJECT_PATH" "$WORKTREE_PATH" | \
   curl -s -X POST http://localhost:3001/terminals -H "Content-Type: application/json" -d @-)
 

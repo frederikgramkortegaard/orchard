@@ -97,14 +97,14 @@ export function EditorPane({ worktreePath }: EditorPaneProps) {
   return (
     <Group orientation="horizontal" className="h-full">
       {/* File Tree */}
-      <Panel defaultSize="20%" minSize="15%" maxSize="35%">
+      <Panel defaultSize={20} minSize={5}>
         <FileTree rootPath={worktreePath} onFileSelect={handleFileSelect} />
       </Panel>
 
       <Separator className="w-1 bg-zinc-700 hover:bg-zinc-600 cursor-col-resize" />
 
       {/* Editor Area */}
-      <Panel>
+      <Panel minSize={5}>
         <div className="h-full flex flex-col bg-zinc-900">
           {/* Tabs */}
           <FileTabs
