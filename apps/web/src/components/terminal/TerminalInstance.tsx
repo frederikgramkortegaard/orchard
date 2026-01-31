@@ -6,6 +6,9 @@ import { Clock } from 'lucide-react';
 import '@xterm/xterm/css/xterm.css';
 import type { RateLimitStatus } from '../../stores/terminal.store';
 
+// How often to check for stale subscriptions (ms)
+const REFRESH_INTERVAL = 5000;
+
 interface TerminalInstanceProps {
   sessionId: string;
   send: (data: unknown) => void;
@@ -22,6 +25,8 @@ export function TerminalInstance({ sessionId, send, subscribe, isActive, fontSiz
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const receivedSinceAck = useRef(0);
+  const lastDataTimestamp = useRef<number>(Date.now());
+  const subscriptionKey = useRef<number>(0);
 
   const handleResize = useCallback(() => {
     if (fitAddonRef.current && terminalRef.current && isActive) {
@@ -125,6 +130,7 @@ export function TerminalInstance({ sessionId, send, subscribe, isActive, fontSiz
     const unsubData = subscribe('terminal:data', (msg: any) => {
       if (msg.sessionId === sessionId && terminalRef.current) {
         terminalRef.current.write(msg.data);
+        lastDataTimestamp.current = Date.now();
         receivedSinceAck.current++;
 
         // Acknowledge every 50 chunks for flow control
@@ -142,12 +148,14 @@ export function TerminalInstance({ sessionId, send, subscribe, isActive, fontSiz
     const unsubScrollback = subscribe('terminal:scrollback', (msg: any) => {
       if (msg.sessionId === sessionId && terminalRef.current) {
         terminalRef.current.write(msg.data.join(''));
+        lastDataTimestamp.current = Date.now();
       }
     });
 
     const unsubExit = subscribe('terminal:exit', (msg: any) => {
       if (msg.sessionId === sessionId && terminalRef.current) {
         terminalRef.current.write(`\r\n\x1b[31m[Process exited with code ${msg.exitCode}]\x1b[0m\r\n`);
+        lastDataTimestamp.current = Date.now();
       }
     });
 
@@ -157,6 +165,48 @@ export function TerminalInstance({ sessionId, send, subscribe, isActive, fontSiz
       unsubExit();
     };
   }, [sessionId, subscribe, send]);
+
+  // Re-subscribe when daemon reconnects
+  // This handles the case where the PTY daemon restarts while client is connected
+  useEffect(() => {
+    const unsubDaemonStatus = subscribe('daemon:status', (msg: any) => {
+      if (msg.connected === true) {
+        // Daemon just reconnected - re-subscribe to get fresh data
+        // Use a new subscription key to force scrollback refresh
+        subscriptionKey.current++;
+        send({ type: 'terminal:subscribe', sessionId });
+
+        // Re-send resize in case terminal dimensions need sync
+        if (terminalRef.current) {
+          send({
+            type: 'terminal:resize',
+            sessionId,
+            cols: terminalRef.current.cols,
+            rows: terminalRef.current.rows,
+          });
+        }
+      }
+    });
+
+    return () => {
+      unsubDaemonStatus();
+    };
+  }, [sessionId, subscribe, send]);
+
+  // Re-subscribe when terminal becomes active (tab switch)
+  // This ensures we get fresh data if updates were missed while inactive
+  useEffect(() => {
+    if (!isActive) return;
+
+    // Small delay to avoid race with other effects
+    const timeout = setTimeout(() => {
+      send({ type: 'terminal:subscribe', sessionId });
+    }, 100);
+
+    return () => {
+      clearTimeout(timeout);
+    };
+  }, [isActive, sessionId, send]);
 
   // Refit when becoming active
   useEffect(() => {
