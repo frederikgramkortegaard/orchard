@@ -212,6 +212,7 @@ class TerminalDaemon {
     let trustPromptHandled = false;
     const isClaudeSession = initialCommand?.includes('claude');
     let taskCompleteNotified = false;
+    let isRateLimited = false;
 
     // Handle PTY output
     ptyProcess.onData((data) => {
@@ -313,6 +314,74 @@ class TerminalDaemon {
             }
           });
           console.log(`Task complete detected for session ${id} (worktree: ${worktreeId})`);
+        }
+      }
+
+      // Detect Claude session/rate limits and broadcast notification
+      if (isClaudeSession) {
+        const recentOutput = session.scrollback.slice(-30).join('');
+
+        // Patterns that indicate rate limiting (Claude Code specific messages)
+        const rateLimitPatterns = [
+          /session limit/i,
+          /rate limit/i,
+          /too many requests/i,
+          /usage limit.*reached/i,
+          /you.ve hit.*limit/i,
+          /waiting.*cooldown/i,
+          /temporarily unavailable/i,
+          /try again in \d+/i,
+          /max.*tokens.*exceeded/i,
+          /concurrent.*session/i,
+          /please wait/i,
+        ];
+
+        const isNowRateLimited = rateLimitPatterns.some(pattern => pattern.test(recentOutput));
+
+        if (isNowRateLimited && !isRateLimited) {
+          // Just became rate limited
+          isRateLimited = true;
+
+          // Extract the rate limit message for display
+          const lines = recentOutput.split(/[\r\n]+/).filter(l => l.trim());
+          const limitMessage = lines.slice(-5).join(' ').substring(0, 200);
+
+          const notification = JSON.stringify({
+            type: 'agent:rate-limited',
+            rateLimit: {
+              sessionId: id,
+              worktreeId,
+              isLimited: true,
+              message: limitMessage,
+              detectedAt: Date.now(),
+            },
+          });
+
+          // Broadcast to all connected clients
+          this.wss.clients.forEach((client) => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(notification);
+            }
+          });
+          console.log(`Rate limit detected for session ${id} (worktree: ${worktreeId})`);
+        } else if (!isNowRateLimited && isRateLimited) {
+          // Rate limit cleared - Claude is working again
+          isRateLimited = false;
+
+          const notification = JSON.stringify({
+            type: 'agent:rate-limit-cleared',
+            sessionId: id,
+            worktreeId,
+            timestamp: Date.now(),
+          });
+
+          // Broadcast to all connected clients
+          this.wss.clients.forEach((client) => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(notification);
+            }
+          });
+          console.log(`Rate limit cleared for session ${id} (worktree: ${worktreeId})`);
         }
       }
 

@@ -6,6 +6,16 @@ export type ClientMessage =
   | { type: 'terminal:ack'; count: number }
   | { type: 'ping' };
 
+// Rate limit status for Claude sessions
+export interface RateLimitInfo {
+  sessionId: string;
+  worktreeId: string;
+  isLimited: boolean;
+  message?: string;
+  detectedAt: number;
+  resumedAt?: number;
+}
+
 // Server → Client messages
 export type ServerMessage =
   | { type: 'connected'; timestamp: number }
@@ -16,4 +26,6 @@ export type ServerMessage =
   | { type: 'terminal:created'; session: import('./terminal').TerminalSession }
   | { type: 'file:event'; event: import('./file').FileEvent }
   | { type: 'worktree:update'; worktree: import('./worktree').Worktree }
+  | { type: 'agent:rate-limited'; rateLimit: RateLimitInfo }
+  | { type: 'agent:rate-limit-cleared'; sessionId: string; worktreeId: string; timestamp: number }
   | { type: 'error'; message: string };

@@ -1,6 +1,7 @@
-import { Plus, GitBranch, Folder, Trash2, CheckCircle, Archive } from 'lucide-react';
+import { Plus, GitBranch, Folder, Trash2, CheckCircle, Archive, Clock } from 'lucide-react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import { useProjectStore, type Worktree } from '../../stores/project.store';
+import { useTerminalStore } from '../../stores/terminal.store';
 import { OrchestratorPanel } from '../orchestrator/OrchestratorPanel';
 
 interface SidebarProps {
@@ -12,15 +13,20 @@ interface SidebarProps {
 
 export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onArchiveWorktree }: SidebarProps) {
   const { projects, activeProjectId, worktrees, activeWorktreeId, setActiveWorktree } = useProjectStore();
+  const { sessions } = useTerminalStore();
 
   const activeProject = projects.find(p => p.id === activeProjectId);
 
   // Sort worktrees by most recent activity: 1) lastCommitDate, 2) createdAt
-  // Main worktree always appears first
+  // Main worktree always appears first, archived worktrees last
   const sortedWorktrees = [...worktrees].sort((a, b) => {
     // Main worktree always first
     if (a.isMain && !b.isMain) return -1;
     if (!a.isMain && b.isMain) return 1;
+
+    // Archived worktrees always last
+    if (a.archived && !b.archived) return 1;
+    if (!a.archived && b.archived) return -1;
 
     // Sort by most recent commit date (descending - newest first)
     const aCommitDate = a.lastCommitDate ? new Date(a.lastCommitDate).getTime() : 0;
@@ -34,6 +40,13 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
     const bCreatedAt = b.createdAt ? new Date(b.createdAt).getTime() : 0;
     return bCreatedAt - aCreatedAt;
   });
+
+  // Check if a worktree has any rate-limited sessions
+  const isWorktreeRateLimited = (worktreeId: string) => {
+    return Array.from(sessions.values()).some(
+      s => s.worktreeId === worktreeId && s.rateLimit?.isLimited
+    );
+  };
 
   const getStatusIndicator = (worktree: Worktree) => {
     const { modified, staged, untracked, ahead, behind } = worktree.status;
@@ -89,18 +102,22 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
           </div>
         ) : (
           <div className="space-y-0.5">
-            {sortedWorktrees.map((worktree) => (
+            {sortedWorktrees.map((worktree) => {
+              const rateLimited = isWorktreeRateLimited(worktree.id);
+              return (
               <button
                 key={worktree.id}
                 onClick={() => setActiveWorktree(worktree.id)}
                 className={`w-full flex items-center gap-2 px-3 py-2 rounded text-left group ${
                   activeWorktreeId === worktree.id ? 'bg-zinc-300 dark:bg-zinc-600' : 'hover:bg-zinc-200/50 dark:hover:bg-zinc-700/50'
-                } ${worktree.archived ? 'opacity-40' : worktree.merged ? 'opacity-60' : ''}`}
+                } ${worktree.archived ? 'opacity-40' : worktree.merged ? 'opacity-60' : ''} ${rateLimited ? 'ring-1 ring-amber-500/50' : ''}`}
               >
                 {worktree.archived ? (
                   <Archive size={14} className="text-zinc-400 flex-shrink-0" />
                 ) : worktree.merged ? (
                   <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
+                ) : rateLimited ? (
+                  <Clock size={14} className="text-amber-500 animate-pulse flex-shrink-0" />
                 ) : (
                   <GitBranch size={14} className="text-zinc-500 dark:text-zinc-400 flex-shrink-0" />
                 )}
@@ -109,8 +126,9 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
                   {worktree.isMain && <span className="text-zinc-400 dark:text-zinc-500 ml-1">(main)</span>}
                   {worktree.archived && <span className="text-zinc-400 ml-1">(archived)</span>}
                   {!worktree.archived && worktree.merged && <span className="text-green-500 ml-1">(merged)</span>}
+                  {rateLimited && <span className="text-amber-500 ml-1">(paused)</span>}
                 </span>
-                {!worktree.archived && !worktree.merged && getStatusIndicator(worktree)}
+                {!worktree.archived && !worktree.merged && !rateLimited && getStatusIndicator(worktree)}
                 {!worktree.isMain && !worktree.archived && (
                   <button
                     onClick={(e) => {
@@ -136,7 +154,8 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
                   </button>
                 )}
               </button>
-            ))}
+            );
+            })}
           </div>
         )}
       </div>
