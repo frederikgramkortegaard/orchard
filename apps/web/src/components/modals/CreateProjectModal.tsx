@@ -68,10 +68,10 @@ export function CreateProjectModal({ isOpen, onClose, onSubmit, onOpenExisting }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-zinc-800 rounded-lg w-full max-w-md mx-4 shadow-xl">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-700">
+      <div className="bg-white dark:bg-zinc-800 pink:bg-pink-50 rounded-lg w-full max-w-md mx-4 shadow-xl">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-700 pink:border-pink-200">
           <h2 className="text-lg font-semibold">Open Project</h2>
-          <button onClick={onClose} className="text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white">
+          <button onClick={onClose} className="text-zinc-500 dark:text-zinc-400 pink:text-pink-500 hover:text-zinc-900 dark:hover:text-white pink:hover:text-pink-900">
             <X size={20} />
           </button>
         </div>
@@ -83,7 +83,7 @@ export function CreateProjectModal({ isOpen, onClose, onSubmit, onOpenExisting }
               type="button"
               onClick={() => setMode('recent')}
               className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded ${
-                mode === 'recent' ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-white' : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-500 dark:text-zinc-400'
+                mode === 'recent' ? 'bg-zinc-200 dark:bg-zinc-700 pink:bg-pink-200 text-zinc-900 dark:text-white pink:text-pink-900' : 'bg-zinc-100 dark:bg-zinc-900 pink:bg-pink-100 text-zinc-500 dark:text-zinc-400 pink:text-pink-500'
               }`}
             >
               <Clock size={16} />
@@ -93,7 +93,7 @@ export function CreateProjectModal({ isOpen, onClose, onSubmit, onOpenExisting }
               type="button"
               onClick={() => setMode('url')}
               className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded ${
-                mode === 'url' ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-white' : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-500 dark:text-zinc-400'
+                mode === 'url' ? 'bg-zinc-200 dark:bg-zinc-700 pink:bg-pink-200 text-zinc-900 dark:text-white pink:text-pink-900' : 'bg-zinc-100 dark:bg-zinc-900 pink:bg-pink-100 text-zinc-500 dark:text-zinc-400 pink:text-pink-500'
               }`}
             >
               <GitBranch size={16} />
@@ -103,7 +103,7 @@ export function CreateProjectModal({ isOpen, onClose, onSubmit, onOpenExisting }
               type="button"
               onClick={() => setMode('local')}
               className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded ${
-                mode === 'local' ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-white' : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-500 dark:text-zinc-400'
+                mode === 'local' ? 'bg-zinc-200 dark:bg-zinc-700 pink:bg-pink-200 text-zinc-900 dark:text-white pink:text-pink-900' : 'bg-zinc-100 dark:bg-zinc-900 pink:bg-pink-100 text-zinc-500 dark:text-zinc-400 pink:text-pink-500'
               }`}
             >
               <Folder size={16} />
@@ -122,9 +122,9 @@ export function CreateProjectModal({ isOpen, onClose, onSubmit, onOpenExisting }
                     type="button"
                     onClick={() => handleOpenExisting(project)}
                     disabled={isSubmitting}
-                    className="w-full flex items-center gap-3 px-3 py-2 bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded text-left"
+                    className="w-full flex items-center gap-3 px-3 py-2 bg-zinc-100 dark:bg-zinc-900 pink:bg-pink-100 hover:bg-zinc-200 dark:hover:bg-zinc-700 pink:hover:bg-pink-200 rounded text-left"
                   >
-                    <Folder size={18} className="text-zinc-500 dark:text-zinc-400" />
+                    <Folder size={18} className="text-zinc-500 dark:text-zinc-400 pink:text-pink-500" />
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">{project.name}</div>
                       <div className="text-xs text-zinc-500 truncate">{project.path}</div>
@@ -135,13 +135,13 @@ export function CreateProjectModal({ isOpen, onClose, onSubmit, onOpenExisting }
             </div>
           ) : mode === 'url' ? (
             <div>
-              <label className="block text-sm text-zinc-500 dark:text-zinc-400 mb-1">Repository URL</label>
+              <label className="block text-sm text-zinc-500 dark:text-zinc-400 pink:text-pink-500 mb-1">Repository URL</label>
               <input
                 type="text"
                 value={repoUrl}
                 onChange={(e) => setRepoUrl(e.target.value)}
                 placeholder="https://github.com/user/repo.git"
-                className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded focus:outline-none focus:border-blue-500"
+                className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-900 pink:bg-pink-100 border border-zinc-300 dark:border-zinc-700 pink:border-pink-300 rounded focus:outline-none focus:border-blue-500 pink:focus:border-pink-500"
                 required
               />
             </div>
@@ -157,20 +157,20 @@ export function CreateProjectModal({ isOpen, onClose, onSubmit, onOpenExisting }
             />
           ) : (
             <div>
-              <label className="block text-sm text-zinc-500 dark:text-zinc-400 mb-1">Local Repository Path</label>
+              <label className="block text-sm text-zinc-500 dark:text-zinc-400 pink:text-pink-500 mb-1">Local Repository Path</label>
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={localPath}
                   onChange={(e) => setLocalPath(e.target.value)}
                   placeholder="/path/to/existing/repo"
-                  className="flex-1 px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded focus:outline-none focus:border-blue-500"
+                  className="flex-1 px-3 py-2 bg-zinc-100 dark:bg-zinc-900 pink:bg-pink-100 border border-zinc-300 dark:border-zinc-700 pink:border-pink-300 rounded focus:outline-none focus:border-blue-500 pink:focus:border-pink-500"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowBrowser(true)}
-                  className="px-3 py-2 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 rounded"
+                  className="px-3 py-2 bg-zinc-200 dark:bg-zinc-700 pink:bg-pink-200 hover:bg-zinc-300 dark:hover:bg-zinc-600 pink:hover:bg-pink-300 rounded"
                   title="Browse folders"
                 >
                   <FolderOpen size={18} />
@@ -180,7 +180,7 @@ export function CreateProjectModal({ isOpen, onClose, onSubmit, onOpenExisting }
           )}
 
           <div>
-            <label className="block text-sm text-zinc-500 dark:text-zinc-400 mb-1">Project Name (optional)</label>
+            <label className="block text-sm text-zinc-500 dark:text-zinc-400 pink:text-pink-500 mb-1">Project Name (optional)</label>
             <input
               type="text"
               value={name}
@@ -200,14 +200,14 @@ export function CreateProjectModal({ isOpen, onClose, onSubmit, onOpenExisting }
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 rounded"
+              className="flex-1 px-4 py-2 bg-zinc-200 dark:bg-zinc-700 pink:bg-pink-200 hover:bg-zinc-300 dark:hover:bg-zinc-600 pink:hover:bg-pink-300 rounded"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded disabled:opacity-50"
+              className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 pink:bg-pink-600 pink:hover:bg-pink-500 text-white rounded disabled:opacity-50"
             >
               {isSubmitting ? 'Creating...' : 'Open Project'}
             </button>
