@@ -2,17 +2,19 @@ import { Plus, GitBranch, Folder, Trash2, CheckCircle, Archive, Clock } from 'lu
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import { useProjectStore, type Worktree } from '../../stores/project.store';
 import { useTerminalStore } from '../../stores/terminal.store';
-import { OrchestratorPanel } from '../orchestrator/OrchestratorPanel';
-import { OrchestratorLoopControl } from '../OrchestratorLoopControl';
+import { SplitTerminalPane } from '../terminal/SplitTerminalPane';
 
 interface SidebarProps {
   onOpenProject: () => void;
   onCreateWorktree: () => void;
   onDeleteWorktree: (worktreeId: string) => void;
   onArchiveWorktree: (worktreeId: string) => void;
+  worktreeId?: string;
+  worktreePath?: string;
+  projectPath?: string;
 }
 
-export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onArchiveWorktree }: SidebarProps) {
+export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onArchiveWorktree, worktreeId, worktreePath, projectPath }: SidebarProps) {
   const { projects, activeProjectId, worktrees, activeWorktreeId, setActiveWorktree } = useProjectStore();
   const { sessions } = useTerminalStore();
 
@@ -181,20 +183,19 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
     <aside className="h-full bg-zinc-100 dark:bg-zinc-800 border-r border-zinc-300 dark:border-zinc-700 flex flex-col overflow-hidden">
       {activeProjectId && activeProject ? (
         <Group orientation="vertical" className="h-full">
-          {/* Orchestrator chat panel - resizable */}
-          <Panel defaultSize={40} minSize={5}>
-            <div className="h-full p-2 flex flex-col gap-2">
-              <OrchestratorLoopControl projectId={activeProjectId} />
-              <div className="flex-1 min-h-0">
-                <OrchestratorPanel projectId={activeProjectId} projectPath={activeProject.path} />
-              </div>
-            </div>
+          {/* Terminal panel - top */}
+          <Panel defaultSize={60} minSize={5}>
+            <SplitTerminalPane
+              worktreeId={worktreeId}
+              worktreePath={worktreePath}
+              projectPath={projectPath}
+            />
           </Panel>
 
           <Separator className="h-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-row-resize" />
 
-          {/* Worktrees section */}
-          <Panel defaultSize={60} minSize={5}>
+          {/* Worktrees section - bottom */}
+          <Panel defaultSize={40} minSize={5}>
             {worktreesContent}
           </Panel>
         </Group>
