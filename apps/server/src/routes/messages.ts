@@ -298,6 +298,52 @@ export async function messagesRoutes(fastify: FastifyInstance) {
     return { count };
   });
 
+  // Get activity logs as structured data (for unified activity pane)
+  fastify.get<{
+    Querystring: { projectId: string; limit?: string; category?: string };
+  }>('/activity', async (request, reply) => {
+    const { projectId, limit = '100', category } = request.query;
+
+    if (!projectId) {
+      return reply.status(400).send({ error: 'projectId required' });
+    }
+
+    const project = projectService.getProject(projectId);
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    const numLimit = parseInt(limit, 10) || 100;
+    const logs = databaseService.getActivityLogs(project.path, project.id, {
+      limit: numLimit,
+      category: category as any,
+    });
+
+    // Return structured activity data
+    return {
+      activities: logs.map(log => {
+        let details: Record<string, unknown> = {};
+        try {
+          details = typeof log.details === 'string' ? JSON.parse(log.details) : log.details;
+        } catch {
+          details = {};
+        }
+
+        return {
+          id: log.id,
+          timestamp: log.timestamp,
+          type: log.type,
+          category: log.category,
+          summary: log.summary,
+          agentName: details.agentName || details.branch || null,
+          worktreeId: details.worktreeId || null,
+          details,
+        };
+      }),
+      total: logs.length,
+    };
+  });
+
   // Migrate existing file-based data to SQLite
   fastify.post<{
     Body: { projectId: string };

@@ -33,8 +33,8 @@ export async function agentRoutes(fastify: FastifyInstance) {
     const logId = databaseService.addActivityLog(project.path, worktree.projectId, {
       type: 'event',
       category: 'agent',
-      summary: `Agent completed: ${summary}`,
-      details: { worktreeId, summary, details, branch: worktree.branch },
+      summary: `[${worktree.branch}] completed: ${summary}`,
+      details: { worktreeId, summary, details, branch: worktree.branch, agentName: worktree.branch },
     });
 
     // Add a chat message so the orchestrator can see it
@@ -85,8 +85,8 @@ export async function agentRoutes(fastify: FastifyInstance) {
     databaseService.addActivityLog(project.path, worktree.projectId, {
       type: 'event',
       category: 'agent',
-      summary: `Agent question: ${question}`,
-      details: { worktreeId, question, context, options, questionId, branch: worktree.branch },
+      summary: `[${worktree.branch}] question: ${question}`,
+      details: { worktreeId, question, context, options, questionId, branch: worktree.branch, agentName: worktree.branch },
     });
 
     // Add as chat message for orchestrator to see
@@ -144,8 +144,8 @@ export async function agentRoutes(fastify: FastifyInstance) {
     const logId = databaseService.addActivityLog(project.path, worktree.projectId, {
       type: 'event',
       category: 'agent',
-      summary: `Agent progress: ${status}`,
-      details: { worktreeId, status, percentComplete, currentStep, details, branch: worktree.branch },
+      summary: `[${worktree.branch}] progress: ${status}`,
+      details: { worktreeId, status, percentComplete, currentStep, details, branch: worktree.branch, agentName: worktree.branch },
     });
 
     const progressInfo = percentComplete !== undefined ? ` (${percentComplete}%)` : '';
@@ -186,8 +186,8 @@ export async function agentRoutes(fastify: FastifyInstance) {
     const logId = databaseService.addActivityLog(project.path, worktree.projectId, {
       type: 'error',
       category: 'agent',
-      summary: `Agent ${severity}: ${error}`,
-      details: { worktreeId, error, severity, context, suggestedAction, branch: worktree.branch },
+      summary: `[${worktree.branch}] ${severity}: ${error}`,
+      details: { worktreeId, error, severity, context, suggestedAction, branch: worktree.branch, agentName: worktree.branch },
     });
 
     // Add as chat message for orchestrator to see (especially for blockers)
