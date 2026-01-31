@@ -67,10 +67,15 @@ const DEFAULT_CONFIG: OrchestratorLoopConfig = {
   provider: 'ollama',
   baseUrl: 'http://localhost:11434/v1',
   model: 'llama3.1:8b',
-  tickIntervalMs: 30000, // 30 seconds
+  tickIntervalMs: 30000, // 30 seconds (used as max wait time for no_action)
   maxConsecutiveFailures: 3,
   autoRestartDeadSessions: true,
 };
+
+// Smart tick timing constants
+const MIN_TICK_INTERVAL_MS = 2000; // Minimum 2 seconds between ticks
+const NO_ACTION_WAIT_MS = 10000; // Wait 10 seconds after no_action
+const ACTION_WAIT_MS = 0; // Tick immediately after action
 
 // Tool definitions for the LLM
 const ORCHESTRATOR_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
@@ -188,6 +193,113 @@ const ORCHESTRATOR_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'get_user_messages',
+      description: 'Read recent chat messages from the user. Use this to see what the user has requested.',
+      parameters: {
+        type: 'object',
+        properties: {
+          limit: {
+            type: 'number',
+            description: 'Maximum number of messages to retrieve (default: 10)',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_agent_output',
+      description: 'Get recent terminal output from a specific worktree agent. Useful for checking what an agent is doing or if it is stuck.',
+      parameters: {
+        type: 'object',
+        properties: {
+          worktreeId: {
+            type: 'string',
+            description: 'The ID of the worktree to get output from',
+          },
+          lines: {
+            type: 'number',
+            description: 'Number of recent lines to retrieve (default: 50)',
+          },
+        },
+        required: ['worktreeId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_worktrees',
+      description: 'Get all worktrees with their status, git info, and active sessions. Use this for a comprehensive view of all agents.',
+      parameters: {
+        type: 'object',
+        properties: {
+          filter: {
+            type: 'string',
+            enum: ['all', 'active', 'merged', 'archived'],
+            description: 'Filter worktrees by status (default: all)',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'archive_worktree',
+      description: 'Archive a completed worktree. Use this after work is merged and no longer needed.',
+      parameters: {
+        type: 'object',
+        properties: {
+          worktreeId: {
+            type: 'string',
+            description: 'The ID of the worktree to archive',
+          },
+        },
+        required: ['worktreeId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'nudge_agent',
+      description: 'Send enter presses to a stuck agent to wake it up. Use this when an agent appears idle or unresponsive.',
+      parameters: {
+        type: 'object',
+        properties: {
+          worktreeId: {
+            type: 'string',
+            description: 'The ID of the worktree containing the agent to nudge',
+          },
+        },
+        required: ['worktreeId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_file_tree',
+      description: 'Get the project directory structure (top level). Useful for understanding the project layout.',
+      parameters: {
+        type: 'object',
+        properties: {
+          depth: {
+            type: 'number',
+            description: 'How many levels deep to show (default: 2)',
+          },
+        },
+        required: [],
+      },
+    },
+  },
 ];
 
 const SYSTEM_PROMPT = `You are the orchestrator for a multi-agent development system called Orchard. Your role is to:
@@ -199,13 +311,28 @@ const SYSTEM_PROMPT = `You are the orchestrator for a multi-agent development sy
 
 You receive periodic tick updates with the current system state. Based on this state, decide what actions to take.
 
+COMMUNICATION STYLE:
+When sending messages to the user, be conversational and friendly. Write like you're chatting with them, not sending status reports.
+- Instead of: "Multiple pending user messages detected"
+- Write: "Hey! I saw your messages. Let me take a look..."
+
+- Instead of: "Task has been completed successfully"
+- Write: "Done! I merged that feature for you."
+
+- Instead of: "Creating worktree for feature implementation"
+- Write: "On it! Starting a new agent to work on that..."
+
+Keep responses concise but human-like. Be helpful and personable.
+
 Guidelines:
 - If agents are working normally and no user messages are pending, use no_action
 - If a user message is pending, process it and either create a new worktree or send to an existing agent
 - If an agent reports task completion, consider if the work should be merged
 - If an agent has a question, help answer it or escalate to the user
 - If sessions are dead, they will be auto-restarted - no action needed
-- Be concise in your responses
+- Use get_agent_output to check on agents that seem stuck
+- Use nudge_agent if an agent is unresponsive
+- Use archive_worktree to clean up merged worktrees
 
 Available tools:
 - create_worktree: Start a new feature with a Claude agent
@@ -213,6 +340,12 @@ Available tools:
 - merge_worktree: Merge completed work into main
 - send_message: Communicate with the user
 - check_status: Get detailed status of worktrees
+- get_user_messages: Read recent chat messages
+- get_agent_output: See what an agent is doing (terminal output)
+- list_worktrees: Get comprehensive worktree status
+- archive_worktree: Archive completed worktrees
+- nudge_agent: Wake up a stuck agent
+- get_file_tree: See project directory structure
 - no_action: When no intervention is needed`;
 
 /**
@@ -240,6 +373,10 @@ class OrchestratorLoopService extends EventEmitter {
   private pendingCompletions: DetectedPattern[] = [];
   private pendingQuestions: DetectedPattern[] = [];
   private pendingErrors: DetectedPattern[] = [];
+
+  // Smart tick timing
+  private lastTickStartTime: number = 0;
+  private lastActionWasNoAction: boolean = false;
 
   constructor(config: Partial<OrchestratorLoopConfig> = {}) {
     super();
@@ -517,11 +654,32 @@ class OrchestratorLoopService extends EventEmitter {
   }
 
   /**
-   * Schedule the next tick
+   * Schedule the next tick with smart timing
+   * - If last action was no_action, wait 10 seconds
+   * - If last action was a real action, tick immediately (min 2 seconds)
+   * - Respects minimum interval to prevent runaway loops
    */
-  private scheduleNextTick(): void {
-    this.nextTickAt = new Date(Date.now() + this.config.tickIntervalMs);
-    this.tickInterval = setTimeout(() => this.executeTick(), this.config.tickIntervalMs);
+  private scheduleNextTick(immediate: boolean = false): void {
+    // Calculate time since last tick started
+    const timeSinceLastTick = Date.now() - this.lastTickStartTime;
+    const minWait = Math.max(0, MIN_TICK_INTERVAL_MS - timeSinceLastTick);
+
+    let waitTime: number;
+    if (immediate) {
+      // Tick immediately after action, but respect minimum interval
+      waitTime = Math.max(minWait, ACTION_WAIT_MS);
+    } else if (this.lastActionWasNoAction) {
+      // Wait 10 seconds after no_action
+      waitTime = Math.max(minWait, NO_ACTION_WAIT_MS);
+    } else {
+      // Default: use configured interval
+      waitTime = Math.max(minWait, this.config.tickIntervalMs);
+    }
+
+    this.nextTickAt = new Date(Date.now() + waitTime);
+    this.tickInterval = setTimeout(() => this.executeTick(), waitTime);
+
+    console.log(`[OrchestratorLoop] Next tick in ${waitTime}ms (lastNoAction: ${this.lastActionWasNoAction})`);
   }
 
   /**
@@ -534,9 +692,11 @@ class OrchestratorLoopService extends EventEmitter {
 
     this.tickNumber++;
     this.lastTickAt = new Date();
+    this.lastTickStartTime = Date.now();
     const correlationId = `tick-${this.tickNumber}`;
 
     let context: TickContext;
+    let tookAction = false;
 
     try {
       // Gather tick context
@@ -565,8 +725,9 @@ class OrchestratorLoopService extends EventEmitter {
         await this.restartDeadSessions(context.deadSessions, correlationId);
       }
 
-      // Call LLM for decisions
-      await this.callLLMForDecisions(context, correlationId);
+      // Call LLM for decisions - returns true if a real action was taken (not no_action)
+      tookAction = await this.callLLMForDecisions(context, correlationId);
+      this.lastActionWasNoAction = !tookAction;
 
       // Reset failure counter on success
       this.consecutiveFailures = 0;
@@ -576,6 +737,7 @@ class OrchestratorLoopService extends EventEmitter {
       }
     } catch (error: any) {
       this.consecutiveFailures++;
+      this.lastActionWasNoAction = true; // Treat errors as no_action for timing
       console.error(`[OrchestratorLoop] Tick #${this.tickNumber} failed:`, error.message);
 
       await activityLoggerService.log({
@@ -606,9 +768,9 @@ class OrchestratorLoopService extends EventEmitter {
       };
     }
 
-    // Schedule next tick
+    // Schedule next tick with smart timing
     if (this.state === LoopState.RUNNING || this.state === LoopState.DEGRADED) {
-      this.scheduleNextTick();
+      this.scheduleNextTick(tookAction);
     }
 
     return context;
@@ -616,11 +778,12 @@ class OrchestratorLoopService extends EventEmitter {
 
   /**
    * Call the LLM for decisions
+   * @returns true if a real action was taken (not no_action), false otherwise
    */
-  private async callLLMForDecisions(context: TickContext, correlationId: string): Promise<void> {
+  private async callLLMForDecisions(context: TickContext, correlationId: string): Promise<boolean> {
     if (!this.openai) {
       console.log('[OrchestratorLoop] OpenAI client not initialized, skipping LLM call');
-      return;
+      return false;
     }
 
     // Build the tick message
@@ -637,21 +800,57 @@ class OrchestratorLoopService extends EventEmitter {
       this.conversationHistory = this.conversationHistory.slice(-40);
     }
 
+    // Build the full messages array for the request
+    const fullMessages = [
+      { role: 'system' as const, content: SYSTEM_PROMPT },
+      ...this.conversationHistory,
+    ];
+
+    // Log the full request to Ollama
+    await activityLoggerService.log({
+      type: 'llm_request',
+      category: 'orchestrator',
+      summary: `LLM request (tick #${context.tickNumber})`,
+      details: {
+        model: this.config.model,
+        provider: this.config.provider,
+        messages: fullMessages,
+        toolCount: ORCHESTRATOR_TOOLS.length,
+      },
+      correlationId,
+    });
+
     try {
       const response = await this.openai.chat.completions.create({
         model: this.config.model,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          ...this.conversationHistory,
-        ],
+        messages: fullMessages,
         tools: ORCHESTRATOR_TOOLS,
         tool_choice: 'auto',
       });
 
       const assistantMessage = response.choices[0]?.message;
+
+      // Log the full response from Ollama
+      await activityLoggerService.log({
+        type: 'llm_response',
+        category: 'orchestrator',
+        summary: `LLM response: ${assistantMessage?.content?.slice(0, 100) || 'tool calls only'}`,
+        details: {
+          model: this.config.model,
+          content: assistantMessage?.content || null,
+          toolCalls: assistantMessage?.tool_calls?.map(tc => ({
+            name: tc.function.name,
+            arguments: tc.function.arguments,
+          })) || [],
+          usage: response.usage || null,
+          finishReason: response.choices[0]?.finish_reason || null,
+        },
+        correlationId,
+      });
+
       if (!assistantMessage) {
         console.log('[OrchestratorLoop] No response from LLM');
-        return;
+        return false;
       }
 
       // Add assistant response to history
@@ -668,12 +867,19 @@ class OrchestratorLoopService extends EventEmitter {
         });
       }
 
-      // Execute tool calls
+      // Execute tool calls and track if any real action was taken
+      let tookRealAction = false;
       if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
         for (const toolCall of assistantMessage.tool_calls) {
+          const isNoAction = toolCall.function.name === 'no_action';
+          if (!isNoAction) {
+            tookRealAction = true;
+          }
           await this.executeToolCall(toolCall, correlationId);
         }
       }
+
+      return tookRealAction;
     } catch (error: any) {
       console.error('[OrchestratorLoop] LLM call failed:', error.message);
       await activityLoggerService.log({
@@ -683,6 +889,7 @@ class OrchestratorLoopService extends EventEmitter {
         details: { error: error.stack },
         correlationId,
       });
+      return false;
     }
   }
 
@@ -799,6 +1006,24 @@ class OrchestratorLoopService extends EventEmitter {
             details: { reason: args.reason },
             correlationId,
           });
+          break;
+        case 'get_user_messages':
+          await this.toolGetUserMessages(args.limit || 10, correlationId);
+          break;
+        case 'get_agent_output':
+          await this.toolGetAgentOutput(args.worktreeId, args.lines || 50, correlationId);
+          break;
+        case 'list_worktrees':
+          await this.toolListWorktrees(args.filter || 'all', correlationId);
+          break;
+        case 'archive_worktree':
+          await this.toolArchiveWorktree(args.worktreeId, correlationId);
+          break;
+        case 'nudge_agent':
+          await this.toolNudgeAgent(args.worktreeId, correlationId);
+          break;
+        case 'get_file_tree':
+          await this.toolGetFileTree(args.depth || 2, correlationId);
           break;
         default:
           console.log(`[OrchestratorLoop] Unknown tool: ${name}`);
@@ -979,6 +1204,262 @@ class OrchestratorLoopService extends EventEmitter {
         correlationId,
       });
     }
+  }
+
+  /**
+   * Tool: Get recent user messages from chat
+   */
+  private async toolGetUserMessages(limit: number, correlationId: string): Promise<void> {
+    const projectId = this.projectId;
+    if (!projectId) throw new Error('No project context');
+
+    const project = projectService.getProject(projectId);
+    if (!project?.path) throw new Error('Project path not found');
+
+    const chatPath = join(project.path, '.orchard', 'chat.json');
+    let messages: Array<{ id: string; text: string; timestamp: string; from: string }> = [];
+
+    try {
+      if (existsSync(chatPath)) {
+        const data = await readFile(chatPath, 'utf-8');
+        messages = JSON.parse(data);
+      }
+    } catch {
+      messages = [];
+    }
+
+    // Get last N messages
+    const recentMessages = messages.slice(-limit);
+
+    await activityLoggerService.log({
+      type: 'event',
+      category: 'orchestrator',
+      summary: `Retrieved ${recentMessages.length} recent messages`,
+      details: {
+        messageCount: recentMessages.length,
+        messages: recentMessages.map(m => ({
+          from: m.from,
+          text: m.text.slice(0, 200),
+          timestamp: m.timestamp,
+        })),
+      },
+      correlationId,
+    });
+
+    // Add to conversation history so LLM can see the messages
+    this.conversationHistory.push({
+      role: 'user',
+      content: `Recent messages:\n${recentMessages.map(m => `[${m.from}]: ${m.text}`).join('\n')}`,
+    });
+  }
+
+  /**
+   * Tool: Get terminal output from an agent
+   */
+  private async toolGetAgentOutput(worktreeId: string, lines: number, correlationId: string): Promise<void> {
+    const session = sessionPersistenceService.getSession(worktreeId);
+    if (!session) {
+      throw new Error(`No session found for worktree ${worktreeId}`);
+    }
+
+    // Get recent output from the terminal monitor
+    const recentOutput = terminalMonitorService.getRecentOutput(session.id, lines);
+
+    await activityLoggerService.log({
+      type: 'event',
+      category: 'agent',
+      summary: `Retrieved output from ${worktreeId} (${recentOutput.length} chars)`,
+      details: {
+        worktreeId,
+        sessionId: session.id,
+        outputLength: recentOutput.length,
+        output: recentOutput.slice(-2000), // Limit logged output
+      },
+      correlationId,
+    });
+
+    // Add to conversation history so LLM can see the output
+    this.conversationHistory.push({
+      role: 'user',
+      content: `Terminal output from ${worktreeId}:\n\`\`\`\n${recentOutput.slice(-1000)}\n\`\`\``,
+    });
+  }
+
+  /**
+   * Tool: List all worktrees with status
+   */
+  private async toolListWorktrees(filter: string, correlationId: string): Promise<void> {
+    const projectId = this.projectId;
+    if (!projectId) throw new Error('No project context');
+
+    const worktrees = await worktreeService.loadWorktreesForProject(projectId);
+    const sessions = sessionPersistenceService.getSessionsForProject(projectId);
+    const sessionByWorktree = new Map(sessions.map(s => [s.worktreeId, s]));
+
+    // Filter worktrees based on filter parameter
+    let filtered = worktrees.filter(w => !w.isMain);
+    switch (filter) {
+      case 'active':
+        filtered = filtered.filter(w => !w.archived && !w.merged);
+        break;
+      case 'merged':
+        filtered = filtered.filter(w => w.merged);
+        break;
+      case 'archived':
+        filtered = filtered.filter(w => w.archived);
+        break;
+      // 'all' - no additional filtering
+    }
+
+    const worktreeInfo = filtered.map(w => {
+      const session = sessionByWorktree.get(w.id);
+      return {
+        id: w.id,
+        branch: w.branch,
+        path: w.path,
+        merged: w.merged || false,
+        archived: w.archived || false,
+        hasSession: !!session,
+        sessionId: session?.id,
+        lastCommit: w.lastCommitMessage,
+        lastCommitDate: w.lastCommitDate,
+        status: w.status,
+      };
+    });
+
+    await activityLoggerService.log({
+      type: 'event',
+      category: 'orchestrator',
+      summary: `Listed ${worktreeInfo.length} worktrees (filter: ${filter})`,
+      details: { filter, worktrees: worktreeInfo },
+      correlationId,
+    });
+
+    // Add to conversation history
+    const summary = worktreeInfo.map(w => {
+      const status = w.archived ? 'ARCHIVED' : w.merged ? 'MERGED' : 'ACTIVE';
+      const session = w.hasSession ? 'has session' : 'no session';
+      return `- ${w.branch} (${w.id.slice(0, 8)}): ${status}, ${session}`;
+    }).join('\n');
+
+    this.conversationHistory.push({
+      role: 'user',
+      content: `Worktrees (${filter}):\n${summary || 'No worktrees found'}`,
+    });
+  }
+
+  /**
+   * Tool: Archive a worktree
+   */
+  private async toolArchiveWorktree(worktreeId: string, correlationId: string): Promise<void> {
+    const worktree = worktreeService.getWorktree(worktreeId);
+    if (!worktree) throw new Error('Worktree not found');
+
+    // Archive the worktree
+    await worktreeService.archiveWorktree(worktreeId);
+
+    await activityLoggerService.log({
+      type: 'action',
+      category: 'worktree',
+      summary: `Archived worktree ${worktree.branch}`,
+      details: { worktreeId, branch: worktree.branch },
+      correlationId,
+    });
+
+    this.emit('worktree:archived', { worktreeId, branch: worktree.branch });
+  }
+
+  /**
+   * Tool: Nudge an agent by sending enter presses
+   */
+  private async toolNudgeAgent(worktreeId: string, correlationId: string): Promise<void> {
+    const session = sessionPersistenceService.getSession(worktreeId);
+    if (!session) {
+      throw new Error(`No session found for worktree ${worktreeId}`);
+    }
+
+    // Send enter press to wake up the agent
+    daemonClient.writeToSession(session.id, '\r');
+
+    // Send another after a short delay
+    setTimeout(() => {
+      daemonClient.writeToSession(session.id, '\r');
+    }, 500);
+
+    await activityLoggerService.log({
+      type: 'action',
+      category: 'agent',
+      summary: `Nudged agent in ${worktreeId}`,
+      details: { worktreeId, sessionId: session.id },
+      correlationId,
+    });
+  }
+
+  /**
+   * Tool: Get project file tree
+   */
+  private async toolGetFileTree(depth: number, correlationId: string): Promise<void> {
+    const projectId = this.projectId;
+    if (!projectId) throw new Error('No project context');
+
+    const project = projectService.getProject(projectId);
+    if (!project?.path) throw new Error('Project path not found');
+
+    // Build file tree using fs
+    const { readdirSync, statSync } = await import('node:fs');
+
+    const buildTree = (dir: string, currentDepth: number, prefix: string = ''): string[] => {
+      if (currentDepth > depth) return [];
+
+      const entries: string[] = [];
+      try {
+        const items = readdirSync(dir);
+        const filtered = items.filter(item =>
+          !item.startsWith('.') &&
+          !['node_modules', 'dist', 'build', '.git', '.worktrees'].includes(item)
+        );
+
+        for (let i = 0; i < filtered.length; i++) {
+          const item = filtered[i];
+          const fullPath = join(dir, item);
+          const isLast = i === filtered.length - 1;
+          const connector = isLast ? '└── ' : '├── ';
+          const nextPrefix = prefix + (isLast ? '    ' : '│   ');
+
+          try {
+            const stat = statSync(fullPath);
+            if (stat.isDirectory()) {
+              entries.push(`${prefix}${connector}${item}/`);
+              entries.push(...buildTree(fullPath, currentDepth + 1, nextPrefix));
+            } else {
+              entries.push(`${prefix}${connector}${item}`);
+            }
+          } catch {
+            // Skip inaccessible files
+          }
+        }
+      } catch {
+        // Skip inaccessible directories
+      }
+      return entries;
+    };
+
+    const tree = buildTree(project.path, 1);
+    const treeStr = tree.slice(0, 100).join('\n'); // Limit output
+
+    await activityLoggerService.log({
+      type: 'event',
+      category: 'orchestrator',
+      summary: `Retrieved file tree (depth: ${depth})`,
+      details: { depth, lineCount: tree.length },
+      correlationId,
+    });
+
+    // Add to conversation history
+    this.conversationHistory.push({
+      role: 'user',
+      content: `Project file tree:\n\`\`\`\n${treeStr}\n${tree.length > 100 ? '... (truncated)' : ''}\`\`\``,
+    });
   }
 
   /**

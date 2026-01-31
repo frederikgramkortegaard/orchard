@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Play, Square, RefreshCw, Loader2 } from 'lucide-react';
+import { Play, Square, RefreshCw, Loader2, ChevronDown } from 'lucide-react';
 
 interface LoopStatus {
   state: 'STOPPED' | 'STARTING' | 'RUNNING' | 'PAUSED' | 'DEGRADED' | 'STOPPING';
@@ -15,6 +15,12 @@ interface LoopStatus {
   };
 }
 
+interface OllamaModel {
+  name: string;
+  size: number;
+  modified: string;
+}
+
 interface OrchestratorLoopControlProps {
   projectId: string;
 }
@@ -23,6 +29,8 @@ export function OrchestratorLoopControl({ projectId }: OrchestratorLoopControlPr
   const [status, setStatus] = useState<LoopStatus | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [models, setModels] = useState<OllamaModel[]>([]);
+  const [showModelDropdown, setShowModelDropdown] = useState(false);
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -37,11 +45,41 @@ export function OrchestratorLoopControl({ projectId }: OrchestratorLoopControlPr
     }
   }, []);
 
+  const fetchModels = useCallback(async () => {
+    try {
+      const res = await fetch('/api/orchestrator/loop/models');
+      if (res.ok) {
+        const data = await res.json();
+        setModels(data.models || []);
+      }
+    } catch {
+      // Ignore fetch errors
+    }
+  }, []);
+
   useEffect(() => {
     fetchStatus();
+    fetchModels();
     const interval = setInterval(fetchStatus, 5000);
     return () => clearInterval(interval);
-  }, [fetchStatus]);
+  }, [fetchStatus, fetchModels]);
+
+  const handleModelChange = async (modelName: string) => {
+    setShowModelDropdown(false);
+    try {
+      const res = await fetch('/api/orchestrator/loop/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: modelName }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setStatus(data);
+      }
+    } catch {
+      // Ignore errors
+    }
+  };
 
   const handleStart = async () => {
     setIsLoading(true);
@@ -157,8 +195,30 @@ export function OrchestratorLoopControl({ projectId }: OrchestratorLoopControlPr
           <div className="text-zinc-500 dark:text-zinc-500">
             Tick #{status.tickNumber}
           </div>
-          <div className="text-zinc-500 dark:text-zinc-500 text-right">
-            {status.config.model}
+          <div className="text-zinc-500 dark:text-zinc-500 text-right relative">
+            <button
+              onClick={() => setShowModelDropdown(!showModelDropdown)}
+              className="flex items-center gap-1 hover:text-zinc-700 dark:hover:text-zinc-300"
+              title="Select Model"
+            >
+              {status.config.model}
+              <ChevronDown size={12} />
+            </button>
+            {showModelDropdown && models.length > 0 && (
+              <div className="absolute right-0 top-full mt-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded shadow-lg z-10 min-w-[150px]">
+                {models.map(model => (
+                  <button
+                    key={model.name}
+                    onClick={() => handleModelChange(model.name)}
+                    className={`w-full text-left px-3 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-700 ${
+                      model.name === status.config.model ? 'bg-zinc-100 dark:bg-zinc-700' : ''
+                    }`}
+                  >
+                    {model.name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div className="text-zinc-500 dark:text-zinc-500">
             Last: {formatTime(status.lastTickAt)}
