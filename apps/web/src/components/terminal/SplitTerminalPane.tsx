@@ -17,7 +17,7 @@ interface TerminalPanel {
 }
 
 export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: SplitTerminalPaneProps) {
-  const { send, subscribe, isConnected } = useWebSocket();
+  const { send, subscribe, isConnected, connectionId } = useWebSocket();
   const { sessions, addSession, removeSession, setSessionRateLimited, clearSessionRateLimit } = useTerminalStore();
   const [panels, setPanels] = useState<TerminalPanel[]>([{ id: 'left', sessionId: null }]);
   const [activePanelId, setActivePanelId] = useState('left');
@@ -278,6 +278,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
               isActive={activePanelId === panel.id}
               readOnly={session.isClaudeSession !== false}
               rateLimit={session.rateLimit}
+              connectionId={connectionId}
             />
           ) : (
             <div className="flex items-center justify-center h-full text-zinc-500">
