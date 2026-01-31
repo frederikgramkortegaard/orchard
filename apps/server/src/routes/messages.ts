@@ -20,7 +20,7 @@ export async function messagesRoutes(fastify: FastifyInstance) {
     }
 
     const limit = parseInt(lines, 10) || 50;
-    const logs = databaseService.getActivityLogs(project.path, projectId, {
+    const logs = databaseService.getActivityLogs(project.path, project.id, {
       limit,
       type: type as any,
       category: category as any,
@@ -54,7 +54,7 @@ export async function messagesRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Project not found' });
     }
 
-    const id = databaseService.addActivityLog(project.path, projectId, {
+    const id = databaseService.addActivityLog(project.path, project.id, {
       type: type as any,
       category: category as any,
       summary: message,
@@ -79,7 +79,7 @@ export async function messagesRoutes(fastify: FastifyInstance) {
     }
 
     // Clear all activity logs for this project (or keep last 24 hours)
-    const cleared = databaseService.clearOldActivityLogs(project.path, projectId, 0);
+    const cleared = databaseService.clearOldActivityLogs(project.path, project.id, 0);
     return { success: true, cleared };
   });
 
@@ -102,7 +102,7 @@ export async function messagesRoutes(fastify: FastifyInstance) {
     const messageId = randomUUID();
     databaseService.addChatMessage(project.path, {
       id: messageId,
-      projectId,
+      projectId: project.id,
       from: 'user',
       text: messageContent,
     });
@@ -111,7 +111,7 @@ export async function messagesRoutes(fastify: FastifyInstance) {
       success: true,
       message: {
         id: messageId,
-        projectId,
+        projectId: project.id,
         text: messageContent,
         content: messageContent,
         timestamp: new Date().toISOString(),
@@ -137,7 +137,7 @@ export async function messagesRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Project not found' });
     }
 
-    const messages = databaseService.getChatMessages(project.path, projectId, {
+    const messages = databaseService.getChatMessages(project.path, project.id, {
       unprocessedOnly: true,
       from: 'user',
     });
@@ -187,7 +187,7 @@ export async function messagesRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Project not found' });
     }
 
-    const marked = databaseService.markChatMessagesProcessed(project.path, projectId, messageIds);
+    const marked = databaseService.markChatMessagesProcessed(project.path, project.id, messageIds);
     return { success: true, marked };
   });
 
@@ -206,7 +206,7 @@ export async function messagesRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Project not found' });
     }
 
-    const messages = databaseService.getChatMessages(project.path, projectId, { limit: 200 });
+    const messages = databaseService.getChatMessages(project.path, project.id, { limit: 200 });
     return messages.map(m => ({
       ...m,
       content: m.text,
@@ -230,7 +230,7 @@ export async function messagesRoutes(fastify: FastifyInstance) {
     }
 
     const numLimit = parseInt(limit, 10) || 50;
-    const messages = databaseService.getRecentChatMessages(project.path, projectId, numLimit);
+    const messages = databaseService.getRecentChatMessages(project.path, project.id, numLimit);
 
     // Return in backward compatible format
     return messages.map(m => ({
@@ -261,7 +261,7 @@ export async function messagesRoutes(fastify: FastifyInstance) {
     const messageId = randomUUID();
     databaseService.addChatMessage(project.path, {
       id: messageId,
-      projectId,
+      projectId: project.id,
       from,
       text,
       replyTo,
@@ -269,7 +269,7 @@ export async function messagesRoutes(fastify: FastifyInstance) {
 
     const message = {
       id: messageId,
-      projectId,
+      projectId: project.id,
       text,
       timestamp: new Date().toISOString(),
       from,
@@ -294,7 +294,7 @@ export async function messagesRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Project not found' });
     }
 
-    const count = databaseService.getUnprocessedUserMessageCount(project.path, projectId);
+    const count = databaseService.getUnprocessedUserMessageCount(project.path, project.id);
     return { count };
   });
 
@@ -313,7 +313,7 @@ export async function messagesRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Project not found' });
     }
 
-    const stats = await databaseService.migrateFromFiles(project.path, projectId);
+    const stats = await databaseService.migrateFromFiles(project.path, project.id);
     return { success: true, ...stats };
   });
 }
