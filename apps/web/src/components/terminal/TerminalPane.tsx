@@ -34,6 +34,26 @@ export function TerminalPane({ worktreeId }: TerminalPaneProps) {
     };
   }, [subscribe, setSessionRateLimited, clearSessionRateLimit]);
 
+  // Fetch existing terminal sessions on mount and when worktreeId changes
+  useEffect(() => {
+    if (!worktreeId) return;
+
+    fetch(`/api/terminals?worktreeId=${worktreeId}`)
+      .then(res => res.json())
+      .then((fetchedSessions: any[]) => {
+        fetchedSessions.forEach(session => {
+          addSession({
+            id: session.id,
+            worktreeId: session.worktreeId,
+            cwd: session.cwd,
+            createdAt: session.createdAt,
+            isConnected: true,
+          });
+        });
+      })
+      .catch(err => console.error('Failed to fetch existing sessions:', err));
+  }, [worktreeId, addSession]);
+
   const filteredSessions = worktreeId
     ? Array.from(sessions.values()).filter(s => s.worktreeId === worktreeId)
     : Array.from(sessions.values());
