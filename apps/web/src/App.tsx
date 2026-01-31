@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
+import { Sun, Moon } from 'lucide-react';
 import { useProjectStore } from './stores/project.store';
 import { useTerminalStore } from './stores/terminal.store';
+import { useTheme } from './contexts/ThemeContext';
 import { ProjectTabBar } from './components/layout/ProjectTabBar';
 import { Sidebar } from './components/sidebar/Sidebar';
 import { SplitTerminalPane } from './components/terminal/SplitTerminalPane';
@@ -10,6 +12,7 @@ import { CreateWorktreeModal } from './components/modals/CreateWorktreeModal';
 import * as api from './api/projects';
 
 function App() {
+  const { theme, toggleTheme } = useTheme();
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [showWorktreeModal, setShowWorktreeModal] = useState(false);
   const {
@@ -68,24 +71,33 @@ function App() {
   const activeProject = projects.find((p) => p.id === activeProjectId);
 
   return (
-    <div className="h-screen flex flex-col bg-zinc-900 text-zinc-100">
+    <div className="h-screen flex flex-col bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">
       {/* Project tabs bar */}
       <ProjectTabBar onNewProject={() => setShowProjectModal(true)} />
 
       {/* Header */}
-      <header className="flex items-center justify-between px-4 py-2 bg-zinc-800 border-b border-zinc-700">
+      <header className="flex items-center justify-between px-4 py-2 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700">
         <div className="flex items-center gap-4">
           <h1 className="text-xl font-bold">Orchard</h1>
           {activeProject && (
-            <span className="text-sm text-zinc-400">
+            <span className="text-sm text-zinc-500 dark:text-zinc-400">
               {activeProject.name}
               {activeWorktree && ` / ${activeWorktree.branch}`}
             </span>
           )}
         </div>
-        <span className="text-sm text-zinc-400">
-          {activeWorktree ? activeWorktree.path : 'No worktree selected'}
-        </span>
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-zinc-500 dark:text-zinc-400">
+            {activeWorktree ? activeWorktree.path : 'No worktree selected'}
+          </span>
+          <button
+            onClick={toggleTheme}
+            className="p-2 rounded-lg bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+        </div>
       </header>
 
       {/* Main content */}
@@ -99,25 +111,25 @@ function App() {
           />
         </Panel>
 
-        <Separator className="w-1 bg-zinc-700 hover:bg-zinc-600 cursor-col-resize" />
+        <Separator className="w-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-col-resize" />
 
         <Panel>
           <Group orientation="vertical" className="h-full">
           {/* Editor area */}
           <Panel defaultSize="60%" minSize="20%">
-            <div className="h-full bg-zinc-900 flex items-center justify-center text-zinc-500">
+            <div className="h-full bg-zinc-50 dark:bg-zinc-900 flex items-center justify-center text-zinc-500 dark:text-zinc-500">
               {activeWorktree ? (
                 <div className="text-center">
                   <p className="text-lg">Working on: {activeWorktree.branch}</p>
                   <p className="text-sm mt-1">{activeWorktree.path}</p>
-                  <p className="text-xs mt-4 text-zinc-600">File editor coming soon...</p>
+                  <p className="text-xs mt-4 text-zinc-400 dark:text-zinc-600">File editor coming soon...</p>
                 </div>
               ) : activeProject ? (
                 <div className="text-center">
                   <p>Select a worktree or create a new one</p>
                   <button
                     onClick={() => setShowWorktreeModal(true)}
-                    className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded"
+                    className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded"
                   >
                     Create Worktree
                   </button>
@@ -127,7 +139,7 @@ function App() {
                   <p>Open a project to get started</p>
                   <button
                     onClick={() => setShowProjectModal(true)}
-                    className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded"
+                    className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded"
                   >
                     Open Project
                   </button>
@@ -136,7 +148,7 @@ function App() {
             </div>
           </Panel>
 
-          <Separator className="h-1 bg-zinc-700 hover:bg-zinc-600 cursor-row-resize" />
+          <Separator className="h-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-row-resize" />
 
           {/* Terminal area */}
           <Panel defaultSize="40%" minSize="15%">
