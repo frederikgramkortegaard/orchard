@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { worktreeService } from '../services/worktree.service.js';
+import { projectService } from '../services/project.service.js';
 import { daemonClient } from '../pty/daemon-client.js';
 
 export async function worktreesRoutes(fastify: FastifyInstance) {
@@ -31,8 +32,11 @@ export async function worktreesRoutes(fastify: FastifyInstance) {
       // Auto-spawn a Claude session for this worktree (with skip-permissions since inside project)
       if (daemonClient.isConnected()) {
         try {
-          await daemonClient.createSession(worktree.id, worktree.path, 'claude --dangerously-skip-permissions');
-          console.log(`Created Claude session for worktree ${worktree.id}`);
+          const project = projectService.getProject(projectId);
+          if (project) {
+            await daemonClient.createSession(worktree.id, project.path, worktree.path, 'claude --dangerously-skip-permissions');
+            console.log(`Created Claude session for worktree ${worktree.id}`);
+          }
         } catch (err) {
           console.error('Failed to create Claude session for worktree:', err);
           // Don't fail the worktree creation if session fails
@@ -108,13 +112,18 @@ export async function worktreesRoutes(fastify: FastifyInstance) {
 
     // Create new Claude session with skip-permissions since worktree is inside project
     try {
-      const sessionId = await daemonClient.createSession(worktree.id, worktree.path, 'claude --dangerously-skip-permissions');
+      const project = projectService.getProject(worktree.projectId);
+      if (!project) {
+        return reply.status(404).send({ error: 'Project not found for worktree' });
+      }
+      const sessionId = await daemonClient.createSession(worktree.id, project.path, worktree.path, 'claude --dangerously-skip-permissions');
       const session = await daemonClient.getSession(sessionId);
       console.log(`Created Claude session ${sessionId} for worktree ${worktree.id}`);
       return {
         session: {
           id: sessionId,
           worktreeId: worktree.id,
+          projectPath: project.path,
           cwd: worktree.path,
           createdAt: session?.createdAt || new Date().toISOString(),
         },

@@ -4,12 +4,12 @@ import { daemonClient } from '../pty/daemon-client.js';
 export async function terminalsRoutes(fastify: FastifyInstance) {
   // Create terminal session
   fastify.post<{
-    Body: { worktreeId: string; cwd: string; initialCommand?: string };
+    Body: { worktreeId: string; projectPath: string; cwd: string; initialCommand?: string };
   }>('/terminals', async (request, reply) => {
-    const { worktreeId, cwd, initialCommand } = request.body;
+    const { worktreeId, projectPath, cwd, initialCommand } = request.body;
 
-    if (!worktreeId || !cwd) {
-      return reply.status(400).send({ error: 'worktreeId and cwd are required' });
+    if (!worktreeId || !projectPath || !cwd) {
+      return reply.status(400).send({ error: 'worktreeId, projectPath, and cwd are required' });
     }
 
     if (!daemonClient.isConnected()) {
@@ -17,12 +17,13 @@ export async function terminalsRoutes(fastify: FastifyInstance) {
     }
 
     try {
-      const sessionId = await daemonClient.createSession(worktreeId, cwd, initialCommand);
+      const sessionId = await daemonClient.createSession(worktreeId, projectPath, cwd, initialCommand);
       const session = await daemonClient.getSession(sessionId);
 
       return {
         id: sessionId,
         worktreeId,
+        projectPath,
         cwd,
         createdAt: session?.createdAt || new Date().toISOString(),
       };

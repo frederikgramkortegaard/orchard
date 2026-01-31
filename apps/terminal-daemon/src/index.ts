@@ -2,20 +2,13 @@ import { WebSocketServer, WebSocket } from 'ws';
 import * as pty from 'node-pty';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import { homedir } from 'os';
 
 const DAEMON_PORT = 3002;
-const DATA_DIR = join(homedir(), '.orchard');
-const SESSIONS_FILE = join(DATA_DIR, 'terminal-sessions.json');
-
-// Ensure data directory exists
-if (!existsSync(DATA_DIR)) {
-  mkdirSync(DATA_DIR, { recursive: true });
-}
 
 interface SessionInfo {
   id: string;
   worktreeId: string;
+  projectPath: string;
   cwd: string;
   createdAt: string;
   initialCommand?: string;
@@ -24,6 +17,7 @@ interface SessionInfo {
 interface PtySession {
   id: string;
   worktreeId: string;
+  projectPath: string;
   cwd: string;
   createdAt: Date;
   pty: pty.IPty;
@@ -110,7 +104,7 @@ class TerminalDaemon {
   }
 
   private createSession(ws: WebSocket, msg: any) {
-    const { worktreeId, cwd, initialCommand, requestId } = msg;
+    const { worktreeId, projectPath, cwd, initialCommand, requestId } = msg;
     const id = crypto.randomUUID();
 
     const shell = process.platform === 'win32' ? 'powershell.exe' : process.env.SHELL || '/bin/bash';
@@ -125,6 +119,7 @@ class TerminalDaemon {
     const session: PtySession = {
       id,
       worktreeId,
+      projectPath,
       cwd,
       createdAt: new Date(),
       pty: ptyProcess,
@@ -248,12 +243,13 @@ class TerminalDaemon {
       session: {
         id,
         worktreeId,
+        projectPath,
         cwd,
         createdAt: session.createdAt.toISOString(),
       },
     }));
 
-    console.log(`Created session ${id} for worktree ${worktreeId}`);
+    console.log(`Created session ${id} for worktree ${worktreeId} in project ${projectPath}`);
   }
 
   private destroySession(ws: WebSocket, sessionId: string, requestId?: string) {
@@ -275,6 +271,7 @@ class TerminalDaemon {
     const sessions = Array.from(this.sessions.values()).map((s) => ({
       id: s.id,
       worktreeId: s.worktreeId,
+      projectPath: s.projectPath,
       cwd: s.cwd,
       createdAt: s.createdAt.toISOString(),
       subscriberCount: s.subscribers.size,
@@ -294,6 +291,7 @@ class TerminalDaemon {
       session: {
         id: session.id,
         worktreeId: session.worktreeId,
+        projectPath: session.projectPath,
         cwd: session.cwd,
         createdAt: session.createdAt.toISOString(),
         subscriberCount: session.subscribers.size,
@@ -346,40 +344,73 @@ class TerminalDaemon {
     }
   }
 
-  private persistSessions() {
-    const sessionsData: SessionInfo[] = Array.from(this.sessions.values()).map((s) => ({
-      id: s.id,
-      worktreeId: s.worktreeId,
-      cwd: s.cwd,
-      createdAt: s.createdAt.toISOString(),
-    }));
-    writeFileSync(SESSIONS_FILE, JSON.stringify(sessionsData, null, 2));
+  private getSessionsFilePath(projectPath: string): string {
+    const orchardDir = join(projectPath, '.orchard');
+    if (!existsSync(orchardDir)) {
+      mkdirSync(orchardDir, { recursive: true });
+    }
+    return join(orchardDir, 'terminal-sessions.json');
   }
 
-  private loadPersistedSessions() {
-    // Note: We can't restore PTY processes, but we log what was running
-    if (existsSync(SESSIONS_FILE)) {
-      try {
-        const data = JSON.parse(readFileSync(SESSIONS_FILE, 'utf-8'));
-        if (data.length > 0) {
-          console.log(`Found ${data.length} previous sessions (PTY processes cannot be restored):`);
-          data.forEach((s: SessionInfo) => {
-            console.log(`  - ${s.id}: ${s.worktreeId} @ ${s.cwd}`);
-          });
-        }
-        // Clear the file since we can't restore
-        writeFileSync(SESSIONS_FILE, '[]');
-      } catch {
-        // Ignore parse errors
+  private persistSessions() {
+    // Group sessions by projectPath and persist to each project's .orchard folder
+    const sessionsByProject = new Map<string, SessionInfo[]>();
+
+    for (const session of this.sessions.values()) {
+      const projectPath = session.projectPath;
+      if (!sessionsByProject.has(projectPath)) {
+        sessionsByProject.set(projectPath, []);
       }
+      sessionsByProject.get(projectPath)!.push({
+        id: session.id,
+        worktreeId: session.worktreeId,
+        projectPath: session.projectPath,
+        cwd: session.cwd,
+        createdAt: session.createdAt.toISOString(),
+      });
+    }
+
+    // Write to each project's session file
+    for (const [projectPath, sessions] of sessionsByProject) {
+      try {
+        const sessionsFile = this.getSessionsFilePath(projectPath);
+        writeFileSync(sessionsFile, JSON.stringify(sessions, null, 2));
+      } catch (err) {
+        console.error(`Error persisting sessions for project ${projectPath}:`, err);
+      }
+    }
+
+    // Track which projects have active sessions for cleanup
+    this.activeProjectPaths = new Set(sessionsByProject.keys());
+  }
+
+  private activeProjectPaths = new Set<string>();
+
+  private loadPersistedSessions() {
+    // With project-local session files, we can't enumerate all projects at daemon startup
+    // Sessions will be discovered when projects are loaded by the server
+    console.log('Terminal daemon started (sessions are stored per-project in .orchard/)');
+  }
+
+  clearProjectSessions(projectPath: string) {
+    // Clear sessions file for a specific project
+    try {
+      const sessionsFile = this.getSessionsFilePath(projectPath);
+      if (existsSync(sessionsFile)) {
+        writeFileSync(sessionsFile, '[]');
+      }
+    } catch {
+      // Ignore errors
     }
   }
 
   private shutdown() {
     console.log('\nShutting down terminal daemon...');
 
-    // Kill all PTY processes
+    // Kill all PTY processes and collect project paths
+    const projectPaths = new Set<string>();
     this.sessions.forEach((session) => {
+      projectPaths.add(session.projectPath);
       try {
         session.pty.kill();
       } catch {
@@ -387,8 +418,10 @@ class TerminalDaemon {
       }
     });
 
-    // Clear persisted sessions since PTYs are gone
-    writeFileSync(SESSIONS_FILE, '[]');
+    // Clear persisted sessions for all active projects
+    for (const projectPath of projectPaths) {
+      this.clearProjectSessions(projectPath);
+    }
 
     this.wss.close(() => {
       console.log('Terminal daemon stopped');
