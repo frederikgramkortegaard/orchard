@@ -7,7 +7,7 @@ import type { Project } from '../../stores/project.store';
 interface CreateProjectModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: { repoUrl?: string; localPath?: string; name?: string }) => Promise<void>;
+  onSubmit: (data: { repoUrl?: string; localPath?: string; name?: string; inPlace?: boolean }) => Promise<void>;
   onOpenExisting?: (project: Project) => void;
 }
 

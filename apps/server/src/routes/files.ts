@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
-import { readdir, stat } from 'fs/promises';
+import { readdir, stat, readFile } from 'fs/promises';
 import { existsSync } from 'fs';
-import { join, basename } from 'path';
+import { join, basename, extname } from 'path';
 import { homedir } from 'os';
 
 export interface DirectoryEntry {
@@ -10,6 +10,30 @@ export interface DirectoryEntry {
   type: 'file' | 'directory';
   isGitRepo?: boolean;
 }
+
+export interface FileTreeEntry {
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  children?: FileTreeEntry[];
+}
+
+// Skip these directories when building tree
+const SKIP_DIRS = new Set([
+  'node_modules', '.git', '.next', 'dist', 'build',
+  '.cache', 'coverage', '.turbo', '.vscode', '.idea',
+  '__pycache__', '.pytest_cache', 'venv', '.venv'
+]);
+
+// Binary file extensions to skip
+const BINARY_EXTENSIONS = new Set([
+  '.png', '.jpg', '.jpeg', '.gif', '.ico', '.webp', '.svg',
+  '.woff', '.woff2', '.ttf', '.eot', '.otf',
+  '.pdf', '.zip', '.tar', '.gz', '.rar', '.7z',
+  '.exe', '.dll', '.so', '.dylib',
+  '.mp3', '.mp4', '.wav', '.avi', '.mkv', '.mov',
+  '.lock'
+]);
 
 export async function filesRoutes(fastify: FastifyInstance) {
   // Browse directories for folder picker
@@ -95,5 +119,102 @@ export async function filesRoutes(fastify: FastifyInstance) {
 
     // Only return paths that exist
     return paths.filter(p => existsSync(p.path));
+  });
+
+  // Get file tree for a directory
+  fastify.get<{
+    Querystring: { path: string; depth?: string };
+  }>('/files/tree', async (request, reply) => {
+    const { path: dirPath, depth = '3' } = request.query;
+    const maxDepth = Math.min(parseInt(depth, 10), 5);
+
+    if (!dirPath || !existsSync(dirPath)) {
+      return reply.status(404).send({ error: 'Path not found' });
+    }
+
+    async function buildTree(currentPath: string, currentDepth: number): Promise<FileTreeEntry[]> {
+      if (currentDepth > maxDepth) return [];
+
+      try {
+        const entries = await readdir(currentPath, { withFileTypes: true });
+        const result: FileTreeEntry[] = [];
+
+        // Sort: directories first, then files, alphabetically
+        const sorted = entries.sort((a, b) => {
+          if (a.isDirectory() && !b.isDirectory()) return -1;
+          if (!a.isDirectory() && b.isDirectory()) return 1;
+          return a.name.localeCompare(b.name);
+        });
+
+        for (const entry of sorted) {
+          // Skip hidden files and ignored directories
+          if (entry.name.startsWith('.')) continue;
+          if (entry.isDirectory() && SKIP_DIRS.has(entry.name)) continue;
+
+          const fullPath = join(currentPath, entry.name);
+
+          if (entry.isDirectory()) {
+            const children = await buildTree(fullPath, currentDepth + 1);
+            result.push({
+              name: entry.name,
+              path: fullPath,
+              type: 'directory',
+              children,
+            });
+          } else {
+            // Skip binary files in the tree listing
+            const ext = extname(entry.name).toLowerCase();
+            if (BINARY_EXTENSIONS.has(ext)) continue;
+
+            result.push({
+              name: entry.name,
+              path: fullPath,
+              type: 'file',
+            });
+          }
+        }
+
+        return result;
+      } catch (err) {
+        return [];
+      }
+    }
+
+    const tree = await buildTree(dirPath, 1);
+    return { root: dirPath, entries: tree };
+  });
+
+  // Read file content
+  fastify.get<{
+    Querystring: { path: string };
+  }>('/files/content', async (request, reply) => {
+    const { path: filePath } = request.query;
+
+    if (!filePath || !existsSync(filePath)) {
+      return reply.status(404).send({ error: 'File not found' });
+    }
+
+    try {
+      const stats = await stat(filePath);
+
+      if (stats.isDirectory()) {
+        return reply.status(400).send({ error: 'Path is a directory' });
+      }
+
+      // Limit file size (5MB max)
+      if (stats.size > 5 * 1024 * 1024) {
+        return reply.status(400).send({ error: 'File too large (max 5MB)' });
+      }
+
+      const ext = extname(filePath).toLowerCase();
+      if (BINARY_EXTENSIONS.has(ext)) {
+        return reply.status(400).send({ error: 'Binary files cannot be displayed' });
+      }
+
+      const content = await readFile(filePath, 'utf-8');
+      return { path: filePath, content };
+    } catch (err: any) {
+      return reply.status(500).send({ error: err.message });
+    }
   });
 }
