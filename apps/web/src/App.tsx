@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
-import { Sun, Moon, Flower2 } from 'lucide-react';
+import { Sun, Moon } from 'lucide-react';
 import { useProjectStore } from './stores/project.store';
 import { useTerminalStore } from './stores/terminal.store';
 import { useEditorStore } from './stores/editor.store';
@@ -91,31 +91,31 @@ function App() {
   }, [activeWorktreeId, closeAllFiles]);
 
   return (
-    <div className="h-screen flex flex-col bg-white dark:bg-zinc-900 pink:bg-pink-50 text-zinc-900 dark:text-zinc-100 pink:text-pink-900">
+    <div className="h-screen flex flex-col bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">
       {/* Project tabs bar */}
       <ProjectTabBar onNewProject={() => setShowProjectModal(true)} />
 
       {/* Header */}
-      <header className="flex items-center justify-between px-4 py-2 bg-zinc-100 dark:bg-zinc-800 pink:bg-pink-100 border-b border-zinc-300 dark:border-zinc-700 pink:border-pink-300">
+      <header className="flex items-center justify-between px-4 py-2 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700">
         <div className="flex items-center gap-4">
           <h1 className="text-xl font-bold">Orchard</h1>
           {activeProject && (
-            <span className="text-sm text-zinc-500 dark:text-zinc-400 pink:text-pink-600">
+            <span className="text-sm text-zinc-500 dark:text-zinc-400">
               {activeProject.name}
               {activeWorktree && ` / ${activeWorktree.branch}`}
             </span>
           )}
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-sm text-zinc-500 dark:text-zinc-400 pink:text-pink-600">
+          <span className="text-sm text-zinc-500 dark:text-zinc-400">
             {activeWorktree ? activeWorktree.path : 'No worktree selected'}
           </span>
           <button
             onClick={toggleTheme}
-            className="p-2 rounded-lg bg-zinc-200 dark:bg-zinc-700 pink:bg-pink-200 hover:bg-zinc-300 dark:hover:bg-zinc-600 pink:hover:bg-pink-300 transition-colors"
-            title={theme === 'light' ? 'Switch to dark mode' : theme === 'dark' ? 'Switch to pink mode' : 'Switch to light mode'}
+            className="p-2 rounded-lg bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
           >
-            {theme === 'light' ? <Moon size={18} /> : theme === 'dark' ? <Flower2 size={18} /> : <Sun size={18} />}
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
         </div>
       </header>
@@ -132,7 +132,7 @@ function App() {
           />
         </Panel>
 
-        <Separator className="w-1 bg-zinc-300 dark:bg-zinc-700 pink:bg-pink-300 hover:bg-zinc-400 dark:hover:bg-zinc-600 pink:hover:bg-pink-400 cursor-col-resize" />
+        <Separator className="w-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-col-resize" />
 
         <Panel defaultSize={60} minSize={5}>
           <Group orientation="vertical" className="h-full">
@@ -141,7 +141,7 @@ function App() {
             {activeWorktree ? (
               <EditorPane worktreePath={activeWorktree.path} />
             ) : (
-              <div className="h-full bg-zinc-50 dark:bg-zinc-900 pink:bg-pink-50 flex items-center justify-center text-zinc-500 dark:text-zinc-500 pink:text-pink-500">
+              <div className="h-full bg-zinc-50 dark:bg-zinc-900 flex items-center justify-center text-zinc-500 dark:text-zinc-500">
                 {activeProject ? (
                   <div className="text-center">
                     <p>Select a worktree or create a new one</p>
@@ -167,7 +167,7 @@ function App() {
             )}
           </Panel>
 
-          <Separator className="h-1 bg-zinc-300 dark:bg-zinc-700 pink:bg-pink-300 hover:bg-zinc-400 dark:hover:bg-zinc-600 pink:hover:bg-pink-400 cursor-row-resize" />
+          <Separator className="h-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-row-resize" />
 
           {/* Terminal area */}
           <Panel defaultSize={45} minSize={5}>
@@ -183,9 +183,9 @@ function App() {
         {/* Orchestrator log panel on the right */}
         {activeProjectId && (
           <>
-            <Separator className="w-1 bg-zinc-300 dark:bg-zinc-700 pink:bg-pink-300 hover:bg-zinc-400 dark:hover:bg-zinc-600 pink:hover:bg-pink-400 cursor-col-resize" />
+            <Separator className="w-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-col-resize" />
             <Panel defaultSize={20} minSize={5}>
-              <div className="h-full p-2 bg-zinc-100 dark:bg-zinc-800 pink:bg-pink-100">
+              <div className="h-full p-2 bg-zinc-100 dark:bg-zinc-800">
                 <OrchestratorLog projectId={activeProjectId} />
               </div>
             </Panel>
