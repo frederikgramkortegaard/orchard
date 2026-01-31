@@ -11,6 +11,7 @@ import { SplitTerminalPane } from './components/terminal/SplitTerminalPane';
 import { CreateProjectModal } from './components/modals/CreateProjectModal';
 import { CreateWorktreeModal } from './components/modals/CreateWorktreeModal';
 import { EditorPane } from './components/editor';
+import { OrchestratorLog } from './components/orchestrator/OrchestratorLog';
 import * as api from './api/projects';
 
 function App() {
@@ -172,6 +173,18 @@ function App() {
           </Panel>
           </Group>
         </Panel>
+
+        {/* Orchestrator log panel on the right */}
+        {activeProjectId && (
+          <>
+            <Separator className="w-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-col-resize" />
+            <Panel defaultSize="20%" minSize="15%" maxSize="35%">
+              <div className="h-full p-2 bg-zinc-100 dark:bg-zinc-800">
+                <OrchestratorLog projectId={activeProjectId} />
+              </div>
+            </Panel>
+          </>
+        )}
       </Group>
 
       {/* Modals */}

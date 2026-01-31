@@ -47,6 +47,34 @@ Respond to user requests by:
 - Merging completed work
 - Answering questions about progress
 
+## Activity Logging
+
+**IMPORTANT**: Log your activity to the orchestrator log so the user can see what you're doing in the web UI.
+
+To log activity:
+```bash
+curl -X POST http://localhost:3001/orchestrator/log \
+  -H "Content-Type: application/json" \
+  -d '{"projectId": "<PROJECT_ID>", "message": "Your message here"}'
+```
+
+Log entries should include:
+- When you start checking agent status
+- When you archive a worktree
+- When you assign a task to an agent
+- When you receive and process a user message
+- When you merge completed work
+- Any errors or issues you encounter
+
+The project ID for orchard is: `5fa4a463-48c6-4b13-93fe-566d34411a8f`
+
+## Checking for Pending Messages
+
+Check for user messages that were queued while you weren't connected:
+```bash
+curl -s "http://localhost:3001/messages?projectId=<PROJECT_ID>&markProcessed=true"
+```
+
 ## Periodic Tasks
 
 Every few minutes, you should:
@@ -54,3 +82,4 @@ Every few minutes, you should:
 2. Archive any [MERGED] worktrees
 3. Check if any agents need nudging (stuck waiting for input)
 4. Review if any tasks are complete and ready to merge
+5. **Log your activity** so the user can see what you're doing

@@ -42,6 +42,75 @@ async function saveMessages(projectId: string, messages: QueuedMessage[]): Promi
 }
 
 export async function messagesRoutes(fastify: FastifyInstance) {
+  // Get orchestrator activity log
+  fastify.get<{
+    Querystring: { projectId: string; lines?: string };
+  }>('/orchestrator/log', async (request, reply) => {
+    const { projectId, lines = '50' } = request.query;
+
+    if (!projectId) {
+      return reply.status(400).send({ error: 'projectId required' });
+    }
+
+    const project = projectService.getProject(projectId);
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    const logPath = join(project.path, '.orchard', 'orchestrator-log.txt');
+    if (!existsSync(logPath)) {
+      return { lines: [], lastModified: null };
+    }
+
+    try {
+      const content = await readFile(logPath, 'utf-8');
+      const allLines = content.trim().split('\n').filter(Boolean);
+      const numLines = parseInt(lines, 10) || 50;
+      const recentLines = allLines.slice(-numLines);
+
+      return {
+        lines: recentLines,
+        total: allLines.length,
+        lastModified: new Date().toISOString(),
+      };
+    } catch {
+      return { lines: [], lastModified: null };
+    }
+  });
+
+  // Append to orchestrator log
+  fastify.post<{
+    Body: { projectId: string; message: string };
+  }>('/orchestrator/log', async (request, reply) => {
+    const { projectId, message } = request.body;
+
+    if (!projectId || !message) {
+      return reply.status(400).send({ error: 'projectId and message required' });
+    }
+
+    const project = projectService.getProject(projectId);
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    const orchardDir = join(project.path, '.orchard');
+    if (!existsSync(orchardDir)) {
+      await mkdir(orchardDir, { recursive: true });
+    }
+
+    const logPath = join(orchardDir, 'orchestrator-log.txt');
+    const timestamp = new Date().toISOString();
+    const logLine = `[${timestamp}] ${message}\n`;
+
+    try {
+      const { appendFile } = await import('fs/promises');
+      await appendFile(logPath, logLine);
+      return { success: true, timestamp };
+    } catch (err: any) {
+      return reply.status(500).send({ error: err.message });
+    }
+  });
+
   // Queue a message for the orchestrator
   fastify.post<{
     Body: { projectId: string; text: string };
