@@ -38,6 +38,11 @@ Check for messages by reviewing terminal output or using the check script.
 5. **Archive done worktrees** to clean up
 6. **Answer agent questions** when they're blocked
 
+**IMPORTANT**: Your job is orchestration, not coding directly.
+- For new features or bug fixes, create a worktree and assign the task to an agent
+- Only make quick fixes directly if they are trivial (one-liner, obvious typo, etc.)
+- Delegate coding work to worktree agents who have the full context of that feature
+
 ## When User Sends Messages
 
 The user can send you messages via the broadcast terminal. These appear in your terminal input.
