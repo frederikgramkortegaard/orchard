@@ -148,7 +148,7 @@ class WorktreeService {
       await git.raw(['worktree', 'add', worktreePath, branch]);
     }
 
-    const id = randomUUID();
+    const id = this.getOrCreateId(projectId, worktreePath);
     const status = await this.getWorktreeStatus(worktreePath);
 
     // Set up Claude permissions for this worktree
