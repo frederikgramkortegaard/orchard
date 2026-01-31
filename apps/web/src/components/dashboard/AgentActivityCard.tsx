@@ -1,19 +1,24 @@
 import { useState, useEffect } from 'react';
-import { Bot, Zap, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Bot, Zap, AlertTriangle, CheckCircle2, HelpCircle, Loader2 } from 'lucide-react';
 
 interface AgentActivityCardProps {
   projectId: string;
 }
 
-interface AgentActivity {
+interface ActivityEntry {
+  id: number;
   timestamp: string;
-  type: 'start' | 'complete' | 'error' | 'action';
-  message: string;
-  agent?: string;
+  activityType: 'progress' | 'completion' | 'error' | 'question' | 'event' | 'system';
+  summary: string;
+  agentName: string | null;
+  details: {
+    percentComplete?: number;
+    currentStep?: string;
+  };
 }
 
 export function AgentActivityCard({ projectId }: AgentActivityCardProps) {
-  const [activities, setActivities] = useState<AgentActivity[]>([]);
+  const [activities, setActivities] = useState<ActivityEntry[]>([]);
   const [stats, setStats] = useState({ total: 0, completed: 0, errors: 0 });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -21,31 +26,19 @@ export function AgentActivityCard({ projectId }: AgentActivityCardProps) {
     const fetchActivity = async () => {
       setIsLoading(true);
       try {
-        const res = await fetch(`/api/orchestrator/log?projectId=${projectId}&lines=50`);
+        const res = await fetch(`/api/orchestrator/activity?projectId=${projectId}&limit=50&category=agent`);
         if (res.ok) {
           const data = await res.json();
-          const lines: string[] = data.lines || [];
+          const entries: ActivityEntry[] = data.activities || [];
 
-          const parsed: AgentActivity[] = lines
-            .map((line: string) => {
-              const match = line.match(/^\[([^\]]+)\]\s*(.*)$/);
-              if (!match) return null;
+          // Get most recent 10 entries (they come in chronological order)
+          const recent = entries.slice(-10).reverse();
+          setActivities(recent);
 
-              const [, timestamp, message] = match;
-              let type: AgentActivity['type'] = 'action';
-              if (message.includes('ERROR') || message.includes('FAILED')) type = 'error';
-              else if (message.includes('COMPLETE') || message.includes('SUCCESS')) type = 'complete';
-              else if (message.includes('START') || message.includes('SPAWN')) type = 'start';
-
-              return { timestamp, type, message };
-            })
-            .filter(Boolean) as AgentActivity[];
-
-          setActivities(parsed.slice(-10).reverse());
           setStats({
-            total: parsed.length,
-            completed: parsed.filter((a) => a.type === 'complete').length,
-            errors: parsed.filter((a) => a.type === 'error').length,
+            total: entries.length,
+            completed: entries.filter((a) => a.activityType === 'completion').length,
+            errors: entries.filter((a) => a.activityType === 'error').length,
           });
         }
       } catch (err) {
@@ -60,16 +53,18 @@ export function AgentActivityCard({ projectId }: AgentActivityCardProps) {
     return () => clearInterval(interval);
   }, [projectId]);
 
-  const getTypeIcon = (type: AgentActivity['type']) => {
-    switch (type) {
-      case 'start':
-        return <Zap size={12} className="text-blue-500" />;
-      case 'complete':
+  const getTypeIcon = (activityType: ActivityEntry['activityType']) => {
+    switch (activityType) {
+      case 'progress':
+        return <Loader2 size={12} className="text-blue-500" />;
+      case 'completion':
         return <CheckCircle2 size={12} className="text-green-500" />;
       case 'error':
         return <AlertTriangle size={12} className="text-red-500" />;
+      case 'question':
+        return <HelpCircle size={12} className="text-amber-500" />;
       default:
-        return <Bot size={12} className="text-zinc-400" />;
+        return <Zap size={12} className="text-zinc-400" />;
     }
   };
 
@@ -79,6 +74,13 @@ export function AgentActivityCard({ projectId }: AgentActivityCardProps) {
     } catch {
       return timestamp;
     }
+  };
+
+  const formatSummary = (entry: ActivityEntry) => {
+    let summary = entry.summary;
+    // Remove redundant prefixes
+    summary = summary.replace(/^Agent\s+(progress|completed|error|question|blocker|warning):\s*/i, '');
+    return summary;
   };
 
   return (
@@ -101,14 +103,34 @@ export function AgentActivityCard({ projectId }: AgentActivityCardProps) {
         ) : activities.length === 0 ? (
           <div className="text-zinc-500 text-sm text-center py-4">No agent activity</div>
         ) : (
-          activities.map((activity, i) => (
+          activities.map((activity) => (
             <div
-              key={i}
+              key={activity.id}
               className="flex items-start gap-2 p-2 bg-zinc-50 dark:bg-zinc-900 rounded text-xs"
             >
-              <div className="mt-0.5">{getTypeIcon(activity.type)}</div>
+              <div className="mt-0.5">{getTypeIcon(activity.activityType)}</div>
               <div className="flex-1 min-w-0">
-                <p className="text-zinc-700 dark:text-zinc-300 truncate">{activity.message}</p>
+                <div className="flex items-center gap-1.5">
+                  {activity.agentName && (
+                    <span className="text-amber-600 dark:text-amber-400 font-medium">
+                      {activity.agentName.replace(/^feature\//, '')}:
+                    </span>
+                  )}
+                  <span className="text-zinc-700 dark:text-zinc-300 truncate">
+                    {formatSummary(activity)}
+                  </span>
+                </div>
+                {activity.activityType === 'progress' && activity.details.percentComplete !== undefined && (
+                  <div className="mt-1 flex items-center gap-1">
+                    <div className="flex-1 h-1 bg-zinc-300 dark:bg-zinc-700 rounded overflow-hidden max-w-[60px]">
+                      <div
+                        className="h-full bg-blue-500"
+                        style={{ width: `${activity.details.percentComplete}%` }}
+                      />
+                    </div>
+                    <span className="text-zinc-500 text-[10px]">{activity.details.percentComplete}%</span>
+                  </div>
+                )}
               </div>
               <span className="text-zinc-500 flex-shrink-0">{formatTime(activity.timestamp)}</span>
             </div>

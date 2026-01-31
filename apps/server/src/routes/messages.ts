@@ -39,6 +39,87 @@ export async function messagesRoutes(fastify: FastifyInstance) {
     };
   });
 
+  // Get unified activity log with structured data (includes agent names)
+  fastify.get<{
+    Querystring: { projectId: string; limit?: string; category?: string };
+  }>('/orchestrator/activity', async (request, reply) => {
+    const { projectId, limit = '100', category } = request.query;
+
+    if (!projectId) {
+      return reply.status(400).send({ error: 'projectId required' });
+    }
+
+    const project = projectService.getProject(projectId);
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    const numLimit = parseInt(limit, 10) || 100;
+    const logs = databaseService.getActivityLogs(project.path, project.id, {
+      limit: numLimit,
+      category: category as any,
+    });
+
+    // Parse details and extract agent info
+    const activities = logs.reverse().map(log => {
+      let details: Record<string, unknown> = {};
+      try {
+        details = typeof log.details === 'string' ? JSON.parse(log.details) : log.details;
+      } catch {
+        // Keep empty details on parse error
+      }
+
+      // Extract agent/worktree name from details or summary
+      let agentName: string | null = null;
+      if (details.branch) {
+        agentName = details.branch as string;
+      } else if (details.worktreeId) {
+        agentName = details.worktreeId as string;
+      }
+
+      // Determine activity type from log data
+      let activityType: 'progress' | 'completion' | 'error' | 'question' | 'event' | 'system' = 'event';
+      const summary = log.summary.toLowerCase();
+      if (log.type === 'error' || summary.includes('error') || summary.includes('blocker')) {
+        activityType = 'error';
+      } else if (summary.includes('completed') || summary.includes('completion')) {
+        activityType = 'completion';
+      } else if (summary.includes('progress')) {
+        activityType = 'progress';
+      } else if (summary.includes('question')) {
+        activityType = 'question';
+      } else if (log.category === 'system' || log.category === 'orchestrator') {
+        activityType = 'system';
+      }
+
+      return {
+        id: log.id,
+        timestamp: log.timestamp,
+        type: log.type,
+        category: log.category,
+        activityType,
+        summary: log.summary,
+        agentName,
+        details: {
+          status: details.status,
+          percentComplete: details.percentComplete,
+          currentStep: details.currentStep,
+          severity: details.severity,
+          context: details.context,
+          question: details.question,
+          options: details.options,
+          suggestedAction: details.suggestedAction,
+        },
+      };
+    });
+
+    return {
+      activities,
+      total: activities.length,
+      lastModified: new Date().toISOString(),
+    };
+  });
+
   // Append to orchestrator log (to SQLite)
   fastify.post<{
     Body: { projectId: string; message: string; type?: string; category?: string };
