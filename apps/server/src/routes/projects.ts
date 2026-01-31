@@ -1,12 +1,47 @@
 import type { FastifyInstance } from 'fastify';
 import { simpleGit } from 'simple-git';
-import { readFile, readdir } from 'fs/promises';
+import { readFile, writeFile, readdir, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
+import { homedir } from 'os';
 import { projectService } from '../services/project.service.js';
 
-// Track which projects are currently "open" in the session
+// Track which projects are currently "open" - persisted to disk
 const openProjectIds = new Set<string>();
+const ORCHARD_DIR = join(homedir(), 'orchard-projects');
+const OPEN_PROJECTS_FILE = join(ORCHARD_DIR, 'open-projects.json');
+
+// Load open project IDs from disk
+async function loadOpenProjectIds(): Promise<void> {
+  try {
+    if (existsSync(OPEN_PROJECTS_FILE)) {
+      const data = await readFile(OPEN_PROJECTS_FILE, 'utf-8');
+      const ids: string[] = JSON.parse(data);
+      // Only add IDs for projects that still exist
+      for (const id of ids) {
+        if (projectService.getProject(id)) {
+          openProjectIds.add(id);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error loading open projects:', err);
+  }
+}
+
+// Save open project IDs to disk
+async function saveOpenProjectIds(): Promise<void> {
+  try {
+    if (!existsSync(ORCHARD_DIR)) {
+      await mkdir(ORCHARD_DIR, { recursive: true });
+    }
+    await writeFile(OPEN_PROJECTS_FILE, JSON.stringify(Array.from(openProjectIds), null, 2));
+  } catch (err) {
+    console.error('Error saving open projects:', err);
+  }
+}
+
+let openProjectsLoaded = false;
 
 interface CommitsByDay {
   date: string;
@@ -19,6 +54,12 @@ interface MessagesByDay {
 }
 
 export async function projectsRoutes(fastify: FastifyInstance) {
+  // Load persisted open project IDs (called after projectService.initialize())
+  if (!openProjectsLoaded) {
+    await loadOpenProjectIds();
+    openProjectsLoaded = true;
+  }
+
   // List available projects (all on disk)
   fastify.get('/projects/available', async () => {
     return projectService.getAllProjects();
@@ -31,12 +72,14 @@ export async function projectsRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Project not found' });
     }
     openProjectIds.add(project.id);
+    await saveOpenProjectIds();
     return project;
   });
 
   // Close a project (remove from open set)
   fastify.post<{ Params: { id: string } }>('/projects/:id/close', async (request, reply) => {
     openProjectIds.delete(request.params.id);
+    await saveOpenProjectIds();
     return { success: true };
   });
   // Create project from git URL or local path
@@ -56,6 +99,7 @@ export async function projectsRoutes(fastify: FastifyInstance) {
       }
       // Auto-open newly created projects
       openProjectIds.add(project.id);
+      await saveOpenProjectIds();
       return project;
     } catch (err: any) {
       return reply.status(400).send({ error: err.message });
@@ -83,6 +127,9 @@ export async function projectsRoutes(fastify: FastifyInstance) {
     if (!success) {
       return reply.status(404).send({ error: 'Project not found' });
     }
+    // Also remove from open projects
+    openProjectIds.delete(request.params.id);
+    await saveOpenProjectIds();
     return { success: true };
   });
 
