@@ -1,73 +1,14 @@
 import type { FastifyInstance } from 'fastify';
-import { readFile, writeFile, mkdir, rename, unlink } from 'fs/promises';
-import { existsSync } from 'fs';
-import { join } from 'path';
+import { randomUUID } from 'crypto';
 import { projectService } from '../services/project.service.js';
-import { messageQueueService, type QueuedMessage } from '../services/message-queue.service.js';
-
-interface ChatMessage {
-  id: string;
-  projectId: string;
-  text: string;
-  timestamp: string;
-  from: 'user' | 'orchestrator';
-  replyTo?: string; // ID of message being replied to
-}
-
-async function getOrchardDir(projectId: string): Promise<string | null> {
-  const project = projectService.getProject(projectId);
-  if (!project) return null;
-
-  const orchardDir = join(project.path, '.orchard');
-  if (!existsSync(orchardDir)) {
-    await mkdir(orchardDir, { recursive: true });
-  }
-  return orchardDir;
-}
-
-async function getChatPath(projectId: string): Promise<string | null> {
-  const orchardDir = await getOrchardDir(projectId);
-  if (!orchardDir) return null;
-  return join(orchardDir, 'chat.json');
-}
-
-async function loadChat(projectId: string): Promise<ChatMessage[]> {
-  const chatPath = await getChatPath(projectId);
-  if (!chatPath || !existsSync(chatPath)) return [];
-
-  try {
-    const data = await readFile(chatPath, 'utf-8');
-    return JSON.parse(data);
-  } catch {
-    return [];
-  }
-}
-
-async function saveChat(projectId: string, messages: ChatMessage[]): Promise<void> {
-  const chatPath = await getChatPath(projectId);
-  if (!chatPath) return;
-
-  // Atomic write: write to temp file then rename
-  const tempPath = `${chatPath}.tmp.${Date.now()}`;
-  try {
-    await writeFile(tempPath, JSON.stringify(messages, null, 2), 'utf-8');
-    await rename(tempPath, chatPath);
-  } catch (err) {
-    try {
-      await unlink(tempPath);
-    } catch {
-      // Ignore cleanup errors
-    }
-    throw err;
-  }
-}
+import { databaseService } from '../services/database.service.js';
 
 export async function messagesRoutes(fastify: FastifyInstance) {
-  // Get orchestrator activity log
+  // Get orchestrator activity log (from SQLite)
   fastify.get<{
-    Querystring: { projectId: string; lines?: string };
+    Querystring: { projectId: string; lines?: string; type?: string; category?: string };
   }>('/orchestrator/log', async (request, reply) => {
-    const { projectId, lines = '50' } = request.query;
+    const { projectId, lines = '50', type, category } = request.query;
 
     if (!projectId) {
       return reply.status(400).send({ error: 'projectId required' });
@@ -78,32 +19,31 @@ export async function messagesRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Project not found' });
     }
 
-    const logPath = join(project.path, '.orchard', 'orchestrator-log.txt');
-    if (!existsSync(logPath)) {
-      return { lines: [], lastModified: null };
-    }
+    const limit = parseInt(lines, 10) || 50;
+    const logs = databaseService.getActivityLogs(project.path, projectId, {
+      limit,
+      type: type as any,
+      category: category as any,
+    });
 
-    try {
-      const content = await readFile(logPath, 'utf-8');
-      const allLines = content.trim().split('\n').filter(Boolean);
-      const numLines = parseInt(lines, 10) || 50;
-      const recentLines = allLines.slice(-numLines);
+    // Format as lines for backward compatibility
+    const formattedLines = logs.reverse().map(log => {
+      const timestamp = log.timestamp;
+      return `[${timestamp}] [${log.type}] [${log.category}] ${log.summary}`;
+    });
 
-      return {
-        lines: recentLines,
-        total: allLines.length,
-        lastModified: new Date().toISOString(),
-      };
-    } catch {
-      return { lines: [], lastModified: null };
-    }
+    return {
+      lines: formattedLines,
+      total: logs.length,
+      lastModified: new Date().toISOString(),
+    };
   });
 
-  // Append to orchestrator log
+  // Append to orchestrator log (to SQLite)
   fastify.post<{
-    Body: { projectId: string; message: string };
+    Body: { projectId: string; message: string; type?: string; category?: string };
   }>('/orchestrator/log', async (request, reply) => {
-    const { projectId, message } = request.body;
+    const { projectId, message, type = 'event', category = 'system' } = request.body;
 
     if (!projectId || !message) {
       return reply.status(400).send({ error: 'projectId and message required' });
@@ -114,49 +54,75 @@ export async function messagesRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Project not found' });
     }
 
-    const orchardDir = join(project.path, '.orchard');
-    if (!existsSync(orchardDir)) {
-      await mkdir(orchardDir, { recursive: true });
-    }
+    const id = databaseService.addActivityLog(project.path, projectId, {
+      type: type as any,
+      category: category as any,
+      summary: message,
+    });
 
-    const logPath = join(orchardDir, 'orchestrator-log.txt');
-    const timestamp = new Date().toISOString();
-    const logLine = `[${timestamp}] ${message}\n`;
-
-    try {
-      const { appendFile } = await import('fs/promises');
-      await appendFile(logPath, logLine);
-      return { success: true, timestamp };
-    } catch (err: any) {
-      return reply.status(500).send({ error: err.message });
-    }
+    return { success: true, id, timestamp: new Date().toISOString() };
   });
 
-  // Queue a message for the orchestrator
+  // Clear orchestrator log
+  fastify.post<{
+    Querystring: { projectId: string };
+  }>('/orchestrator/log/clear', async (request, reply) => {
+    const { projectId } = request.query;
+
+    if (!projectId) {
+      return reply.status(400).send({ error: 'projectId required' });
+    }
+
+    const project = projectService.getProject(projectId);
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    // Clear all activity logs for this project (or keep last 24 hours)
+    const cleared = databaseService.clearOldActivityLogs(project.path, projectId, 0);
+    return { success: true, cleared };
+  });
+
+  // Queue a message for the orchestrator (adds to chat as user message)
   fastify.post<{
     Body: { projectId: string; text?: string; content?: string };
   }>('/messages', async (request, reply) => {
     const { projectId, text, content } = request.body;
-    const messageContent = content || text; // Support both field names
+    const messageContent = content || text;
 
     if (!projectId || !messageContent) {
       return reply.status(400).send({ error: 'projectId and content (or text) required' });
     }
 
-    const newMessage = await messageQueueService.addMessage(projectId, messageContent);
+    const project = projectService.getProject(projectId);
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
 
-    // Return in both formats for backward compatibility
+    const messageId = randomUUID();
+    databaseService.addChatMessage(project.path, {
+      id: messageId,
+      projectId,
+      from: 'user',
+      text: messageContent,
+    });
+
     return {
       success: true,
       message: {
-        ...newMessage,
-        text: newMessage.content, // backward compat
-        processed: newMessage.read, // backward compat
+        id: messageId,
+        projectId,
+        text: messageContent,
+        content: messageContent,
+        timestamp: new Date().toISOString(),
+        from: 'user',
+        processed: false,
+        read: false,
       },
     };
   });
 
-  // Get unread messages for a project
+  // Get unread/unprocessed messages for a project
   fastify.get<{
     Querystring: { projectId: string; markProcessed?: string; markRead?: string };
   }>('/messages', async (request, reply) => {
@@ -166,22 +132,33 @@ export async function messagesRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'projectId required' });
     }
 
-    const unread = await messageQueueService.getUnreadMessages(projectId);
-
-    // Optionally mark as read
-    if ((markProcessed === 'true' || markRead === 'true') && unread.length > 0) {
-      await messageQueueService.markAllAsRead(projectId);
+    const project = projectService.getProject(projectId);
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
     }
 
-    // Return in backward compatible format
-    return unread.map(m => ({
+    const messages = databaseService.getChatMessages(project.path, projectId, {
+      unprocessedOnly: true,
+      from: 'user',
+    });
+
+    // Optionally mark as processed
+    if ((markProcessed === 'true' || markRead === 'true') && messages.length > 0) {
+      databaseService.markChatMessagesProcessed(
+        project.path,
+        projectId,
+        messages.map(m => m.id)
+      );
+    }
+
+    return messages.map(m => ({
       ...m,
-      text: m.content, // backward compat
-      processed: m.read, // backward compat
+      content: m.text,
+      read: m.processed,
     }));
   });
 
-  // Clear read messages
+  // Clear read/processed messages (no-op for SQLite, messages stay in DB)
   fastify.delete<{
     Querystring: { projectId: string };
   }>('/messages', async (request, reply) => {
@@ -191,11 +168,11 @@ export async function messagesRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'projectId required' });
     }
 
-    const cleared = await messageQueueService.clearReadMessages(projectId);
-    return { success: true, cleared };
+    // In SQLite we keep messages, just mark as processed
+    return { success: true, cleared: 0 };
   });
 
-  // Mark specific messages as read
+  // Mark specific messages as read/processed
   fastify.post<{
     Body: { projectId: string; messageIds?: string[] };
   }>('/messages/read', async (request, reply) => {
@@ -205,11 +182,16 @@ export async function messagesRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'projectId required' });
     }
 
-    const marked = await messageQueueService.markAsRead(projectId, messageIds);
+    const project = projectService.getProject(projectId);
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    const marked = databaseService.markChatMessagesProcessed(project.path, projectId, messageIds);
     return { success: true, marked };
   });
 
-  // Get all messages (including read)
+  // Get all messages (including processed)
   fastify.get<{
     Querystring: { projectId: string };
   }>('/messages/all', async (request, reply) => {
@@ -219,15 +201,20 @@ export async function messagesRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'projectId required' });
     }
 
-    const messages = await messageQueueService.getMessages(projectId);
+    const project = projectService.getProject(projectId);
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    const messages = databaseService.getChatMessages(project.path, projectId, { limit: 200 });
     return messages.map(m => ({
       ...m,
-      text: m.content, // backward compat
-      processed: m.read, // backward compat
+      content: m.text,
+      read: m.processed,
     }));
   });
 
-  // Get chat history
+  // Get chat history (main chat endpoint)
   fastify.get<{
     Querystring: { projectId: string; limit?: string };
   }>('/chat', async (request, reply) => {
@@ -237,9 +224,23 @@ export async function messagesRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'projectId required' });
     }
 
-    const chat = await loadChat(projectId);
+    const project = projectService.getProject(projectId);
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
     const numLimit = parseInt(limit, 10) || 50;
-    return chat.slice(-numLimit);
+    const messages = databaseService.getRecentChatMessages(project.path, projectId, numLimit);
+
+    // Return in backward compatible format
+    return messages.map(m => ({
+      id: m.id,
+      projectId: m.projectId,
+      text: m.text,
+      timestamp: m.timestamp,
+      from: m.from,
+      replyTo: m.replyTo,
+    }));
   });
 
   // Send a chat message (from user or orchestrator)
@@ -252,9 +253,22 @@ export async function messagesRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'projectId, text, and from required' });
     }
 
-    const chat = await loadChat(projectId);
-    const newMessage: ChatMessage = {
-      id: crypto.randomUUID(),
+    const project = projectService.getProject(projectId);
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    const messageId = randomUUID();
+    databaseService.addChatMessage(project.path, {
+      id: messageId,
+      projectId,
+      from,
+      text,
+      replyTo,
+    });
+
+    const message = {
+      id: messageId,
       projectId,
       text,
       timestamp: new Date().toISOString(),
@@ -262,9 +276,44 @@ export async function messagesRoutes(fastify: FastifyInstance) {
       replyTo,
     };
 
-    chat.push(newMessage);
-    await saveChat(projectId, chat);
+    return { success: true, message };
+  });
 
-    return { success: true, message: newMessage };
+  // Get unprocessed user message count
+  fastify.get<{
+    Querystring: { projectId: string };
+  }>('/messages/unread-count', async (request, reply) => {
+    const { projectId } = request.query;
+
+    if (!projectId) {
+      return reply.status(400).send({ error: 'projectId required' });
+    }
+
+    const project = projectService.getProject(projectId);
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    const count = databaseService.getUnprocessedUserMessageCount(project.path, projectId);
+    return { count };
+  });
+
+  // Migrate existing file-based data to SQLite
+  fastify.post<{
+    Body: { projectId: string };
+  }>('/messages/migrate', async (request, reply) => {
+    const { projectId } = request.body;
+
+    if (!projectId) {
+      return reply.status(400).send({ error: 'projectId required' });
+    }
+
+    const project = projectService.getProject(projectId);
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    const stats = await databaseService.migrateFromFiles(project.path, projectId);
+    return { success: true, ...stats };
   });
 }

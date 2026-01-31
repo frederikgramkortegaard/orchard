@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { orchestratorService } from '../services/orchestrator.service.js';
 import { worktreeService } from '../services/worktree.service.js';
 import { orchestratorLoopService } from '../services/orchestrator-loop.service.js';
+import { activityLoggerService } from '../services/activity-logger.service.js';
 
 interface HealthAction {
   type: 'archive' | 'sync' | 'commit' | 'cleanup' | 'review';
@@ -428,5 +429,52 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
     } catch (err: any) {
       return reply.status(502).send({ error: `Ollama not available: ${err.message}` });
     }
+  });
+
+  // Clear pending messages (mark all as processed)
+  fastify.post('/orchestrator/loop/clear-pending', async () => {
+    const { orchestratorLoopService } = await import('../services/orchestrator-loop.service.js');
+    await orchestratorLoopService.markAllMessagesProcessed();
+    return { success: true };
+  });
+
+  // Get pending message count
+  fastify.get('/orchestrator/loop/pending-count', async () => {
+    const { orchestratorLoopService } = await import('../services/orchestrator-loop.service.js');
+    const count = await orchestratorLoopService.getPendingMessageCount();
+    return { count };
+  });
+
+  // Log activity from MCP or external sources (to SQLite)
+  fastify.post<{
+    Body: {
+      type: 'action' | 'event' | 'decision' | 'error';
+      category: 'worktree' | 'agent' | 'user' | 'system' | 'orchestrator';
+      summary: string;
+      details?: Record<string, unknown>;
+      projectId?: string;
+    };
+  }>('/orchestrator/activity', async (request) => {
+    const { type, category, summary, details = {}, projectId } = request.body;
+    const { projectService } = await import('../services/project.service.js');
+    const { databaseService } = await import('../services/database.service.js');
+
+    if (projectId) {
+      const project = projectService.getProject(projectId);
+      if (project?.path) {
+        // Log to SQLite
+        const id = databaseService.addActivityLog(project.path, projectId, {
+          type: type as any,
+          category: category as any,
+          summary,
+          details: { ...details, source: 'mcp' },
+          correlationId: `mcp-${Date.now()}`,
+        });
+
+        return { success: true, id };
+      }
+    }
+
+    return { success: false, error: 'projectId required' };
   });
 }

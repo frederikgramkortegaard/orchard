@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "orchard": {
+      "command": "node",
+      "args": ["/Users/fgk/Developer/orchard/packages/mcp-orchestrator/dist/index.js"],
+      "env": {
+        "ORCHARD_API": "http://localhost:3001"
+      }
+    }
+  }
+}
