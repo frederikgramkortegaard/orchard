@@ -1,13 +1,13 @@
 {
-  "id": "5fa4a463-48c6-4b13-93fe-566d34411a8f",
-  "name": "orchard",
-  "createdAt": "2026-01-31T14:47:59.716Z",
-  "inPlace": true,
   "orchestratorLoop": {
     "enabled": true,
     "provider": "ollama",
     "baseUrl": "http://localhost:11434/v1",
-    "model": "llama3.1:8b",
+    "model": "qwen2.5:14b",
     "tickIntervalMs": 30000
-  }
+  },
+  "id": "e57f6e9b-b099-4a0f-932f-06056f73da05",
+  "name": "orchard",
+  "createdAt": "2026-01-31T21:52:31.792Z",
+  "inPlace": true
 }

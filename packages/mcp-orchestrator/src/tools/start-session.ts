@@ -1,32 +1,48 @@
 import { logActivity } from '../utils/log-activity.js';
 
 /**
- * Start a new Claude session in a worktree
+ * Start a Claude session for a worktree
  */
 export async function startSession(
   apiBase: string,
-  args: { worktreeId: string }
+  args: { worktreeId: string; projectId: string }
 ): Promise<string> {
-  const { worktreeId } = args;
+  const { worktreeId, projectId } = args;
 
-  await logActivity(apiBase, 'action', 'orchestrator', `MCP: Starting Claude session in ${worktreeId}`, { worktreeId });
+  await logActivity(apiBase, 'action', 'orchestrator', `MCP: Starting session for worktree ${worktreeId}`, { worktreeId }, projectId);
 
-  // Create terminal session with Claude
-  const sessionRes = await fetch(`${apiBase}/terminals`, {
+  // Get worktree info to get the path
+  const worktreeRes = await fetch(`${apiBase}/worktrees/${worktreeId}`);
+  if (!worktreeRes.ok) {
+    throw new Error(`Worktree ${worktreeId} not found`);
+  }
+  const worktree = await worktreeRes.json();
+
+  // Get project info
+  const projectRes = await fetch(`${apiBase}/projects/${projectId}`);
+  if (!projectRes.ok) {
+    throw new Error(`Project ${projectId} not found`);
+  }
+  const project = await projectRes.json();
+
+  // Create the terminal session
+  const res = await fetch(`${apiBase}/terminals`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       worktreeId,
-      command: 'claude --dangerously-skip-permissions',
+      projectPath: project.path,
+      cwd: worktree.path,
+      initialCommand: 'claude --dangerously-skip-permissions',
     }),
   });
 
-  if (!sessionRes.ok) {
-    const error = await sessionRes.json().catch(() => ({ error: sessionRes.statusText }));
-    throw new Error(`Failed to create terminal session: ${error.error || sessionRes.statusText}`);
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(`Failed to start session: ${error.error || res.statusText}`);
   }
 
-  const session = await sessionRes.json();
+  const session = await res.json();
 
   // Wait for Claude to be ready by polling terminal output
   const maxAttempts = 10;
@@ -52,7 +68,7 @@ export async function startSession(
     }
   }
 
-  await logActivity(apiBase, 'event', 'agent', `MCP: Claude session started in ${worktreeId}`, { worktreeId, sessionId: session.id, ready });
+  await logActivity(apiBase, 'event', 'agent', `Session started for worktree ${worktreeId}`, { sessionId: session.id, worktreeId, ready }, projectId);
 
-  return `Started Claude session in ${worktreeId}\nSession ID: ${session.id}\nReady: ${ready ? 'yes' : 'timed out (session created but Claude may still be starting)'}`;
+  return `Started session ${session.id} for worktree ${worktreeId}\nPath: ${worktree.path}\nReady: ${ready ? 'yes' : 'still starting...'}`;
 }

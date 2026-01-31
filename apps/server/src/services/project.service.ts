@@ -224,8 +224,12 @@ class ProjectService {
     return true;
   }
 
-  getProject(projectId: string): Project | undefined {
-    return this.projects.get(projectId);
+  getProject(projectIdOrName: string): Project | undefined {
+    // Try by ID first
+    const byId = this.projects.get(projectIdOrName);
+    if (byId) return byId;
+    // Fall back to lookup by name
+    return Array.from(this.projects.values()).find(p => p.name === projectIdOrName);
   }
 
   getAllProjects(): Project[] {
@@ -243,25 +247,52 @@ class ProjectService {
   async reopenProject(projectPath: string): Promise<Project | null> {
     const configPath = join(projectPath, '.orchard', 'config.json');
 
-    if (!existsSync(configPath)) {
-      return null;
-    }
-
     try {
-      const config: ProjectConfig = JSON.parse(await readFile(configPath, 'utf-8'));
+      let config: Partial<ProjectConfig> = {};
+
+      // Load existing config if present
+      if (existsSync(configPath)) {
+        config = JSON.parse(await readFile(configPath, 'utf-8'));
+      }
+
+      // If missing required fields, create them
+      if (!config.id || !config.name || !config.createdAt) {
+        const projectName = basename(projectPath);
+        config = {
+          ...config,
+          id: config.id || randomUUID(),
+          name: config.name || projectName,
+          createdAt: config.createdAt || new Date().toISOString(),
+          inPlace: true,
+        };
+
+        // Ensure .orchard directory exists
+        const orchardDir = join(projectPath, '.orchard');
+        if (!existsSync(orchardDir)) {
+          await mkdir(orchardDir, { recursive: true });
+        }
+
+        // Save the updated config
+        await writeFile(configPath, JSON.stringify(config, null, 2));
+        console.log(`[ProjectService] Created missing project config for ${projectPath}`);
+      }
 
       // Check if already loaded
-      const existing = this.projects.get(config.id);
+      const existing = this.projects.get(config.id!);
       if (existing) {
         return existing;
       }
 
       const project: Project = {
-        ...config,
+        id: config.id!,
+        name: config.name!,
+        createdAt: config.createdAt!,
+        repoUrl: config.repoUrl,
+        inPlace: config.inPlace,
         path: projectPath,
       };
 
-      this.projects.set(config.id, project);
+      this.projects.set(config.id!, project);
       return project;
     } catch (err) {
       console.error('Error reopening project:', err);

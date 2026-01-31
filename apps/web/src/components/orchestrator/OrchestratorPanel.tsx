@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Radio, Send, Loader2, User, Bot } from 'lucide-react';
+import { Radio, Send, Loader2, User, Bot, XCircle } from 'lucide-react';
 import { useChatStore, ChatMessage } from '../../stores/chat.store';
 
 interface OrchestratorPanelProps {
@@ -17,8 +17,40 @@ interface TerminalSession {
 export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelProps) {
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
   const [orchestratorSessionId, setOrchestratorSessionId] = useState<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
+
+  const handleClearPending = async () => {
+    setIsClearing(true);
+    try {
+      await fetch('/api/orchestrator/loop/clear-pending', { method: 'POST' });
+      setPendingCount(0);
+    } catch (err) {
+      console.error('Failed to clear pending messages:', err);
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
+  // Poll for pending count
+  useEffect(() => {
+    const fetchPendingCount = async () => {
+      try {
+        const res = await fetch('/api/orchestrator/loop/pending-count');
+        if (res.ok) {
+          const data = await res.json();
+          setPendingCount(data.count);
+        }
+      } catch {
+        // Ignore errors
+      }
+    };
+    fetchPendingCount();
+    const interval = setInterval(fetchPendingCount, 5000);
+    return () => clearInterval(interval);
+  }, []);
   const chatRef = useRef<HTMLDivElement>(null);
 
   // Use persisted chat store instead of local state
@@ -169,6 +201,21 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
           ))
         )}
       </div>
+
+      {/* Clear pending button */}
+      {pendingCount > 0 && (
+        <div className="flex justify-end px-2 py-1 bg-zinc-100 dark:bg-zinc-900 border-t border-zinc-300 dark:border-zinc-700">
+          <button
+            onClick={handleClearPending}
+            disabled={isClearing}
+            className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 flex items-center gap-1 disabled:opacity-50"
+            title="Mark all pending messages as processed"
+          >
+            <XCircle size={12} />
+            {isClearing ? 'Clearing...' : `Clear ${pendingCount} pending`}
+          </button>
+        </div>
+      )}
 
       {/* Input area */}
       <div className="flex items-center gap-2 p-2 bg-zinc-100 dark:bg-zinc-900 border-t border-zinc-300 dark:border-zinc-700">

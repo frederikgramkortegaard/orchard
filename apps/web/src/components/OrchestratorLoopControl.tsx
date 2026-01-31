@@ -31,6 +31,7 @@ export function OrchestratorLoopControl({ projectId }: OrchestratorLoopControlPr
   const [error, setError] = useState<string | null>(null);
   const [models, setModels] = useState<OllamaModel[]>([]);
   const [showModelDropdown, setShowModelDropdown] = useState(false);
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
 
   const fetchStatus = useCallback(async () => {
     try {

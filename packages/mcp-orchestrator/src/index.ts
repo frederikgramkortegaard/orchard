@@ -18,10 +18,13 @@ import { sendMessage } from './tools/send-message.js';
 import { archiveWorktree } from './tools/archive-worktree.js';
 import { nudgeAgent } from './tools/nudge-agent.js';
 import { getFileTree } from './tools/get-file-tree.js';
+import { listSessions } from './tools/list-sessions.js';
 import { startSession } from './tools/start-session.js';
+import { stopSession } from './tools/stop-session.js';
+import { restartSession } from './tools/restart-session.js';
 
 // Orchard server base URL (configurable via env)
-const ORCHARD_API = process.env.ORCHARD_API || 'http://localhost:3001/api';
+const ORCHARD_API = process.env.ORCHARD_API || 'http://localhost:3001';
 
 // Tool definitions
 const tools: Tool[] = [
@@ -221,17 +224,75 @@ const tools: Tool[] = [
     },
   },
   {
+    name: 'list_sessions',
+    description: 'List all active terminal sessions',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: {
+          type: 'string',
+          description: 'Project ID to list sessions for',
+        },
+      },
+      required: ['projectId'],
+    },
+  },
+  {
     name: 'start_session',
-    description: 'Start a new Claude session in a worktree',
+    description: 'Start a Claude session for a worktree',
     inputSchema: {
       type: 'object',
       properties: {
         worktreeId: {
           type: 'string',
-          description: 'The worktree ID to start a session in',
+          description: 'The worktree ID to start a session for',
+        },
+        projectId: {
+          type: 'string',
+          description: 'Project ID',
         },
       },
-      required: ['worktreeId'],
+      required: ['worktreeId', 'projectId'],
+    },
+  },
+  {
+    name: 'stop_session',
+    description: 'Stop a terminal session',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: {
+          type: 'string',
+          description: 'The session ID to stop',
+        },
+        projectId: {
+          type: 'string',
+          description: 'Project ID',
+        },
+      },
+      required: ['sessionId', 'projectId'],
+    },
+  },
+  {
+    name: 'restart_session',
+    description: 'Restart a Claude session for a worktree (stops existing, starts new)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        worktreeId: {
+          type: 'string',
+          description: 'The worktree ID to restart session for',
+        },
+        projectId: {
+          type: 'string',
+          description: 'Project ID',
+        },
+        task: {
+          type: 'string',
+          description: 'Optional task to send after Claude starts',
+        },
+      },
+      required: ['worktreeId', 'projectId'],
     },
   },
 ];
@@ -249,7 +310,10 @@ const toolHandlers: Record<string, (args: Record<string, unknown>) => Promise<st
   archive_worktree: async (args) => archiveWorktree(ORCHARD_API, args as { worktreeId: string }),
   nudge_agent: async (args) => nudgeAgent(ORCHARD_API, args as { worktreeId: string }),
   get_file_tree: async (args) => getFileTree(ORCHARD_API, args as { projectId: string; depth?: number }),
-  start_session: async (args) => startSession(ORCHARD_API, args as { worktreeId: string }),
+  list_sessions: async (args) => listSessions(ORCHARD_API, args as { projectId: string }),
+  start_session: async (args) => startSession(ORCHARD_API, args as { worktreeId: string; projectId: string }),
+  stop_session: async (args) => stopSession(ORCHARD_API, args as { sessionId: string; projectId: string }),
+  restart_session: async (args) => restartSession(ORCHARD_API, args as { worktreeId: string; projectId: string; task?: string }),
 };
 
 // Create and configure server

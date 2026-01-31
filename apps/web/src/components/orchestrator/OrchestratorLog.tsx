@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Terminal, RefreshCw } from 'lucide-react';
+import { Terminal, RefreshCw, Trash2 } from 'lucide-react';
 
 interface OrchestratorLogProps {
   projectId: string;
@@ -8,7 +8,24 @@ interface OrchestratorLogProps {
 export function OrchestratorLog({ projectId }: OrchestratorLogProps) {
   const [lines, setLines] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
+
+  const clearLog = async () => {
+    setIsClearing(true);
+    try {
+      const res = await fetch(`/api/orchestrator/log/clear?projectId=${projectId}`, {
+        method: 'POST',
+      });
+      if (res.ok) {
+        setLines([]);
+      }
+    } catch (err) {
+      console.error('Failed to clear orchestrator log:', err);
+    } finally {
+      setIsClearing(false);
+    }
+  };
 
   const fetchLog = async () => {
     setIsLoading(true);
@@ -46,14 +63,24 @@ export function OrchestratorLog({ projectId }: OrchestratorLogProps) {
           <Terminal size={14} />
           <span className="text-xs font-medium">Orchestrator Activity</span>
         </div>
-        <button
-          onClick={fetchLog}
-          disabled={isLoading}
-          className="p-1 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white rounded disabled:opacity-50"
-          title="Refresh"
-        >
-          <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={clearLog}
+            disabled={isClearing || lines.length === 0}
+            className="p-1 text-zinc-600 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 rounded disabled:opacity-50"
+            title="Clear log"
+          >
+            <Trash2 size={12} />
+          </button>
+          <button
+            onClick={fetchLog}
+            disabled={isLoading}
+            className="p-1 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white rounded disabled:opacity-50"
+            title="Refresh"
+          >
+            <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />
+          </button>
+        </div>
       </div>
       <div
         ref={logRef}
