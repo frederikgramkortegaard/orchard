@@ -3,6 +3,7 @@ import { Group, Panel, Separator } from 'react-resizable-panels';
 import { useProjectStore, type Worktree } from '../../stores/project.store';
 import { useTerminalStore } from '../../stores/terminal.store';
 import { OrchestratorPanel } from '../orchestrator/OrchestratorPanel';
+import { OrchestratorLoopControl } from '../OrchestratorLoopControl';
 
 interface SidebarProps {
   onOpenProject: () => void;
@@ -182,8 +183,11 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
         <Group orientation="vertical" className="h-full">
           {/* Orchestrator chat panel - resizable */}
           <Panel defaultSize={40} minSize={5}>
-            <div className="h-full p-2">
-              <OrchestratorPanel projectId={activeProjectId} projectPath={activeProject.path} />
+            <div className="h-full p-2 flex flex-col gap-2">
+              <OrchestratorLoopControl projectId={activeProjectId} />
+              <div className="flex-1 min-h-0">
+                <OrchestratorPanel projectId={activeProjectId} projectPath={activeProject.path} />
+              </div>
             </div>
           </Panel>
 

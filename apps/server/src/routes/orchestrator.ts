@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { orchestratorService } from '../services/orchestrator.service.js';
 import { worktreeService } from '../services/worktree.service.js';
+import { orchestratorLoopService } from '../services/orchestrator-loop.service.js';
 
 interface HealthAction {
   type: 'archive' | 'sync' | 'commit' | 'cleanup' | 'review';
@@ -346,5 +347,54 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
   fastify.delete('/orchestrator/completions', async () => {
     orchestratorService.clearCompletions();
     return { success: true };
+  });
+
+  // Orchestrator Loop API endpoints
+
+  // Get loop status
+  fastify.get('/orchestrator/loop/status', async () => {
+    return orchestratorLoopService.getStatus();
+  });
+
+  // Start the orchestrator loop
+  fastify.post<{
+    Querystring: { projectId?: string };
+  }>('/orchestrator/loop/start', async (request, reply) => {
+    const { projectId } = request.query;
+
+    try {
+      await orchestratorLoopService.start(projectId);
+      return orchestratorLoopService.getStatus();
+    } catch (err: any) {
+      return reply.status(400).send({ error: err.message });
+    }
+  });
+
+  // Stop the orchestrator loop
+  fastify.post('/orchestrator/loop/stop', async () => {
+    await orchestratorLoopService.stop();
+    return orchestratorLoopService.getStatus();
+  });
+
+  // Pause the orchestrator loop
+  fastify.post('/orchestrator/loop/pause', async () => {
+    orchestratorLoopService.pause();
+    return orchestratorLoopService.getStatus();
+  });
+
+  // Resume the orchestrator loop
+  fastify.post('/orchestrator/loop/resume', async () => {
+    orchestratorLoopService.resume();
+    return orchestratorLoopService.getStatus();
+  });
+
+  // Trigger a manual tick
+  fastify.post('/orchestrator/loop/tick', async (_request, reply) => {
+    try {
+      const context = await orchestratorLoopService.manualTick();
+      return { status: orchestratorLoopService.getStatus(), context };
+    } catch (err: any) {
+      return reply.status(400).send({ error: err.message });
+    }
   });
 }
