@@ -159,7 +159,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath }: SplitTerminalPan
         onClick={() => setActivePanelId(panel.id)}
       >
         {/* Panel header */}
-        <div className="flex items-center gap-1 px-2 py-1 bg-zinc-800 border-b border-zinc-700">
+        <div className="flex items-center gap-1 px-2 py-1 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700">
           {/* Session selector */}
           <select
             value={panel.sessionId || ''}
@@ -168,7 +168,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath }: SplitTerminalPan
                 assignSessionToPanel(panel.id, e.target.value);
               }
             }}
-            className="flex-1 bg-zinc-900 text-sm px-2 py-0.5 rounded border border-zinc-700 focus:outline-none focus:border-blue-500"
+            className="flex-1 bg-white dark:bg-zinc-900 text-sm px-2 py-0.5 rounded border border-zinc-300 dark:border-zinc-700 focus:outline-none focus:border-blue-500"
           >
             <option value="">Select terminal...</option>
             {availableSessions.map((s) => {
@@ -185,7 +185,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath }: SplitTerminalPan
           <button
             onClick={() => createTerminal(panel.id)}
             disabled={isCreating || !worktreeId || !isConnected}
-            className="p-1 text-zinc-400 hover:text-white hover:bg-zinc-700 rounded disabled:opacity-50"
+            className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded disabled:opacity-50"
             title="New terminal"
           >
             <Plus size={14} />
@@ -194,7 +194,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath }: SplitTerminalPan
           {panels.length === 1 ? (
             <button
               onClick={splitPane}
-              className="p-1 text-zinc-400 hover:text-white hover:bg-zinc-700 rounded"
+              className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded"
               title="Split terminal"
             >
               <SplitSquareHorizontal size={14} />
@@ -202,7 +202,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath }: SplitTerminalPan
           ) : (
             <button
               onClick={() => unsplitPane(panel.id)}
-              className="p-1 text-zinc-400 hover:text-white hover:bg-zinc-700 rounded"
+              className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded"
               title="Close split"
             >
               <X size={14} />
@@ -213,14 +213,14 @@ export function SplitTerminalPane({ worktreeId, worktreePath }: SplitTerminalPan
             <>
               <button
                 onClick={() => closeTerminal(session.id)}
-                className="p-1 text-zinc-400 hover:text-red-400 hover:bg-zinc-700 rounded"
+                className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded"
                 title="Stop & close terminal (kills process)"
               >
                 <Square size={12} className="fill-current" />
               </button>
               <button
                 onClick={() => closeTerminal(session.id)}
-                className="p-1 text-zinc-400 hover:text-red-400 hover:bg-zinc-700 rounded"
+                className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded"
                 title="Close terminal tab"
               >
                 <X size={14} />
@@ -244,7 +244,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath }: SplitTerminalPan
               <button
                 onClick={() => createTerminal(panel.id)}
                 disabled={!worktreeId || !isConnected}
-                className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded disabled:opacity-50"
+                className="px-4 py-2 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 rounded disabled:opacity-50"
               >
                 Create Terminal
               </button>
@@ -257,22 +257,22 @@ export function SplitTerminalPane({ worktreeId, worktreePath }: SplitTerminalPan
 
   if (!isConnected) {
     return (
-      <div className="flex items-center justify-center h-full bg-zinc-900 text-red-400">
+      <div className="flex items-center justify-center h-full bg-zinc-50 dark:bg-zinc-900 text-red-500 dark:text-red-400">
         WebSocket disconnected
       </div>
     );
   }
 
   if (panels.length === 1) {
-    return <div className="h-full bg-zinc-900">{renderPanel(panels[0])}</div>;
+    return <div className="h-full bg-zinc-50 dark:bg-zinc-900">{renderPanel(panels[0])}</div>;
   }
 
   return (
-    <Group orientation="horizontal" className="h-full bg-zinc-900">
+    <Group orientation="horizontal" className="h-full bg-zinc-50 dark:bg-zinc-900">
       <Panel defaultSize="50%" minSize="25%">
         {renderPanel(panels[0])}
       </Panel>
-      <Separator className="w-1 bg-zinc-700 hover:bg-zinc-600 cursor-col-resize" />
+      <Separator className="w-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-col-resize" />
       <Panel defaultSize="50%" minSize="25%">
         {renderPanel(panels[1])}
       </Panel>
