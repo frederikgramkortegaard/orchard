@@ -1,8 +1,9 @@
 import type { FastifyInstance } from 'fastify';
-import { readFile, writeFile, mkdir } from 'fs/promises';
+import { readFile, writeFile, mkdir, rename, unlink } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { projectService } from '../services/project.service.js';
+import { messageQueueService, type QueuedMessage } from '../services/message-queue.service.js';
 
 interface ChatMessage {
   id: string;
@@ -11,14 +12,6 @@ interface ChatMessage {
   timestamp: string;
   from: 'user' | 'orchestrator';
   replyTo?: string; // ID of message being replied to
-}
-
-interface QueuedMessage {
-  id: string;
-  projectId: string;
-  text: string;
-  timestamp: string;
-  processed: boolean;
 }
 
 async function getOrchardDir(projectId: string): Promise<string | null> {
@@ -30,12 +23,6 @@ async function getOrchardDir(projectId: string): Promise<string | null> {
     await mkdir(orchardDir, { recursive: true });
   }
   return orchardDir;
-}
-
-async function getMessageQueuePath(projectId: string): Promise<string | null> {
-  const orchardDir = await getOrchardDir(projectId);
-  if (!orchardDir) return null;
-  return join(orchardDir, 'message-queue.json');
 }
 
 async function getChatPath(projectId: string): Promise<string | null> {
@@ -59,25 +46,20 @@ async function loadChat(projectId: string): Promise<ChatMessage[]> {
 async function saveChat(projectId: string, messages: ChatMessage[]): Promise<void> {
   const chatPath = await getChatPath(projectId);
   if (!chatPath) return;
-  await writeFile(chatPath, JSON.stringify(messages, null, 2));
-}
 
-async function loadMessages(projectId: string): Promise<QueuedMessage[]> {
-  const queuePath = await getMessageQueuePath(projectId);
-  if (!queuePath || !existsSync(queuePath)) return [];
-
+  // Atomic write: write to temp file then rename
+  const tempPath = `${chatPath}.tmp.${Date.now()}`;
   try {
-    const data = await readFile(queuePath, 'utf-8');
-    return JSON.parse(data);
-  } catch {
-    return [];
+    await writeFile(tempPath, JSON.stringify(messages, null, 2), 'utf-8');
+    await rename(tempPath, chatPath);
+  } catch (err) {
+    try {
+      await unlink(tempPath);
+    } catch {
+      // Ignore cleanup errors
+    }
+    throw err;
   }
-}
-
-async function saveMessages(projectId: string, messages: QueuedMessage[]): Promise<void> {
-  const queuePath = await getMessageQueuePath(projectId);
-  if (!queuePath) return;
-  await writeFile(queuePath, JSON.stringify(messages, null, 2));
 }
 
 export async function messagesRoutes(fastify: FastifyInstance) {
@@ -152,54 +134,54 @@ export async function messagesRoutes(fastify: FastifyInstance) {
 
   // Queue a message for the orchestrator
   fastify.post<{
-    Body: { projectId: string; text: string };
+    Body: { projectId: string; text?: string; content?: string };
   }>('/messages', async (request, reply) => {
-    const { projectId, text } = request.body;
+    const { projectId, text, content } = request.body;
+    const messageContent = content || text; // Support both field names
 
-    if (!projectId || !text) {
-      return reply.status(400).send({ error: 'projectId and text required' });
+    if (!projectId || !messageContent) {
+      return reply.status(400).send({ error: 'projectId and content (or text) required' });
     }
 
-    const messages = await loadMessages(projectId);
-    const newMessage: QueuedMessage = {
-      id: crypto.randomUUID(),
-      projectId,
-      text,
-      timestamp: new Date().toISOString(),
-      processed: false,
+    const newMessage = await messageQueueService.addMessage(projectId, messageContent);
+
+    // Return in both formats for backward compatibility
+    return {
+      success: true,
+      message: {
+        ...newMessage,
+        text: newMessage.content, // backward compat
+        processed: newMessage.read, // backward compat
+      },
     };
-
-    messages.push(newMessage);
-    await saveMessages(projectId, messages);
-
-    return { success: true, message: newMessage };
   });
 
-  // Get unprocessed messages for a project
+  // Get unread messages for a project
   fastify.get<{
-    Querystring: { projectId: string; markProcessed?: string };
+    Querystring: { projectId: string; markProcessed?: string; markRead?: string };
   }>('/messages', async (request, reply) => {
-    const { projectId, markProcessed } = request.query;
+    const { projectId, markProcessed, markRead } = request.query;
 
     if (!projectId) {
       return reply.status(400).send({ error: 'projectId required' });
     }
 
-    const messages = await loadMessages(projectId);
-    const unprocessed = messages.filter(m => !m.processed);
+    const unread = await messageQueueService.getUnreadMessages(projectId);
 
-    // Optionally mark as processed
-    if (markProcessed === 'true' && unprocessed.length > 0) {
-      for (const msg of messages) {
-        if (!msg.processed) msg.processed = true;
-      }
-      await saveMessages(projectId, messages);
+    // Optionally mark as read
+    if ((markProcessed === 'true' || markRead === 'true') && unread.length > 0) {
+      await messageQueueService.markAllAsRead(projectId);
     }
 
-    return unprocessed;
+    // Return in backward compatible format
+    return unread.map(m => ({
+      ...m,
+      text: m.content, // backward compat
+      processed: m.read, // backward compat
+    }));
   });
 
-  // Clear processed messages
+  // Clear read messages
   fastify.delete<{
     Querystring: { projectId: string };
   }>('/messages', async (request, reply) => {
@@ -209,11 +191,40 @@ export async function messagesRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'projectId required' });
     }
 
-    const messages = await loadMessages(projectId);
-    const unprocessed = messages.filter(m => !m.processed);
-    await saveMessages(projectId, unprocessed);
+    const cleared = await messageQueueService.clearReadMessages(projectId);
+    return { success: true, cleared };
+  });
 
-    return { success: true, cleared: messages.length - unprocessed.length };
+  // Mark specific messages as read
+  fastify.post<{
+    Body: { projectId: string; messageIds?: string[] };
+  }>('/messages/read', async (request, reply) => {
+    const { projectId, messageIds } = request.body;
+
+    if (!projectId) {
+      return reply.status(400).send({ error: 'projectId required' });
+    }
+
+    const marked = await messageQueueService.markAsRead(projectId, messageIds);
+    return { success: true, marked };
+  });
+
+  // Get all messages (including read)
+  fastify.get<{
+    Querystring: { projectId: string };
+  }>('/messages/all', async (request, reply) => {
+    const { projectId } = request.query;
+
+    if (!projectId) {
+      return reply.status(400).send({ error: 'projectId required' });
+    }
+
+    const messages = await messageQueueService.getMessages(projectId);
+    return messages.map(m => ({
+      ...m,
+      text: m.content, // backward compat
+      processed: m.read, // backward compat
+    }));
   });
 
   // Get chat history
