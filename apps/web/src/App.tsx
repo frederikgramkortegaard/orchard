@@ -13,6 +13,7 @@ import { CreateProjectModal } from './components/modals/CreateProjectModal';
 import { CreateWorktreeModal } from './components/modals/CreateWorktreeModal';
 import { EditorPane } from './components/editor';
 import { OrchestratorLog } from './components/orchestrator/OrchestratorLog';
+import { Dashboard } from './components/dashboard/Dashboard';
 import * as api from './api/projects';
 
 function App() {
@@ -20,6 +21,7 @@ function App() {
   const { addToast } = useToast();
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [showWorktreeModal, setShowWorktreeModal] = useState(false);
+  const [showDashboard, setShowDashboard] = useState(false);
   const {
     projects,
     activeProjectId,
@@ -112,7 +114,11 @@ function App() {
   return (
     <div className="h-screen flex flex-col bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">
       {/* Project tabs bar */}
-      <ProjectTabBar onNewProject={() => setShowProjectModal(true)} />
+      <ProjectTabBar
+        onNewProject={() => setShowProjectModal(true)}
+        showDashboard={showDashboard}
+        onToggleDashboard={() => setShowDashboard(!showDashboard)}
+      />
 
       {/* Header */}
       <header className="flex items-center justify-between px-4 py-2 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700">
@@ -140,77 +146,81 @@ function App() {
       </header>
 
       {/* Main content */}
-      <Group orientation="horizontal" className="flex-1 overflow-hidden">
-        {/* Resizable sidebar */}
-        <Panel defaultSize={20} minSize={5}>
-          <Sidebar
-            onOpenProject={() => setShowProjectModal(true)}
-            onCreateWorktree={() => setShowWorktreeModal(true)}
-            onDeleteWorktree={handleDeleteWorktree}
-            onArchiveWorktree={handleArchiveWorktree}
-          />
-        </Panel>
-
-        <Separator className="w-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-col-resize" />
-
-        <Panel defaultSize={60} minSize={5}>
-          <Group orientation="vertical" className="h-full">
-          {/* Editor area */}
-          <Panel defaultSize={55} minSize={5}>
-            {activeWorktree ? (
-              <EditorPane worktreePath={activeWorktree.path} />
-            ) : (
-              <div className="h-full bg-zinc-50 dark:bg-zinc-900 flex items-center justify-center text-zinc-500 dark:text-zinc-500">
-                {activeProject ? (
-                  <div className="text-center">
-                    <p>Select a worktree or create a new one</p>
-                    <button
-                      onClick={() => setShowWorktreeModal(true)}
-                      className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded"
-                    >
-                      Create Worktree
-                    </button>
-                  </div>
-                ) : (
-                  <div className="text-center">
-                    <p>Open a project to get started</p>
-                    <button
-                      onClick={() => setShowProjectModal(true)}
-                      className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded"
-                    >
-                      Open Project
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </Panel>
-
-          <Separator className="h-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-row-resize" />
-
-          {/* Terminal area */}
-          <Panel defaultSize={45} minSize={5}>
-            <SplitTerminalPane
-              worktreeId={activeWorktreeId || undefined}
-              worktreePath={activeWorktree?.path}
-              projectPath={activeProject?.path}
+      {showDashboard ? (
+        <Dashboard />
+      ) : (
+        <Group orientation="horizontal" className="flex-1 overflow-hidden">
+          {/* Resizable sidebar */}
+          <Panel defaultSize={20} minSize={5}>
+            <Sidebar
+              onOpenProject={() => setShowProjectModal(true)}
+              onCreateWorktree={() => setShowWorktreeModal(true)}
+              onDeleteWorktree={handleDeleteWorktree}
+              onArchiveWorktree={handleArchiveWorktree}
             />
           </Panel>
-          </Group>
-        </Panel>
 
-        {/* Orchestrator log panel on the right */}
-        {activeProjectId && (
-          <>
-            <Separator className="w-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-col-resize" />
-            <Panel defaultSize={20} minSize={5}>
-              <div className="h-full p-2 bg-zinc-100 dark:bg-zinc-800">
-                <OrchestratorLog projectId={activeProjectId} />
-              </div>
+          <Separator className="w-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-col-resize" />
+
+          <Panel defaultSize={60} minSize={5}>
+            <Group orientation="vertical" className="h-full">
+            {/* Editor area */}
+            <Panel defaultSize={55} minSize={5}>
+              {activeWorktree ? (
+                <EditorPane worktreePath={activeWorktree.path} />
+              ) : (
+                <div className="h-full bg-zinc-50 dark:bg-zinc-900 flex items-center justify-center text-zinc-500 dark:text-zinc-500">
+                  {activeProject ? (
+                    <div className="text-center">
+                      <p>Select a worktree or create a new one</p>
+                      <button
+                        onClick={() => setShowWorktreeModal(true)}
+                        className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded"
+                      >
+                        Create Worktree
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="text-center">
+                      <p>Open a project to get started</p>
+                      <button
+                        onClick={() => setShowProjectModal(true)}
+                        className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded"
+                      >
+                        Open Project
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </Panel>
-          </>
-        )}
-      </Group>
+
+            <Separator className="h-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-row-resize" />
+
+            {/* Terminal area */}
+            <Panel defaultSize={45} minSize={5}>
+              <SplitTerminalPane
+                worktreeId={activeWorktreeId || undefined}
+                worktreePath={activeWorktree?.path}
+                projectPath={activeProject?.path}
+              />
+            </Panel>
+            </Group>
+          </Panel>
+
+          {/* Orchestrator log panel on the right */}
+          {activeProjectId && (
+            <>
+              <Separator className="w-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-col-resize" />
+              <Panel defaultSize={20} minSize={5}>
+                <div className="h-full p-2 bg-zinc-100 dark:bg-zinc-800">
+                  <OrchestratorLog projectId={activeProjectId} />
+                </div>
+              </Panel>
+            </>
+          )}
+        </Group>
+      )}
 
       {/* Modals */}
       <CreateProjectModal
