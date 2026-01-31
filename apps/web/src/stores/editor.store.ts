@@ -16,6 +16,7 @@ interface EditorState {
   closeFile: (path: string) => void;
   setActiveFile: (path: string | null) => void;
   updateFileContent: (path: string, content: string) => void;
+  markFileSaved: (path: string) => void;
   closeAllFiles: () => void;
 }
 
@@ -61,6 +62,13 @@ export const useEditorStore = create<EditorState>((set) => ({
     set((state) => ({
       openFiles: state.openFiles.map((f) =>
         f.path === path ? { ...f, content, isDirty: true } : f
+      ),
+    })),
+
+  markFileSaved: (path) =>
+    set((state) => ({
+      openFiles: state.openFiles.map((f) =>
+        f.path === path ? { ...f, isDirty: false } : f
       ),
     })),
 
