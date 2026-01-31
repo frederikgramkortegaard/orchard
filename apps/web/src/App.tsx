@@ -37,10 +37,15 @@ function App() {
     api.fetchProjects().then(setProjects).catch(console.error);
   }, [setProjects]);
 
-  // Load worktrees when project changes
+  // Load worktrees when project changes and poll for updates
   useEffect(() => {
     if (activeProjectId) {
-      api.fetchWorktrees(activeProjectId).then(setWorktrees).catch(console.error);
+      const fetchAndUpdate = () => {
+        api.fetchWorktrees(activeProjectId).then(setWorktrees).catch(console.error);
+      };
+      fetchAndUpdate();
+      const interval = setInterval(fetchAndUpdate, 5000);
+      return () => clearInterval(interval);
     } else {
       setWorktrees([]);
     }
