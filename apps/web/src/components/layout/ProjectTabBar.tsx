@@ -1,12 +1,14 @@
-import { Plus, X, Folder } from 'lucide-react';
+import { Plus, X, Folder, LayoutDashboard } from 'lucide-react';
 import { useProjectStore } from '../../stores/project.store';
 import * as api from '../../api/projects';
 
 interface ProjectTabBarProps {
   onNewProject: () => void;
+  showDashboard?: boolean;
+  onToggleDashboard?: () => void;
 }
 
-export function ProjectTabBar({ onNewProject }: ProjectTabBarProps) {
+export function ProjectTabBar({ onNewProject, showDashboard, onToggleDashboard }: ProjectTabBarProps) {
   const { projects, activeProjectId, setActiveProject, closeProject } = useProjectStore();
 
   const handleCloseTab = async (e: React.MouseEvent, projectId: string) => {
@@ -52,6 +54,25 @@ export function ProjectTabBar({ onNewProject }: ProjectTabBarProps) {
         <Plus size={14} />
         <span className="text-sm">New</span>
       </button>
+
+      {/* Spacer */}
+      <div className="flex-1" />
+
+      {/* Dashboard toggle */}
+      {onToggleDashboard && (
+        <button
+          onClick={onToggleDashboard}
+          className={`flex items-center gap-1 px-3 py-1.5 transition-colors ${
+            showDashboard
+              ? 'text-blue-500 bg-blue-500/10 hover:bg-blue-500/20'
+              : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50'
+          }`}
+          title={showDashboard ? 'Hide Dashboard' : 'Show Dashboard'}
+        >
+          <LayoutDashboard size={14} />
+          <span className="text-sm">Dashboard</span>
+        </button>
+      )}
     </div>
   );
 }
