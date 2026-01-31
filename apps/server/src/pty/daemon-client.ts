@@ -147,6 +147,22 @@ class DaemonClient extends EventEmitter {
       return;
     }
 
+    // Handle agent ready notifications from daemon
+    if (msg.type === 'agent:ready') {
+      console.log(`Agent ready: session ${msg.sessionId}, worktree ${msg.worktreeId}`);
+      this.emit('agent-ready', msg);
+      // Forward to all client subscribers
+      this.clientSubscribers.forEach((subscribers) => {
+        const message = JSON.stringify(msg);
+        subscribers.forEach((client) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(message);
+          }
+        });
+      });
+      return;
+    }
+
     // Handle terminal data - forward to client subscribers
     if (msg.type === 'terminal:data' || msg.type === 'terminal:scrollback' ||
         msg.type === 'terminal:exit' || msg.type === 'terminal:error') {
@@ -288,6 +304,30 @@ class DaemonClient extends EventEmitter {
   async getSessionsForWorktree(worktreeId: string): Promise<DaemonSession[]> {
     const sessions = await this.listSessions();
     return sessions.filter(s => s.worktreeId === worktreeId);
+  }
+
+  /**
+   * Wait for a Claude agent session to be ready for input.
+   * Returns a promise that resolves when the agent shows its input prompt,
+   * or rejects after the timeout.
+   */
+  waitForAgentReady(sessionId: string, timeoutMs: number = 30000): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        this.removeListener('agent-ready', handler);
+        reject(new Error(`Timeout waiting for agent ready on session ${sessionId}`));
+      }, timeoutMs);
+
+      const handler = (msg: any) => {
+        if (msg.sessionId === sessionId) {
+          clearTimeout(timeoutId);
+          this.removeListener('agent-ready', handler);
+          resolve();
+        }
+      };
+
+      this.on('agent-ready', handler);
+    });
   }
 }
 
