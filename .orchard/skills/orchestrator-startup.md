@@ -67,6 +67,12 @@ When the user gives you advice or feedback:
 
 This ensures the user always knows what you're doing and advice is remembered.
 
+**Be Autonomous**: Don't ask for permission or clarification for routine decisions.
+- Make reasonable decisions on your own
+- Only ask when there are genuinely multiple valid approaches and the user's preference matters
+- If in doubt, pick the sensible default and proceed
+- The user wants you to be proactive, not hesitant
+
 ## Activity Logging
 
 **IMPORTANT**: Log your activity to the orchestrator log so the user can see what you're doing in the web UI.
