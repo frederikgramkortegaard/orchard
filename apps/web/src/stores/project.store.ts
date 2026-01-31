@@ -14,6 +14,7 @@ export interface Worktree {
   path: string;
   branch: string;
   isMain: boolean;
+  merged: boolean;
   status: {
     ahead: number;
     behind: number;
@@ -40,6 +41,7 @@ interface ProjectState {
   setWorktrees: (worktrees: Worktree[]) => void;
   setActiveWorktree: (worktreeId: string | null) => void;
   addWorktree: (worktree: Worktree) => void;
+  updateWorktree: (worktreeId: string, updates: Partial<Worktree>) => void;
   removeWorktree: (worktreeId: string) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
@@ -94,6 +96,11 @@ export const useProjectStore = create<ProjectState>((set) => ({
   addWorktree: (worktree) => set((state) => ({
     worktrees: [...state.worktrees, worktree],
     activeWorktreeId: worktree.id,
+  })),
+  updateWorktree: (worktreeId, updates) => set((state) => ({
+    worktrees: state.worktrees.map(w =>
+      w.id === worktreeId ? { ...w, ...updates } : w
+    ),
   })),
   removeWorktree: (worktreeId) => set((state) => ({
     worktrees: state.worktrees.filter(w => w.id !== worktreeId),

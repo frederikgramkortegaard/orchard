@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
-import { Plus, GitBranch, Folder, Trash2, Bot, PanelTopClose, PanelTop } from 'lucide-react';
+import { Plus, GitBranch, Folder, Trash2, Bot, PanelTopClose, PanelTop, CheckCircle, GitMerge } from 'lucide-react';
 import { useProjectStore, type Worktree } from '../../stores/project.store';
 import { OrchestratorPanel } from '../orchestrator/OrchestratorPanel';
 
@@ -8,9 +8,10 @@ interface SidebarProps {
   onOpenProject: () => void;
   onCreateWorktree: () => void;
   onDeleteWorktree: (worktreeId: string) => void;
+  onMarkMerged: (worktreeId: string) => void;
 }
 
-export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree }: SidebarProps) {
+export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onMarkMerged }: SidebarProps) {
   const { projects, activeProjectId, worktrees, activeWorktreeId, setActiveWorktree } = useProjectStore();
   const [showOrchestrator, setShowOrchestrator] = useState(true);
 
@@ -76,14 +77,31 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree }: S
                 onClick={() => setActiveWorktree(worktree.id)}
                 className={`w-full flex items-center gap-2 px-3 py-2 rounded text-left group ${
                   activeWorktreeId === worktree.id ? 'bg-zinc-300 dark:bg-zinc-600' : 'hover:bg-zinc-200/50 dark:hover:bg-zinc-700/50'
-                }`}
+                } ${worktree.merged ? 'opacity-60' : ''}`}
               >
-                <GitBranch size={14} className="text-zinc-500 dark:text-zinc-400 flex-shrink-0" />
-                <span className="flex-1 truncate text-sm">
+                {worktree.merged ? (
+                  <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
+                ) : (
+                  <GitBranch size={14} className="text-zinc-500 dark:text-zinc-400 flex-shrink-0" />
+                )}
+                <span className={`flex-1 truncate text-sm ${worktree.merged ? 'text-zinc-400 dark:text-zinc-500' : ''}`}>
                   {worktree.branch}
                   {worktree.isMain && <span className="text-zinc-400 dark:text-zinc-500 ml-1">(main)</span>}
+                  {worktree.merged && <span className="text-green-500 ml-1">(merged)</span>}
                 </span>
-                {getStatusIndicator(worktree)}
+                {!worktree.merged && getStatusIndicator(worktree)}
+                {!worktree.isMain && !worktree.merged && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onMarkMerged(worktree.id);
+                    }}
+                    className="opacity-0 group-hover:opacity-100 p-0.5 text-zinc-400 hover:text-green-400"
+                    title="Mark as merged"
+                  >
+                    <GitMerge size={12} />
+                  </button>
+                )}
                 {!worktree.isMain && (
                   <button
                     onClick={(e) => {
@@ -91,6 +109,7 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree }: S
                       onDeleteWorktree(worktree.id);
                     }}
                     className="opacity-0 group-hover:opacity-100 p-0.5 text-zinc-500 dark:text-zinc-400 hover:text-red-500 dark:hover:text-red-400"
+                    title="Delete worktree"
                   >
                     <Trash2 size={12} />
                   </button>

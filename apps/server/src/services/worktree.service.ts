@@ -11,6 +11,7 @@ export interface Worktree {
   path: string;
   branch: string;
   isMain: boolean;
+  merged: boolean;
   status: WorktreeStatus;
 }
 
@@ -97,6 +98,7 @@ class WorktreeService {
             path,
             branch: branch || 'detached',
             isMain,
+            merged: false,
             status,
           };
 
@@ -160,6 +162,7 @@ class WorktreeService {
       path: worktreePath,
       branch,
       isMain: false,
+      merged: false,
       status,
     };
 
@@ -281,6 +284,15 @@ class WorktreeService {
 
   getWorktreesForProject(projectId: string): Worktree[] {
     return Array.from(this.worktrees.values()).filter(w => w.projectId === projectId);
+  }
+
+  markWorktreeAsMerged(worktreeId: string): Worktree | undefined {
+    const worktree = this.worktrees.get(worktreeId);
+    if (!worktree) return undefined;
+
+    worktree.merged = true;
+    this.worktrees.set(worktreeId, worktree);
+    return worktree;
   }
 
   // Generate deterministic ID based on path so it survives restarts
