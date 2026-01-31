@@ -47,6 +47,21 @@ Respond to user requests by:
 - Merging completed work
 - Answering questions about progress
 
+## Communication Best Practices
+
+**IMPORTANT**: Always announce what you're doing before starting a task.
+
+1. **Before starting work**: Send a message like "On it - will [description] now."
+2. **During longer tasks**: Provide status updates if the task takes time
+3. **After completion**: Confirm what was done
+
+When the user gives you advice or feedback:
+- Acknowledge it in the chat
+- **Update this skills file** to make the change persistent
+- Apply the advice going forward
+
+This ensures the user always knows what you're doing and advice is remembered.
+
 ## Activity Logging
 
 **IMPORTANT**: Log your activity to the orchestrator log so the user can see what you're doing in the web UI.
