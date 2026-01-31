@@ -24,6 +24,7 @@ interface TerminalState {
 
   // Actions
   addSession: (session: TerminalSession) => void;
+  loadSessions: (sessions: TerminalSession[]) => void;
   removeSession: (sessionId: string) => void;
   setActiveSession: (sessionId: string | null) => void;
   setSessionConnected: (sessionId: string, connected: boolean) => void;
@@ -42,6 +43,19 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
       const sessions = new Map(state.sessions);
       sessions.set(session.id, session);
       return { sessions, activeSessionId: session.id };
+    });
+  },
+
+  loadSessions: (newSessions) => {
+    set((state) => {
+      const sessions = new Map(state.sessions);
+      for (const session of newSessions) {
+        // Only add if not already present (don't overwrite local state)
+        if (!sessions.has(session.id)) {
+          sessions.set(session.id, session);
+        }
+      }
+      return { sessions };
     });
   },
 

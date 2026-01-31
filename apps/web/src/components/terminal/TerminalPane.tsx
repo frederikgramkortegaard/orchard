@@ -10,8 +10,37 @@ interface TerminalPaneProps {
 
 export function TerminalPane({ worktreeId }: TerminalPaneProps) {
   const { send, subscribe, isConnected, connectionId } = useWebSocket();
-  const { sessions, activeSessionId, setActiveSession, addSession, removeSession, setSessionRateLimited, clearSessionRateLimit } = useTerminalStore();
+  const { sessions, activeSessionId, setActiveSession, addSession, loadSessions, removeSession, setSessionRateLimited, clearSessionRateLimit } = useTerminalStore();
   const [isCreating, setIsCreating] = useState(false);
+
+  // Fetch existing sessions when worktree changes
+  useEffect(() => {
+    if (!worktreeId) return;
+
+    const fetchSessions = async () => {
+      try {
+        const res = await fetch(`/api/terminals/worktree/${worktreeId}`);
+        if (res.ok) {
+          const serverSessions = await res.json();
+          // Map server sessions to store format
+          const mappedSessions = serverSessions.map((s: any) => ({
+            id: s.id,
+            worktreeId: s.worktreeId,
+            cwd: s.cwd,
+            createdAt: s.createdAt,
+            isConnected: false, // Will be set to true when WebSocket connects
+            isClaudeSession: s.isClaudeSession,
+            name: s.name,
+          }));
+          loadSessions(mappedSessions);
+        }
+      } catch (err) {
+        console.error('Failed to fetch existing sessions:', err);
+      }
+    };
+
+    fetchSessions();
+  }, [worktreeId, loadSessions]);
 
   // Subscribe to rate limit events
   useEffect(() => {
