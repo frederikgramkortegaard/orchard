@@ -1,5 +1,9 @@
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import OpenAI from 'openai';
 import { activityLoggerService } from './activity-logger.service.js';
 import { sessionPersistenceService } from './session-persistence.service.js';
 import { terminalMonitorService, type DetectedPattern } from './terminal-monitor.service.js';
@@ -19,10 +23,13 @@ export enum LoopState {
 }
 
 export interface OrchestratorLoopConfig {
+  enabled: boolean;
+  provider: 'ollama' | 'openai';
+  baseUrl: string;
+  model: string;
   tickIntervalMs: number;
   maxConsecutiveFailures: number;
   autoRestartDeadSessions: boolean;
-  autoProcessCompletions: boolean;
 }
 
 export interface AgentStatus {
@@ -56,20 +63,166 @@ export interface LoopStatus {
 }
 
 const DEFAULT_CONFIG: OrchestratorLoopConfig = {
+  enabled: true,
+  provider: 'ollama',
+  baseUrl: 'http://localhost:11434/v1',
+  model: 'llama3.1:8b',
   tickIntervalMs: 30000, // 30 seconds
   maxConsecutiveFailures: 3,
   autoRestartDeadSessions: true,
-  autoProcessCompletions: true,
 };
+
+// Tool definitions for the LLM
+const ORCHESTRATOR_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+  {
+    type: 'function',
+    function: {
+      name: 'create_worktree',
+      description: 'Create a new feature worktree and start a Claude agent to work on a task',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: {
+            type: 'string',
+            description: 'Name for the feature branch (e.g., "user-auth", "api-refactor")',
+          },
+          task: {
+            type: 'string',
+            description: 'The task description to send to the Claude agent',
+          },
+        },
+        required: ['name', 'task'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'send_task',
+      description: 'Send a task or message to an existing Claude agent in a worktree',
+      parameters: {
+        type: 'object',
+        properties: {
+          worktreeId: {
+            type: 'string',
+            description: 'The ID of the worktree containing the agent',
+          },
+          message: {
+            type: 'string',
+            description: 'The message or task to send to the agent',
+          },
+        },
+        required: ['worktreeId', 'message'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'merge_worktree',
+      description: 'Merge a completed feature branch into main',
+      parameters: {
+        type: 'object',
+        properties: {
+          worktreeId: {
+            type: 'string',
+            description: 'The ID of the worktree to merge',
+          },
+          deleteAfterMerge: {
+            type: 'boolean',
+            description: 'Whether to delete the worktree after merging (default: false)',
+          },
+        },
+        required: ['worktreeId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'send_message',
+      description: 'Send a status message or response to the user',
+      parameters: {
+        type: 'object',
+        properties: {
+          message: {
+            type: 'string',
+            description: 'The message to send to the user',
+          },
+        },
+        required: ['message'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'check_status',
+      description: 'Check the status of a specific worktree or all worktrees',
+      parameters: {
+        type: 'object',
+        properties: {
+          worktreeId: {
+            type: 'string',
+            description: 'Optional: specific worktree ID to check. If omitted, checks all.',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'no_action',
+      description: 'Indicate that no action is needed at this time. Use this when the system is healthy and no intervention is required.',
+      parameters: {
+        type: 'object',
+        properties: {
+          reason: {
+            type: 'string',
+            description: 'Brief reason why no action is needed',
+          },
+        },
+        required: ['reason'],
+      },
+    },
+  },
+];
+
+const SYSTEM_PROMPT = `You are the orchestrator for a multi-agent development system called Orchard. Your role is to:
+
+1. Monitor and manage Claude Code agents working in git worktrees
+2. Process user requests and delegate tasks to appropriate agents
+3. Merge completed work and maintain code quality
+4. Keep the user informed of progress
+
+You receive periodic tick updates with the current system state. Based on this state, decide what actions to take.
+
+Guidelines:
+- If agents are working normally and no user messages are pending, use no_action
+- If a user message is pending, process it and either create a new worktree or send to an existing agent
+- If an agent reports task completion, consider if the work should be merged
+- If an agent has a question, help answer it or escalate to the user
+- If sessions are dead, they will be auto-restarted - no action needed
+- Be concise in your responses
+
+Available tools:
+- create_worktree: Start a new feature with a Claude agent
+- send_task: Send instructions to an existing agent
+- merge_worktree: Merge completed work into main
+- send_message: Communicate with the user
+- check_status: Get detailed status of worktrees
+- no_action: When no intervention is needed`;
 
 /**
  * Orchestrator Loop Service
  *
- * A reliable terminal-based orchestrator loop that:
- * - Ticks every 30 seconds
- * - Checks for new user messages, agent completions
- * - Auto-restarts dead sessions
- * - Logs to .orchard/activity-log.jsonl
+ * An LLM-powered orchestrator loop that:
+ * - Ticks every 30 seconds (configurable)
+ * - Calls Ollama (local LLM) to make decisions
+ * - Executes tool calls through existing services
+ * - Logs all decisions to .orchard/activity-log.jsonl
  */
 class OrchestratorLoopService extends EventEmitter {
   private config: OrchestratorLoopConfig;
@@ -80,6 +233,8 @@ class OrchestratorLoopService extends EventEmitter {
   private nextTickAt: Date | null = null;
   private tickInterval: NodeJS.Timeout | null = null;
   private projectId: string | null = null;
+  private openai: OpenAI | null = null;
+  private conversationHistory: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
 
   // Track pending completions and questions
   private pendingCompletions: DetectedPattern[] = [];
@@ -89,6 +244,66 @@ class OrchestratorLoopService extends EventEmitter {
   constructor(config: Partial<OrchestratorLoopConfig> = {}) {
     super();
     this.config = { ...DEFAULT_CONFIG, ...config };
+  }
+
+  /**
+   * Load config from .orchard/config.json
+   */
+  private async loadConfig(projectPath: string): Promise<void> {
+    const configPath = join(projectPath, '.orchard', 'config.json');
+
+    if (existsSync(configPath)) {
+      try {
+        const content = await readFile(configPath, 'utf-8');
+        const fileConfig = JSON.parse(content);
+
+        if (fileConfig.orchestratorLoop) {
+          this.config = { ...this.config, ...fileConfig.orchestratorLoop };
+          console.log('[OrchestratorLoop] Loaded config from .orchard/config.json');
+        }
+      } catch (error) {
+        console.error('[OrchestratorLoop] Error loading config:', error);
+      }
+    } else {
+      // Create default config file
+      await this.saveConfig(projectPath);
+    }
+  }
+
+  /**
+   * Save config to .orchard/config.json
+   */
+  private async saveConfig(projectPath: string): Promise<void> {
+    const configPath = join(projectPath, '.orchard', 'config.json');
+    const dir = dirname(configPath);
+
+    if (!existsSync(dir)) {
+      await mkdir(dir, { recursive: true });
+    }
+
+    const configData = {
+      orchestratorLoop: {
+        enabled: this.config.enabled,
+        provider: this.config.provider,
+        baseUrl: this.config.baseUrl,
+        model: this.config.model,
+        tickIntervalMs: this.config.tickIntervalMs,
+      },
+    };
+
+    await writeFile(configPath, JSON.stringify(configData, null, 2));
+    console.log('[OrchestratorLoop] Saved default config to .orchard/config.json');
+  }
+
+  /**
+   * Initialize the OpenAI client for Ollama
+   */
+  private initializeOpenAI(): void {
+    this.openai = new OpenAI({
+      baseURL: this.config.baseUrl,
+      apiKey: 'ollama', // Ollama doesn't need a real key
+    });
+    console.log(`[OrchestratorLoop] Initialized OpenAI client for ${this.config.provider} at ${this.config.baseUrl}`);
   }
 
   /**
@@ -144,12 +359,33 @@ class OrchestratorLoopService extends EventEmitter {
         throw new Error('No project available');
       }
 
+      // Load config from project
+      const project = projectService.getProject(this.projectId);
+      if (project) {
+        await this.loadConfig(project.path);
+      }
+
+      // Check if enabled
+      if (!this.config.enabled) {
+        console.log('[OrchestratorLoop] Loop is disabled in config');
+        this.state = LoopState.STOPPED;
+        this.emit('state:change', this.state);
+        return;
+      }
+
+      // Initialize OpenAI client
+      this.initializeOpenAI();
+
       // Log startup
       await activityLoggerService.log({
         type: 'event',
         category: 'system',
-        summary: 'Orchestrator loop started',
-        details: { config: this.config, projectId: this.projectId },
+        summary: 'Orchestrator loop started (Ollama)',
+        details: {
+          config: this.config,
+          projectId: this.projectId,
+          model: this.config.model,
+        },
         correlationId: randomUUID(),
       });
 
@@ -171,7 +407,7 @@ class OrchestratorLoopService extends EventEmitter {
       this.state = LoopState.RUNNING;
       this.emit('state:change', this.state);
 
-      console.log(`[OrchestratorLoop] Started for project ${this.projectId}`);
+      console.log(`[OrchestratorLoop] Started for project ${this.projectId} using ${this.config.model}`);
     } catch (error: any) {
       this.state = LoopState.STOPPED;
       this.emit('state:change', this.state);
@@ -268,6 +504,11 @@ class OrchestratorLoopService extends EventEmitter {
   updateConfig(config: Partial<OrchestratorLoopConfig>): void {
     this.config = { ...this.config, ...config };
 
+    // Re-initialize OpenAI if URL changed
+    if (config.baseUrl || config.provider) {
+      this.initializeOpenAI();
+    }
+
     // Reschedule if running
     if (this.state === LoopState.RUNNING && this.tickInterval) {
       clearTimeout(this.tickInterval);
@@ -319,8 +560,13 @@ class OrchestratorLoopService extends EventEmitter {
       // Emit tick event
       this.emit('tick', this.tickNumber, context);
 
-      // Process tick actions
-      await this.processTickActions(context, correlationId);
+      // Auto-restart dead sessions first
+      if (this.config.autoRestartDeadSessions && context.deadSessions.length > 0) {
+        await this.restartDeadSessions(context.deadSessions, correlationId);
+      }
+
+      // Call LLM for decisions
+      await this.callLLMForDecisions(context, correlationId);
 
       // Reset failure counter on success
       this.consecutiveFailures = 0;
@@ -366,6 +612,350 @@ class OrchestratorLoopService extends EventEmitter {
     }
 
     return context;
+  }
+
+  /**
+   * Call the LLM for decisions
+   */
+  private async callLLMForDecisions(context: TickContext, correlationId: string): Promise<void> {
+    if (!this.openai) {
+      console.log('[OrchestratorLoop] OpenAI client not initialized, skipping LLM call');
+      return;
+    }
+
+    // Build the tick message
+    const tickMessage = this.formatTickMessage(context);
+
+    // Add to conversation history
+    this.conversationHistory.push({
+      role: 'user',
+      content: tickMessage,
+    });
+
+    // Keep conversation history manageable (last 20 exchanges)
+    if (this.conversationHistory.length > 40) {
+      this.conversationHistory = this.conversationHistory.slice(-40);
+    }
+
+    try {
+      const response = await this.openai.chat.completions.create({
+        model: this.config.model,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          ...this.conversationHistory,
+        ],
+        tools: ORCHESTRATOR_TOOLS,
+        tool_choice: 'auto',
+      });
+
+      const assistantMessage = response.choices[0]?.message;
+      if (!assistantMessage) {
+        console.log('[OrchestratorLoop] No response from LLM');
+        return;
+      }
+
+      // Add assistant response to history
+      this.conversationHistory.push(assistantMessage);
+
+      // Log the LLM's reasoning
+      if (assistantMessage.content) {
+        await activityLoggerService.log({
+          type: 'decision',
+          category: 'orchestrator',
+          summary: `LLM reasoning: ${assistantMessage.content.slice(0, 200)}`,
+          details: { fullContent: assistantMessage.content },
+          correlationId,
+        });
+      }
+
+      // Execute tool calls
+      if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
+        for (const toolCall of assistantMessage.tool_calls) {
+          await this.executeToolCall(toolCall, correlationId);
+        }
+      }
+    } catch (error: any) {
+      console.error('[OrchestratorLoop] LLM call failed:', error.message);
+      await activityLoggerService.log({
+        type: 'error',
+        category: 'orchestrator',
+        summary: `LLM call failed: ${error.message}`,
+        details: { error: error.stack },
+        correlationId,
+      });
+    }
+  }
+
+  /**
+   * Format the tick context as a message for the LLM
+   */
+  private formatTickMessage(context: TickContext): string {
+    const lines: string[] = [
+      `[TICK #${context.tickNumber} | ${context.timestamp.toISOString()}]`,
+      '',
+      'Current State:',
+    ];
+
+    // Pending user messages
+    if (context.pendingUserMessages > 0) {
+      lines.push(`- Pending user messages: ${context.pendingUserMessages}`);
+    }
+
+    // Active agents
+    if (context.activeAgents.length > 0) {
+      lines.push(`- Active agents: ${context.activeAgents.length}`);
+      for (const agent of context.activeAgents) {
+        const sessionStatus = agent.hasActiveSession ? 'active' : 'no session';
+        lines.push(`  - ${agent.branch} (${agent.worktreeId}): ${agent.status}, ${sessionStatus}`);
+      }
+    } else {
+      lines.push('- No active agents');
+    }
+
+    // Dead sessions
+    if (context.deadSessions.length > 0) {
+      lines.push(`- Dead sessions (auto-restarting): ${context.deadSessions.join(', ')}`);
+    }
+
+    // Recent completions
+    if (context.completions.length > 0) {
+      lines.push(`- Recent task completions: ${context.completions.length}`);
+      for (const c of context.completions) {
+        lines.push(`  - ${c.worktreeId}: Task completed`);
+      }
+    }
+
+    // Questions from agents
+    if (context.questions.length > 0) {
+      lines.push(`- Agent questions: ${context.questions.length}`);
+      for (const q of context.questions) {
+        lines.push(`  - ${q.worktreeId}: "${q.content.slice(-100)}"`);
+      }
+    }
+
+    // Errors
+    if (context.errors.length > 0) {
+      lines.push(`- Errors detected: ${context.errors.length}`);
+      for (const e of context.errors) {
+        lines.push(`  - ${e.worktreeId}: "${e.content.slice(-100)}"`);
+      }
+    }
+
+    lines.push('');
+    lines.push('What actions should be taken?');
+
+    return lines.join('\n');
+  }
+
+  /**
+   * Execute a tool call from the LLM
+   */
+  private async executeToolCall(
+    toolCall: OpenAI.Chat.Completions.ChatCompletionMessageToolCall,
+    correlationId: string
+  ): Promise<void> {
+    const { name, arguments: argsStr } = toolCall.function;
+    let args: Record<string, any>;
+
+    try {
+      args = JSON.parse(argsStr);
+    } catch {
+      console.error(`[OrchestratorLoop] Invalid tool arguments for ${name}:`, argsStr);
+      return;
+    }
+
+    console.log(`[OrchestratorLoop] Executing tool: ${name}`, args);
+
+    await activityLoggerService.log({
+      type: 'action',
+      category: 'orchestrator',
+      summary: `Executing tool: ${name}`,
+      details: { tool: name, arguments: args },
+      correlationId,
+    });
+
+    try {
+      switch (name) {
+        case 'create_worktree':
+          await this.toolCreateWorktree(args.name, args.task, correlationId);
+          break;
+        case 'send_task':
+          await this.toolSendTask(args.worktreeId, args.message, correlationId);
+          break;
+        case 'merge_worktree':
+          await this.toolMergeWorktree(args.worktreeId, args.deleteAfterMerge, correlationId);
+          break;
+        case 'send_message':
+          await this.toolSendMessage(args.message, correlationId);
+          break;
+        case 'check_status':
+          await this.toolCheckStatus(args.worktreeId, correlationId);
+          break;
+        case 'no_action':
+          await activityLoggerService.log({
+            type: 'decision',
+            category: 'orchestrator',
+            summary: `No action needed: ${args.reason}`,
+            details: { reason: args.reason },
+            correlationId,
+          });
+          break;
+        default:
+          console.log(`[OrchestratorLoop] Unknown tool: ${name}`);
+      }
+    } catch (error: any) {
+      console.error(`[OrchestratorLoop] Tool ${name} failed:`, error.message);
+      await activityLoggerService.log({
+        type: 'error',
+        category: 'orchestrator',
+        summary: `Tool ${name} failed: ${error.message}`,
+        details: { tool: name, error: error.stack },
+        correlationId,
+      });
+    }
+  }
+
+  /**
+   * Tool: Create a new worktree with an agent
+   */
+  private async toolCreateWorktree(name: string, task: string, correlationId: string): Promise<void> {
+    const projectId = this.projectId;
+    if (!projectId) throw new Error('No project context');
+
+    const project = projectService.getProject(projectId);
+    if (!project) throw new Error('Project not found');
+
+    // Use orchestrator service to create the feature
+    const result = await orchestratorService.executeCommand(`orch-${projectId}`, {
+      type: 'create-feature',
+      args: { name, description: task },
+    });
+
+    const parsed = JSON.parse(result);
+
+    await activityLoggerService.log({
+      type: 'action',
+      category: 'worktree',
+      summary: `Created worktree for feature: ${name}`,
+      details: { name, task, result: parsed },
+      correlationId,
+    });
+
+    this.emit('worktree:created', parsed);
+  }
+
+  /**
+   * Tool: Send a task to an existing agent
+   */
+  private async toolSendTask(worktreeId: string, message: string, correlationId: string): Promise<void> {
+    const success = await orchestratorService.sendPromptToWorktree(worktreeId, message);
+
+    await activityLoggerService.log({
+      type: 'action',
+      category: 'agent',
+      summary: `Sent task to agent in ${worktreeId}`,
+      details: { worktreeId, message: message.slice(0, 200), success },
+      correlationId,
+    });
+
+    if (!success) {
+      throw new Error(`No active session for worktree ${worktreeId}`);
+    }
+  }
+
+  /**
+   * Tool: Merge a worktree
+   */
+  private async toolMergeWorktree(
+    worktreeId: string,
+    deleteAfterMerge: boolean = false,
+    correlationId: string
+  ): Promise<void> {
+    const projectId = this.projectId;
+    if (!projectId) throw new Error('No project context');
+
+    const worktree = worktreeService.getWorktree(worktreeId);
+    if (!worktree) throw new Error('Worktree not found');
+
+    const session = orchestratorService.getSessionForProject(projectId);
+    if (!session) throw new Error('No orchestrator session');
+
+    const result = await orchestratorService.executeCommand(session.id, {
+      type: 'merge',
+      args: { source: worktree.branch },
+    });
+
+    const parsed = JSON.parse(result);
+
+    await activityLoggerService.log({
+      type: 'action',
+      category: 'worktree',
+      summary: `Merged worktree ${worktreeId}`,
+      details: { worktreeId, branch: worktree.branch, result: parsed },
+      correlationId,
+    });
+
+    if (deleteAfterMerge && parsed.success) {
+      await worktreeService.deleteWorktree(worktreeId, true);
+    }
+  }
+
+  /**
+   * Tool: Send a message to the user
+   */
+  private async toolSendMessage(message: string, correlationId: string): Promise<void> {
+    const projectId = this.projectId;
+    if (!projectId) throw new Error('No project context');
+
+    // Add to message queue
+    await messageQueueService.addMessage(projectId, `[Orchestrator] ${message}`);
+
+    await activityLoggerService.log({
+      type: 'event',
+      category: 'user',
+      summary: `Orchestrator message: ${message.slice(0, 100)}`,
+      details: { message },
+      correlationId,
+    });
+
+    this.emit('message:sent', { message });
+  }
+
+  /**
+   * Tool: Check status
+   */
+  private async toolCheckStatus(worktreeId: string | undefined, correlationId: string): Promise<void> {
+    const projectId = this.projectId;
+    if (!projectId) throw new Error('No project context');
+
+    if (worktreeId) {
+      const worktree = worktreeService.getWorktree(worktreeId);
+      const sessions = await daemonClient.getSessionsForWorktree(worktreeId);
+
+      await activityLoggerService.log({
+        type: 'event',
+        category: 'agent',
+        summary: `Status check for ${worktreeId}`,
+        details: {
+          worktree: worktree ? { id: worktree.id, branch: worktree.branch } : null,
+          hasSession: sessions.length > 0,
+        },
+        correlationId,
+      });
+    } else {
+      const worktrees = await worktreeService.loadWorktreesForProject(projectId);
+
+      await activityLoggerService.log({
+        type: 'event',
+        category: 'agent',
+        summary: `Status check for all worktrees`,
+        details: {
+          worktreeCount: worktrees.length,
+          worktrees: worktrees.map(w => ({ id: w.id, branch: w.branch })),
+        },
+        correlationId,
+      });
+    }
   }
 
   /**
@@ -440,36 +1030,6 @@ class OrchestratorLoopService extends EventEmitter {
   }
 
   /**
-   * Process tick actions
-   */
-  private async processTickActions(context: TickContext, correlationId: string): Promise<void> {
-    // 1. Auto-restart dead sessions
-    if (this.config.autoRestartDeadSessions && context.deadSessions.length > 0) {
-      await this.restartDeadSessions(context.deadSessions, correlationId);
-    }
-
-    // 2. Process completions
-    if (this.config.autoProcessCompletions && context.completions.length > 0) {
-      await this.processCompletions(context.completions, correlationId);
-    }
-
-    // 3. Log questions that need attention
-    if (context.questions.length > 0) {
-      await this.logPendingQuestions(context.questions, correlationId);
-    }
-
-    // 4. Log errors
-    if (context.errors.length > 0) {
-      await this.logErrors(context.errors, correlationId);
-    }
-
-    // 5. Process pending user messages
-    if (context.pendingUserMessages > 0) {
-      await this.notifyPendingMessages(context.projectId, correlationId);
-    }
-  }
-
-  /**
    * Restart dead sessions
    */
   private async restartDeadSessions(worktreeIds: string[], correlationId: string): Promise<void> {
@@ -497,90 +1057,6 @@ class OrchestratorLoopService extends EventEmitter {
   }
 
   /**
-   * Process task completions
-   */
-  private async processCompletions(completions: DetectedPattern[], correlationId: string): Promise<void> {
-    for (const completion of completions) {
-      await activityLoggerService.log({
-        type: 'event',
-        category: 'agent',
-        summary: `Task completed in ${completion.worktreeId}`,
-        details: { worktreeId: completion.worktreeId, sessionId: completion.sessionId },
-        correlationId,
-      });
-
-      // Record completion in orchestrator service
-      orchestratorService.recordCompletion(completion.worktreeId, completion.sessionId);
-
-      // Mark as handled
-      await terminalMonitorService.markHandled(completion.id, completion.projectId);
-
-      this.emit('task:completed', completion);
-    }
-  }
-
-  /**
-   * Log pending questions
-   */
-  private async logPendingQuestions(questions: DetectedPattern[], correlationId: string): Promise<void> {
-    for (const question of questions) {
-      await activityLoggerService.log({
-        type: 'event',
-        category: 'agent',
-        summary: `Agent has question in ${question.worktreeId}`,
-        details: {
-          worktreeId: question.worktreeId,
-          sessionId: question.sessionId,
-          content: question.content.slice(-200),
-        },
-        correlationId,
-      });
-
-      this.emit('agent:question', question);
-    }
-  }
-
-  /**
-   * Log errors
-   */
-  private async logErrors(errors: DetectedPattern[], correlationId: string): Promise<void> {
-    for (const error of errors) {
-      await activityLoggerService.log({
-        type: 'error',
-        category: 'agent',
-        summary: `Error detected in ${error.worktreeId}`,
-        details: {
-          worktreeId: error.worktreeId,
-          sessionId: error.sessionId,
-          content: error.content.slice(-200),
-        },
-        correlationId,
-      });
-
-      this.emit('agent:error', error);
-    }
-  }
-
-  /**
-   * Notify about pending user messages
-   */
-  private async notifyPendingMessages(projectId: string, correlationId: string): Promise<void> {
-    const messages = await messageQueueService.getUnreadMessages(projectId);
-
-    if (messages.length > 0) {
-      await activityLoggerService.log({
-        type: 'event',
-        category: 'user',
-        summary: `${messages.length} pending user message(s)`,
-        details: { count: messages.length, messageIds: messages.map(m => m.id) },
-        correlationId,
-      });
-
-      this.emit('messages:pending', { projectId, count: messages.length, messages });
-    }
-  }
-
-  /**
    * Send a message to a specific agent
    */
   async sendToAgent(worktreeId: string, message: string): Promise<boolean> {
@@ -592,7 +1068,6 @@ class OrchestratorLoopService extends EventEmitter {
 
     try {
       daemonClient.writeToSession(session.id, message);
-      // Press enter after a short delay
       setTimeout(() => {
         daemonClient.writeToSession(session.id, '\r');
       }, 100);
@@ -634,14 +1109,9 @@ class OrchestratorLoopService extends EventEmitter {
     // Handle permission prompt and send initial task
     if (initialTask) {
       setTimeout(() => {
-        // Arrow down to select "Yes, I accept"
         daemonClient.writeToSession(session.id, '\x1b[B');
-
         setTimeout(() => {
-          // Press enter to confirm
           daemonClient.writeToSession(session.id, '\r');
-
-          // Wait for Claude to be ready, then send task
           setTimeout(() => {
             daemonClient.writeToSession(session.id, initialTask);
             setTimeout(() => {
