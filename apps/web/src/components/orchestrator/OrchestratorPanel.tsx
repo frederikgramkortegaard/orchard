@@ -102,15 +102,24 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
         setIsSending(false);
       }
     } else {
-      // Queue the message
-      const queuedMsg: QueuedMessage = {
-        id: crypto.randomUUID(),
-        text: message,
-        timestamp: new Date(),
-      };
-      setMessageQueue(prev => [...prev, queuedMsg]);
-      setStatus('queued');
-      setTimeout(() => setStatus('idle'), 1000);
+      // Queue the message on the server
+      try {
+        const res = await fetch('/api/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectId, text: message }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setMessageQueue(prev => [...prev, { id: data.message.id, text: message, timestamp: new Date() }]);
+          setStatus('queued');
+          setTimeout(() => setStatus('idle'), 1000);
+        } else {
+          setStatus('error');
+        }
+      } catch {
+        setStatus('error');
+      }
     }
   }, [inputText, orchestratorSessionId]);
 

@@ -6,6 +6,7 @@ import { projectsRoutes } from './routes/projects.js';
 import { worktreesRoutes } from './routes/worktrees.js';
 import { orchestratorRoutes } from './routes/orchestrator.js';
 import { filesRoutes } from './routes/files.js';
+import { messagesRoutes } from './routes/messages.js';
 import { handleTerminalWebSocket } from './websocket/terminal.handler.js';
 import { projectService } from './services/project.service.js';
 
@@ -33,6 +34,7 @@ fastify.register(projectsRoutes);
 fastify.register(worktreesRoutes);
 fastify.register(orchestratorRoutes);
 fastify.register(filesRoutes);
+fastify.register(messagesRoutes);
 
 // WebSocket endpoint
 fastify.register(async function (fastify) {
