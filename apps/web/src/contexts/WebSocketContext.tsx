@@ -11,8 +11,8 @@ interface WebSocketContextValue {
 
 const WebSocketContext = createContext<WebSocketContextValue | null>(null);
 
-const PING_INTERVAL = 30000; // Send ping every 30 seconds
-const PONG_TIMEOUT = 10000; // Expect pong within 10 seconds
+const PING_INTERVAL = 15000; // Send ping every 30 seconds
+const PONG_TIMEOUT = 5000; // Expect pong within 10 seconds
 
 export function WebSocketProvider({ children }: { children: ReactNode }) {
   const wsRef = useRef<WebSocket | null>(null);
