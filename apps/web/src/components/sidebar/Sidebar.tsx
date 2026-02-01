@@ -315,7 +315,7 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
 
   return (
     <aside className="h-full bg-zinc-100 dark:bg-zinc-800 border-r border-zinc-300 dark:border-zinc-700 flex flex-col overflow-hidden">
-      <Group direction="vertical" className="h-full">
+      <Group orientation="vertical" className="h-full">
         {/* Terminal/Print Output - only show when a worktree is selected */}
         {activeWorktreeId && (
           <>
