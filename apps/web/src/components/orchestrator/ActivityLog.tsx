@@ -14,6 +14,7 @@ import {
   MessageSquare,
   ChevronDown,
   ChevronRight,
+  Filter,
 } from 'lucide-react';
 
 interface ActivityLogProps {
@@ -40,6 +41,37 @@ type ActivityKind =
   | 'orchestrator'
   | 'system'
   | 'default';
+
+const ACTIVITY_KIND_LABELS: Record<ActivityKind, string> = {
+  file_edit: 'File Edits',
+  command: 'Commands',
+  commit: 'Commits',
+  question: 'Questions',
+  task_complete: 'Task Complete',
+  error: 'Errors',
+  progress: 'Progress',
+  orchestrator: 'Orchestrator',
+  system: 'System',
+  default: 'Other',
+};
+
+const ALL_ACTIVITY_KINDS: ActivityKind[] = [
+  'file_edit',
+  'command',
+  'commit',
+  'question',
+  'task_complete',
+  'error',
+  'progress',
+  'orchestrator',
+  'system',
+  'default',
+];
+
+interface FilterState {
+  enabledTypes: Set<ActivityKind>;
+  onlyBranches: boolean;
+}
 
 function getActivityKind(entry: ActivityEntry): ActivityKind {
   const detailsObj = JSON.parse(entry.details || '{}');
@@ -237,6 +269,25 @@ export function ActivityLog({ projectId }: ActivityLogProps) {
     }
     return new Set();
   });
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filters, setFilters] = useState<FilterState>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('activityLog.filters');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          return {
+            enabledTypes: new Set(parsed.enabledTypes || ALL_ACTIVITY_KINDS),
+            onlyBranches: parsed.onlyBranches || false,
+          };
+        } catch {
+          return { enabledTypes: new Set(ALL_ACTIVITY_KINDS), onlyBranches: false };
+        }
+      }
+    }
+    return { enabledTypes: new Set(ALL_ACTIVITY_KINDS), onlyBranches: false };
+  });
+  const filterRef = useRef<HTMLDivElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
 
   const toggleSection = useCallback((source: string) => {
@@ -252,7 +303,79 @@ export function ActivityLog({ projectId }: ActivityLogProps) {
     });
   }, []);
 
-  const groupedEntries = groupEntriesBySource(entries);
+  const updateFilters = useCallback((newFilters: FilterState) => {
+    setFilters(newFilters);
+    localStorage.setItem('activityLog.filters', JSON.stringify({
+      enabledTypes: [...newFilters.enabledTypes],
+      onlyBranches: newFilters.onlyBranches,
+    }));
+  }, []);
+
+  const toggleTypeFilter = useCallback((kind: ActivityKind) => {
+    setFilters((prev) => {
+      const next = new Set(prev.enabledTypes);
+      if (next.has(kind)) {
+        next.delete(kind);
+      } else {
+        next.add(kind);
+      }
+      const newFilters = { ...prev, enabledTypes: next };
+      localStorage.setItem('activityLog.filters', JSON.stringify({
+        enabledTypes: [...next],
+        onlyBranches: prev.onlyBranches,
+      }));
+      return newFilters;
+    });
+  }, []);
+
+  const toggleOnlyBranches = useCallback(() => {
+    setFilters((prev) => {
+      const newFilters = { ...prev, onlyBranches: !prev.onlyBranches };
+      localStorage.setItem('activityLog.filters', JSON.stringify({
+        enabledTypes: [...prev.enabledTypes],
+        onlyBranches: newFilters.onlyBranches,
+      }));
+      return newFilters;
+    });
+  }, []);
+
+  const resetFilters = useCallback(() => {
+    const defaultFilters = { enabledTypes: new Set(ALL_ACTIVITY_KINDS), onlyBranches: false };
+    updateFilters(defaultFilters);
+  }, [updateFilters]);
+
+  // Close filter dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
+        setFilterOpen(false);
+      }
+    };
+    if (filterOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [filterOpen]);
+
+  // Apply filters to entries
+  const filteredEntries = entries.filter((entry) => {
+    const kind = getActivityKind(entry);
+    if (!filters.enabledTypes.has(kind)) {
+      return false;
+    }
+    if (filters.onlyBranches) {
+      const source = getEntrySource(entry);
+      // Only show branch-related entries (not Orchestrator, System, Agent, General)
+      if (['Orchestrator', 'System', 'Agent', 'General'].includes(source)) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  const groupedEntries = groupEntriesBySource(filteredEntries);
+
+  const hasActiveFilters = filters.enabledTypes.size < ALL_ACTIVITY_KINDS.length || filters.onlyBranches;
 
   const clearLog = async () => {
     setIsClearing(true);
@@ -307,6 +430,77 @@ export function ActivityLog({ projectId }: ActivityLogProps) {
           <span className="text-sm font-semibold">Activity</span>
         </div>
         <div className="flex items-center gap-2">
+          <div className="relative" ref={filterRef}>
+            <button
+              onClick={() => setFilterOpen(!filterOpen)}
+              className={`p-1.5 hover:bg-zinc-300 dark:hover:bg-zinc-700 rounded-full transition-colors ${
+                hasActiveFilters
+                  ? 'text-blue-500 dark:text-blue-400'
+                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
+              }`}
+              title="Filter activity"
+            >
+              <Filter size={14} />
+            </button>
+            {filterOpen && (
+              <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-zinc-800 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-700 z-50 overflow-hidden">
+                <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-200 dark:border-zinc-700">
+                  <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Filters</span>
+                  {hasActiveFilters && (
+                    <button
+                      onClick={resetFilters}
+                      className="text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+                <div className="p-2 space-y-1 max-h-64 overflow-y-auto">
+                  <div className="px-2 py-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                    Activity Types
+                  </div>
+                  {ALL_ACTIVITY_KINDS.map((kind) => {
+                    const colors = getActivityColors(kind);
+                    const isEnabled = filters.enabledTypes.has(kind);
+                    return (
+                      <label
+                        key={kind}
+                        className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700/50 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isEnabled}
+                          onChange={() => toggleTypeFilter(kind)}
+                          className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-600 text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
+                        />
+                        <span className={`p-1 rounded ${colors.bg} ${colors.icon}`}>
+                          {getActivityIcon(kind)}
+                        </span>
+                        <span className="text-sm text-zinc-700 dark:text-zinc-300">
+                          {ACTIVITY_KIND_LABELS[kind]}
+                        </span>
+                      </label>
+                    );
+                  })}
+                  <div className="border-t border-zinc-200 dark:border-zinc-700 my-2" />
+                  <div className="px-2 py-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                    Source
+                  </div>
+                  <label className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700/50 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={filters.onlyBranches}
+                      onChange={toggleOnlyBranches}
+                      className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-600 text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
+                    />
+                    <span className="text-sm text-zinc-700 dark:text-zinc-300">
+                      Only show branch updates
+                    </span>
+                  </label>
+                </div>
+              </div>
+            )}
+          </div>
           <button
             onClick={clearLog}
             disabled={isClearing || entries.length === 0}
@@ -329,8 +523,10 @@ export function ActivityLog({ projectId }: ActivityLogProps) {
         ref={logRef}
         className="flex-1 overflow-y-auto p-3 space-y-3"
       >
-        {entries.length === 0 ? (
-          <div className="text-zinc-500 text-center py-8 text-sm">No activity yet</div>
+        {filteredEntries.length === 0 ? (
+          <div className="text-zinc-500 text-center py-8 text-sm">
+            {entries.length === 0 ? 'No activity yet' : 'No activity matches filters'}
+          </div>
         ) : (
           groupedEntries.map((group) => {
             const isCollapsed = collapsedSections.has(group.source);
