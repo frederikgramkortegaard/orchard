@@ -1197,15 +1197,22 @@ class OrchestratorLoopService extends EventEmitter {
       // Add assistant response to history
       this.conversationHistory.push(assistantMessage);
 
-      // Log the LLM's reasoning
-      if (assistantMessage.content) {
-        await activityLoggerService.log({
-          type: 'decision',
-          category: 'orchestrator',
-          summary: `LLM reasoning: ${assistantMessage.content.slice(0, 200)}`,
-          details: { fullContent: assistantMessage.content },
-          correlationId,
-        });
+      // If LLM returned text content, automatically send it to the chat
+      // This ensures the user sees any response, not just tool calls
+      if (assistantMessage.content && assistantMessage.content.trim()) {
+        const project = projectService.getProject(this.projectId!);
+        if (project?.path) {
+          databaseService.addChatMessage(project.path, {
+            id: randomUUID(),
+            projectId: this.projectId!,
+            from: 'orchestrator',
+            text: assistantMessage.content,
+          });
+          debugLogService.debug('orchestrator', 'Auto-sent LLM response to chat', {
+            content: assistantMessage.content.slice(0, 100),
+            correlationId,
+          });
+        }
       }
 
       // Execute tool calls and track if any real action was taken
@@ -1336,6 +1343,19 @@ class OrchestratorLoopService extends EventEmitter {
       });
 
       this.conversationHistory.push(assistantMessage);
+
+      // Auto-send LLM text content to chat
+      if (assistantMessage.content && assistantMessage.content.trim()) {
+        const project = projectService.getProject(this.projectId!);
+        if (project?.path) {
+          databaseService.addChatMessage(project.path, {
+            id: randomUUID(),
+            projectId: this.projectId!,
+            from: 'orchestrator',
+            text: assistantMessage.content,
+          });
+        }
+      }
 
       let tookAction = false;
       let calledNoAction = false;
