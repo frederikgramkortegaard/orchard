@@ -62,8 +62,8 @@ function determineActivity(
     return {
       icon: <Loader2 size={12} className="animate-spin" />,
       text: loopStatus.state === 'STARTING' ? 'Starting...' : 'Stopping...',
-      color: 'text-blue-500 dark:text-blue-400',
-      bgColor: 'bg-blue-50 dark:bg-blue-900/20',
+      color: 'text-pink-500 dark:text-pink-400',
+      bgColor: 'bg-pink-50 dark:bg-pink-900/20',
       pulse: true,
     };
   }
@@ -93,8 +93,8 @@ function determineActivity(
     return {
       icon: <MessageSquare size={12} />,
       text: `Processing ${pendingCount} message${pendingCount > 1 ? 's' : ''}`,
-      color: 'text-blue-500 dark:text-blue-400',
-      bgColor: 'bg-blue-50 dark:bg-blue-900/20',
+      color: 'text-pink-500 dark:text-pink-400',
+      bgColor: 'bg-pink-50 dark:bg-pink-900/20',
       pulse: true,
     };
   }

@@ -140,7 +140,7 @@ export function DiffViewerModal({ isOpen, worktreeId, worktreeBranch, onClose }:
               onClick={() => setDiffType(type)}
               className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm transition-colors ${
                 diffType === type
-                  ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
+                  ? 'bg-pink-100 dark:bg-pink-900/50 text-pink-700 dark:text-pink-300'
                   : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600'
               }`}
               title={description}
@@ -157,7 +157,7 @@ export function DiffViewerModal({ isOpen, worktreeId, worktreeBranch, onClose }:
               <select
                 value={selectedBranch}
                 onChange={(e) => setSelectedBranch(e.target.value)}
-                className="px-2 py-1 text-sm bg-zinc-100 dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 rounded focus:outline-none focus:border-blue-500"
+                className="px-2 py-1 text-sm bg-zinc-100 dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 rounded focus:outline-none focus:border-pink-500"
               >
                 {branches.map((branch) => (
                   <option key={branch} value={branch}>
@@ -174,7 +174,7 @@ export function DiffViewerModal({ isOpen, worktreeId, worktreeBranch, onClose }:
               <select
                 value={baseCommit}
                 onChange={(e) => setBaseCommit(e.target.value)}
-                className="px-2 py-1 text-sm bg-zinc-100 dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 rounded focus:outline-none focus:border-blue-500 max-w-[200px]"
+                className="px-2 py-1 text-sm bg-zinc-100 dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 rounded focus:outline-none focus:border-pink-500 max-w-[200px]"
               >
                 {commits.map((commit) => (
                   <option key={commit.hash} value={commit.hash}>
@@ -186,7 +186,7 @@ export function DiffViewerModal({ isOpen, worktreeId, worktreeBranch, onClose }:
               <select
                 value={targetCommit}
                 onChange={(e) => setTargetCommit(e.target.value)}
-                className="px-2 py-1 text-sm bg-zinc-100 dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 rounded focus:outline-none focus:border-blue-500 max-w-[200px]"
+                className="px-2 py-1 text-sm bg-zinc-100 dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 rounded focus:outline-none focus:border-pink-500 max-w-[200px]"
               >
                 {commits.map((commit) => (
                   <option key={commit.hash} value={commit.hash}>

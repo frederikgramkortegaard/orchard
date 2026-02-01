@@ -83,7 +83,7 @@ export function PrintSessionPane({ projectId, worktreeId }: PrintSessionPaneProp
           >
             <span className={`w-2 h-2 rounded-full ${
               session.status === 'running' ? 'bg-green-500 animate-pulse' :
-              session.status === 'completed' ? 'bg-blue-500' : 'bg-red-500'
+              session.status === 'completed' ? 'bg-pink-500' : 'bg-red-500'
             }`} />
             <span className="truncate max-w-[150px]" title={session.task}>
               {session.task.substring(0, 30)}{session.task.length > 30 ? '...' : ''}
@@ -104,7 +104,7 @@ export function PrintSessionPane({ projectId, worktreeId }: PrintSessionPaneProp
               <div className="flex items-center gap-2">
                 <span className={`px-2 py-0.5 text-xs rounded ${
                   activeSession.status === 'running' ? 'bg-green-500/20 text-green-400' :
-                  activeSession.status === 'completed' ? 'bg-blue-500/20 text-blue-400' :
+                  activeSession.status === 'completed' ? 'bg-pink-500/20 text-pink-400' :
                   'bg-red-500/20 text-red-400'
                 }`}>
                   {activeSession.status}

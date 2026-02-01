@@ -45,7 +45,7 @@ export function AudioPlayback({ text, messageId, className = '' }: AudioPlayback
     <button
       onClick={handleClick}
       className={`p-1 rounded transition-colors hover:bg-white/10 ${
-        isActive ? 'text-blue-400' : 'text-current opacity-70 hover:opacity-100'
+        isActive ? 'text-pink-400' : 'text-current opacity-70 hover:opacity-100'
       } ${className}`}
       title={isActive ? (isPlaying ? 'Stop speaking' : 'Resume speaking') : 'Read aloud'}
     >

@@ -31,7 +31,7 @@ interface GitHistorySidebarProps {
 
 // Colors for branch visualization
 const BRANCH_COLORS = [
-  'text-blue-500',
+  'text-pink-500',
   'text-green-500',
   'text-purple-500',
   'text-orange-500',
@@ -40,7 +40,7 @@ const BRANCH_COLORS = [
 ];
 
 const BRANCH_BG_COLORS = [
-  'bg-blue-500',
+  'bg-pink-500',
   'bg-green-500',
   'bg-purple-500',
   'bg-orange-500',
@@ -78,7 +78,7 @@ function getFileIcon(status: string) {
     case 'renamed':
       return <Edit3 size={12} className="text-yellow-500" />;
     default:
-      return <Edit3 size={12} className="text-blue-500" />;
+      return <Edit3 size={12} className="text-pink-500" />;
   }
 }
 
@@ -119,7 +119,7 @@ function CommitItem({
     <div
       className={`group border-l-2 ${BRANCH_COLORS[branchColor].replace('text-', 'border-')} ${
         isSelected
-          ? 'bg-blue-50 dark:bg-blue-900/30'
+          ? 'bg-pink-50 dark:bg-pink-900/30'
           : 'hover:bg-zinc-50 dark:hover:bg-zinc-700/50'
       }`}
     >
@@ -149,7 +149,7 @@ function CommitItem({
             {commit.refs.map((ref) => (
               <span
                 key={ref}
-                className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium rounded bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300"
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium rounded bg-pink-100 dark:bg-pink-900/50 text-pink-700 dark:text-pink-300"
               >
                 <GitBranch size={10} />
                 {ref}
@@ -200,7 +200,7 @@ function CommitItem({
                 }}
                 className={`p-1 rounded text-xs ${
                   isCompareTarget
-                    ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
+                    ? 'bg-pink-100 dark:bg-pink-900/50 text-pink-700 dark:text-pink-300'
                     : 'hover:bg-zinc-200 dark:hover:bg-zinc-600 text-zinc-600 dark:text-zinc-400'
                 }`}
                 title="Set as target"
@@ -429,7 +429,7 @@ export function GitHistorySidebar({
               <button
                 onClick={handleCompare}
                 disabled={!compareBase || !compareTarget}
-                className="px-2 py-1 text-xs bg-blue-500 hover:bg-blue-600 disabled:bg-zinc-400 text-white rounded disabled:cursor-not-allowed"
+                className="px-2 py-1 text-xs bg-pink-500 hover:bg-pink-600 disabled:bg-zinc-400 text-white rounded disabled:cursor-not-allowed"
               >
                 Compare
               </button>
@@ -473,7 +473,7 @@ export function GitHistorySidebar({
           )}
           <span className="text-zinc-500">...</span>
           {compareTarget ? (
-            <code className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded">
+            <code className="px-1 py-0.5 bg-pink-100 dark:bg-pink-900/50 text-pink-700 dark:text-pink-300 rounded">
               {compareTarget.slice(0, 7)}
             </code>
           ) : (

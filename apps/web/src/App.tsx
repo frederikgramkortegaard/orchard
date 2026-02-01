@@ -146,7 +146,7 @@ function App() {
             />
           </Panel>
 
-          <Separator className="w-px bg-zinc-700 hover:bg-blue-500 dark:hover:bg-zinc-600 cursor-col-resize" />
+          <Separator className="w-px bg-zinc-700 hover:bg-pink-500 dark:hover:bg-zinc-600 cursor-col-resize" />
 
           <Panel defaultSize={60} minSize={5}>
             <div className="h-full bg-zinc-900">
@@ -154,7 +154,7 @@ function App() {
             </div>
           </Panel>
 
-          <Separator className="w-px bg-zinc-700 hover:bg-blue-500 dark:hover:bg-zinc-600 cursor-col-resize" />
+          <Separator className="w-px bg-zinc-700 hover:bg-pink-500 dark:hover:bg-zinc-600 cursor-col-resize" />
           <Panel defaultSize={20} minSize={5}>
             <ActivityPane
               key={`activity-${activeProjectId}-${projectSwitchKey}`}
@@ -171,7 +171,7 @@ function App() {
             <p className="text-sm mb-4">Open a project to get started</p>
             <button
               onClick={() => setShowProjectModal(true)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg"
+              className="px-4 py-2 bg-pink-600 hover:bg-pink-500 text-white rounded-lg"
             >
               Open Project
             </button>
