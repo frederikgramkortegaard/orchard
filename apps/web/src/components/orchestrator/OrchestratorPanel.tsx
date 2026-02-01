@@ -158,34 +158,33 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
   }, [inputText, orchestratorSessionId, projectId, addMessage]);
 
   return (
-    <div className="flex flex-col h-full bg-zinc-100 rounded-lg overflow-hidden shadow-sm">
-      {/* Chat header - WhatsApp style */}
-      <div className="flex items-center gap-3 px-4 py-3 bg-[#00a884] text-white">
-        <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+    <div className="flex flex-col h-full bg-zinc-900 rounded-lg overflow-hidden shadow-sm">
+      {/* Chat header */}
+      <div className="flex items-center gap-3 px-4 py-3 bg-zinc-800 text-white border-b border-zinc-700">
+        <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center">
           <MessageCircle size={20} />
         </div>
         <div className="flex-1">
           <div className="font-medium text-sm">Orchestrator</div>
-          <div className="text-xs opacity-80">
+          <div className="text-xs text-zinc-400">
             {orchestratorSessionId ? 'Online' : 'Messages will queue'}
           </div>
         </div>
         <div
           className={`w-2.5 h-2.5 rounded-full ${
-            orchestratorSessionId ? 'bg-white' : 'bg-white/40'
+            orchestratorSessionId ? 'bg-green-500' : 'bg-zinc-500'
           }`}
         />
       </div>
 
-      {/* Chat messages - WhatsApp style */}
+      {/* Chat messages */}
       <div
         ref={chatRef}
-        className="flex-1 overflow-y-auto p-3 space-y-1"
-        style={{ backgroundColor: '#e5ddd5' }}
+        className="flex-1 overflow-y-auto p-3 space-y-1 bg-zinc-900"
       >
         {chatMessages.length === 0 ? (
-          <div className="text-xs text-zinc-600 text-center py-8 bg-amber-50/80 rounded-lg mx-auto max-w-xs shadow-sm">
-            <Bot size={24} className="mx-auto mb-2 text-amber-600" />
+          <div className="text-xs text-zinc-400 text-center py-8 bg-zinc-800/80 rounded-lg mx-auto max-w-xs shadow-sm">
+            <Bot size={24} className="mx-auto mb-2 text-blue-500" />
             No messages yet. Send a message to the orchestrator.
           </div>
         ) : (
@@ -197,16 +196,13 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
               <div
                 className={`relative max-w-[85%] px-3 py-2 text-sm shadow-sm ${
                   msg.from === 'user'
-                    ? 'bg-[#dcf8c6] text-zinc-800 rounded-tl-xl rounded-tr-sm rounded-bl-xl rounded-br-xl'
-                    : 'bg-white text-zinc-800 rounded-tl-sm rounded-tr-xl rounded-bl-xl rounded-br-xl'
+                    ? 'bg-blue-600 text-white rounded-tl-xl rounded-tr-sm rounded-bl-xl rounded-br-xl'
+                    : 'bg-zinc-700 text-zinc-100 rounded-tl-sm rounded-tr-xl rounded-bl-xl rounded-br-xl'
                 }`}
-                style={{
-                  boxShadow: '0 1px 1px rgba(0,0,0,0.1)',
-                }}
               >
                 <p className="whitespace-pre-wrap break-words">{msg.text}</p>
                 <p className={`text-[10px] mt-1 text-right ${
-                  msg.from === 'user' ? 'text-zinc-500' : 'text-zinc-400'
+                  msg.from === 'user' ? 'text-blue-200' : 'text-zinc-400'
                 }`}>
                   {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </p>
@@ -218,11 +214,11 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
 
       {/* Clear pending button */}
       {pendingCount > 0 && (
-        <div className="flex justify-center px-3 py-2 bg-[#fff3cd]">
+        <div className="flex justify-center px-3 py-2 bg-amber-900/50 border-t border-amber-800/50">
           <button
             onClick={handleClearPending}
             disabled={isClearing}
-            className="text-xs text-amber-800 hover:text-amber-900 flex items-center gap-1.5 disabled:opacity-50"
+            className="text-xs text-amber-200 hover:text-amber-100 flex items-center gap-1.5 disabled:opacity-50"
             title="Mark all pending messages as processed"
           >
             <XCircle size={14} />
@@ -231,14 +227,14 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
         </div>
       )}
 
-      {/* Input area - WhatsApp style */}
-      <div className="flex items-center gap-2 p-2 bg-[#f0f0f0]">
+      {/* Input area */}
+      <div className="flex items-center gap-2 p-2 bg-zinc-800 border-t border-zinc-700">
         <input
           type="text"
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           placeholder="Type a message"
-          className="flex-1 px-4 py-2.5 bg-white rounded-full text-sm focus:outline-none shadow-sm placeholder:text-zinc-400"
+          className="flex-1 px-4 py-2.5 bg-zinc-700 rounded-full text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm placeholder:text-zinc-400"
           onKeyDown={(e) => e.key === 'Enter' && !isSending && handleSend()}
         />
         <button
@@ -246,8 +242,8 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
           disabled={isSending || !inputText.trim()}
           className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shadow-sm ${
             inputText.trim()
-              ? 'bg-[#00a884] hover:bg-[#008f6f] text-white'
-              : 'bg-zinc-300 text-zinc-500'
+              ? 'bg-blue-600 hover:bg-blue-500 text-white'
+              : 'bg-zinc-600 text-zinc-400'
           } disabled:opacity-50`}
         >
           {isSending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
