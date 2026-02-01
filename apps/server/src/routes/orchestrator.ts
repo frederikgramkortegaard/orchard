@@ -3,6 +3,7 @@ import { orchestratorService } from '../services/orchestrator.service.js';
 import { worktreeService } from '../services/worktree.service.js';
 import { orchestratorLoopService } from '../services/orchestrator-loop.service.js';
 import { activityLoggerService } from '../services/activity-logger.service.js';
+import { sessionPersistenceService } from '../services/session-persistence.service.js';
 
 interface HealthAction {
   type: 'archive' | 'sync' | 'commit' | 'cleanup' | 'review';
@@ -476,5 +477,84 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
     }
 
     return { success: false, error: 'projectId required' };
+  });
+
+  // ============ Session Persistence & Resume ============
+
+  // Get all persisted sessions for a project
+  fastify.get<{
+    Params: { projectId: string };
+  }>('/orchestrator/:projectId/persisted-sessions', async (request) => {
+    const sessions = sessionPersistenceService.getSessionsForProject(request.params.projectId);
+    return { sessions };
+  });
+
+  // Get resumable sessions (those with Claude session IDs)
+  fastify.get<{
+    Params: { projectId: string };
+  }>('/orchestrator/:projectId/resumable-sessions', async (request) => {
+    const sessions = sessionPersistenceService.getResumableSessions(request.params.projectId);
+    return { sessions };
+  });
+
+  // Get dead sessions (persisted but no longer running)
+  fastify.get<{
+    Params: { projectId: string };
+  }>('/orchestrator/:projectId/dead-sessions', async (request) => {
+    const sessions = await sessionPersistenceService.getDeadSessions();
+    const filtered = sessions.filter(s => s.projectId === request.params.projectId);
+    return { sessions: filtered };
+  });
+
+  // Resume a dead session
+  fastify.post<{
+    Params: { projectId: string };
+    Body: { worktreeId: string };
+  }>('/orchestrator/:projectId/resume-session', async (request, reply) => {
+    const { worktreeId } = request.body;
+
+    if (!worktreeId) {
+      return reply.status(400).send({ error: 'worktreeId is required' });
+    }
+
+    const session = await sessionPersistenceService.restoreSession(worktreeId);
+    if (!session) {
+      return reply.status(404).send({ error: 'Failed to resume session' });
+    }
+
+    return {
+      success: true,
+      session,
+      resumed: !!session.claudeSessionId,
+      message: session.claudeSessionId
+        ? `Session resumed with Claude context (resume count: ${session.resumeCount})`
+        : 'Session restored without previous context',
+    };
+  });
+
+  // Validate all sessions against daemon
+  fastify.post<{
+    Params: { projectId: string };
+  }>('/orchestrator/:projectId/validate-sessions', async (request) => {
+    const result = await sessionPersistenceService.validateAllSessions();
+    const projectSessions = sessionPersistenceService.getSessionsForProject(request.params.projectId);
+
+    return {
+      ...result,
+      projectSessions: projectSessions.length,
+    };
+  });
+
+  // Clean up old terminated sessions
+  fastify.post<{
+    Params: { projectId: string };
+    Body: { olderThanDays?: number };
+  }>('/orchestrator/:projectId/cleanup-sessions', async (request) => {
+    const { olderThanDays = 7 } = request.body;
+    const cleaned = sessionPersistenceService.cleanupOldSessions(
+      request.params.projectId,
+      olderThanDays
+    );
+    return { cleaned };
   });
 }

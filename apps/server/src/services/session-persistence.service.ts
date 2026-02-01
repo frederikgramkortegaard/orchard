@@ -1,7 +1,5 @@
-import { readFile, writeFile, rename, unlink, mkdir } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
-import { join, dirname } from 'node:path';
 import { projectService } from './project.service.js';
+import { databaseService, type AgentSession, type SessionStatus } from './database.service.js';
 import { daemonClient, type DaemonSession } from '../pty/daemon-client.js';
 
 export interface PersistedSession {
@@ -11,40 +9,39 @@ export interface PersistedSession {
   createdAt: string;
   command: string;
   cwd: string;
-}
-
-interface SessionsFile {
-  version: number;
-  sessions: PersistedSession[];
-  lastUpdated: string;
+  claudeSessionId?: string;
+  status: SessionStatus;
+  resumeCount: number;
 }
 
 /**
  * Session Persistence Service
  *
  * Responsibilities:
- * - Save active session IDs to .orchard/sessions.json
+ * - Save active session state to SQLite for resume capability
  * - Restore sessions on server restart
  * - Enforce 1 terminal per worktree (no duplicates)
+ * - Track Claude session IDs for conversation resumption
  */
 class SessionPersistenceService {
   private sessions = new Map<string, PersistedSession>();
   private initialized = false;
 
   /**
-   * Initialize the service - load persisted sessions
+   * Initialize the service - load persisted sessions from SQLite
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
     const projects = projectService.getAllProjects();
     for (const project of projects) {
-      await this.loadSessionsForProject(project.id);
+      await this.loadSessionsForProject(project.id, project.path);
     }
 
     // Listen for daemon disconnects to handle session cleanup
     daemonClient.on('disconnected', () => {
-      console.log('[SessionPersistence] Daemon disconnected - sessions may need recovery');
+      console.log('[SessionPersistence] Daemon disconnected - marking sessions as disconnected');
+      this.handleDaemonDisconnect();
     });
 
     daemonClient.on('connected', async () => {
@@ -57,70 +54,51 @@ class SessionPersistenceService {
   }
 
   /**
-   * Get the sessions file path for a project
+   * Handle daemon disconnect - mark all sessions as disconnected
    */
-  private getSessionsFilePath(projectId: string): string | null {
-    const project = projectService.getProject(projectId);
-    if (!project) return null;
-    return join(project.path, '.orchard', 'sessions.json');
+  private handleDaemonDisconnect(): void {
+    const projects = projectService.getAllProjects();
+    for (const project of projects) {
+      const count = databaseService.markAllSessionsDisconnected(project.path, project.id);
+      if (count > 0) {
+        console.log(`[SessionPersistence] Marked ${count} sessions as disconnected for project ${project.id}`);
+      }
+    }
+
+    // Update in-memory cache
+    for (const [worktreeId, session] of this.sessions) {
+      if (session.status === 'active') {
+        session.status = 'disconnected';
+      }
+    }
   }
 
   /**
-   * Load sessions from disk for a specific project
+   * Load sessions from SQLite for a specific project
    */
-  private async loadSessionsForProject(projectId: string): Promise<void> {
-    const filePath = this.getSessionsFilePath(projectId);
-    if (!filePath || !existsSync(filePath)) return;
-
+  private async loadSessionsForProject(projectId: string, projectPath: string): Promise<void> {
     try {
-      const content = await readFile(filePath, 'utf-8');
-      const data: SessionsFile = JSON.parse(content);
+      const dbSessions = databaseService.getSessionsForProject(projectPath, projectId);
 
-      for (const session of data.sessions) {
+      for (const dbSession of dbSessions) {
+        const session: PersistedSession = {
+          id: dbSession.id,
+          worktreeId: dbSession.worktreeId,
+          projectId: dbSession.projectId,
+          createdAt: dbSession.createdAt,
+          command: dbSession.command,
+          cwd: dbSession.cwd,
+          claudeSessionId: dbSession.claudeSessionId,
+          status: dbSession.status,
+          resumeCount: dbSession.resumeCount,
+        };
         // Use worktreeId as key to enforce uniqueness
         this.sessions.set(session.worktreeId, session);
       }
 
-      console.log(`[SessionPersistence] Loaded ${data.sessions.length} sessions for project ${projectId}`);
+      console.log(`[SessionPersistence] Loaded ${dbSessions.length} sessions for project ${projectId}`);
     } catch (error) {
       console.error(`[SessionPersistence] Error loading sessions for ${projectId}:`, error);
-    }
-  }
-
-  /**
-   * Save sessions to disk for a specific project
-   */
-  private async saveSessionsForProject(projectId: string): Promise<void> {
-    const filePath = this.getSessionsFilePath(projectId);
-    if (!filePath) return;
-
-    const projectSessions = Array.from(this.sessions.values())
-      .filter(s => s.projectId === projectId);
-
-    const data: SessionsFile = {
-      version: 1,
-      sessions: projectSessions,
-      lastUpdated: new Date().toISOString(),
-    };
-
-    // Ensure directory exists
-    const dir = dirname(filePath);
-    if (!existsSync(dir)) {
-      await mkdir(dir, { recursive: true });
-    }
-
-    // Atomic write: write to temp file then rename
-    const tempPath = `${filePath}.tmp.${Date.now()}`;
-    try {
-      await writeFile(tempPath, JSON.stringify(data, null, 2));
-      await rename(tempPath, filePath);
-    } catch (error) {
-      try {
-        await unlink(tempPath);
-      } catch {
-        // Ignore cleanup error
-      }
-      throw error;
     }
   }
 
@@ -142,17 +120,34 @@ class SessionPersistenceService {
       await this.destroySession(worktreeId);
     }
 
-    const session: PersistedSession = {
+    const project = projectService.getProject(projectId);
+    if (!project) {
+      throw new Error(`Project not found: ${projectId}`);
+    }
+
+    // Save to SQLite
+    const dbSession = databaseService.saveSession(project.path, {
       id: sessionId,
       worktreeId,
       projectId,
-      createdAt: new Date().toISOString(),
       command,
       cwd,
+      status: 'active',
+    });
+
+    const session: PersistedSession = {
+      id: dbSession.id,
+      worktreeId: dbSession.worktreeId,
+      projectId: dbSession.projectId,
+      createdAt: dbSession.createdAt,
+      command: dbSession.command,
+      cwd: dbSession.cwd,
+      claudeSessionId: dbSession.claudeSessionId,
+      status: dbSession.status,
+      resumeCount: dbSession.resumeCount,
     };
 
     this.sessions.set(worktreeId, session);
-    await this.saveSessionsForProject(projectId);
 
     console.log(`[SessionPersistence] Registered session ${sessionId} for worktree ${worktreeId}`);
     return session;
@@ -165,8 +160,12 @@ class SessionPersistenceService {
     const session = this.sessions.get(worktreeId);
     if (!session) return false;
 
+    const project = projectService.getProject(session.projectId);
+    if (project) {
+      databaseService.updateSessionStatus(project.path, worktreeId, 'terminated');
+    }
+
     this.sessions.delete(worktreeId);
-    await this.saveSessionsForProject(session.projectId);
 
     console.log(`[SessionPersistence] Unregistered session for worktree ${worktreeId}`);
     return true;
@@ -211,6 +210,37 @@ class SessionPersistenceService {
   }
 
   /**
+   * Update Claude session ID for resume capability
+   */
+  updateClaudeSessionId(worktreeId: string, claudeSessionId: string): boolean {
+    const session = this.sessions.get(worktreeId);
+    if (!session) return false;
+
+    const project = projectService.getProject(session.projectId);
+    if (!project) return false;
+
+    const updated = databaseService.updateClaudeSessionId(project.path, worktreeId, claudeSessionId);
+    if (updated) {
+      session.claudeSessionId = claudeSessionId;
+      console.log(`[SessionPersistence] Updated Claude session ID for worktree ${worktreeId}: ${claudeSessionId}`);
+    }
+    return updated;
+  }
+
+  /**
+   * Touch session to update last activity timestamp
+   */
+  touchSession(worktreeId: string): boolean {
+    const session = this.sessions.get(worktreeId);
+    if (!session) return false;
+
+    const project = projectService.getProject(session.projectId);
+    if (!project) return false;
+
+    return databaseService.touchSession(project.path, worktreeId);
+  }
+
+  /**
    * Validate all sessions against actual daemon sessions
    * Removes orphaned entries and identifies dead sessions
    */
@@ -235,12 +265,22 @@ class SessionPersistenceService {
       const daemonSessionIds = new Set(daemonSessions.map(s => s.id));
 
       for (const [worktreeId, session] of this.sessions) {
+        const project = projectService.getProject(session.projectId);
+
         if (daemonSessionIds.has(session.id)) {
           result.valid.push(worktreeId);
+          // Mark as active if it was disconnected
+          if (session.status === 'disconnected' && project) {
+            databaseService.updateSessionStatus(project.path, worktreeId, 'active');
+            session.status = 'active';
+          }
         } else {
           // Session no longer exists in daemon
           result.dead.push(worktreeId);
-          await this.unregisterSession(worktreeId);
+          if (project) {
+            databaseService.updateSessionStatus(project.path, worktreeId, 'disconnected');
+            session.status = 'disconnected';
+          }
         }
       }
 
@@ -262,7 +302,29 @@ class SessionPersistenceService {
   }
 
   /**
+   * Get resumable sessions (active or disconnected with Claude session ID)
+   */
+  getResumableSessions(projectId: string): PersistedSession[] {
+    const project = projectService.getProject(projectId);
+    if (!project) return [];
+
+    const dbSessions = databaseService.getResumableSessions(project.path, projectId);
+    return dbSessions.map(dbSession => ({
+      id: dbSession.id,
+      worktreeId: dbSession.worktreeId,
+      projectId: dbSession.projectId,
+      createdAt: dbSession.createdAt,
+      command: dbSession.command,
+      cwd: dbSession.cwd,
+      claudeSessionId: dbSession.claudeSessionId,
+      status: dbSession.status,
+      resumeCount: dbSession.resumeCount,
+    }));
+  }
+
+  /**
    * Restore a dead session - creates a new session for the worktree
+   * If Claude session ID is available, uses --resume flag
    */
   async restoreSession(worktreeId: string): Promise<PersistedSession | null> {
     const oldSession = this.sessions.get(worktreeId);
@@ -278,25 +340,35 @@ class SessionPersistenceService {
     }
 
     try {
-      // Create new session with same config
+      // Build command - use --resume if we have a Claude session ID
+      let command = oldSession.command;
+      if (oldSession.claudeSessionId && !command.includes('--resume')) {
+        // Add resume flag with the Claude session ID
+        command = `${command} --resume ${oldSession.claudeSessionId}`;
+      }
+
+      // Create new session with same config (or resume command)
       const newSessionId = await daemonClient.createSession(
         worktreeId,
         project.path,
         oldSession.cwd,
-        oldSession.command
+        command
       );
 
-      // Update registry
+      // Update in SQLite
+      databaseService.markSessionResumed(project.path, worktreeId, newSessionId);
+
+      // Update in-memory cache
       const newSession: PersistedSession = {
         ...oldSession,
         id: newSessionId,
-        createdAt: new Date().toISOString(),
+        status: 'resumed',
+        resumeCount: oldSession.resumeCount + 1,
       };
 
       this.sessions.set(worktreeId, newSession);
-      await this.saveSessionsForProject(oldSession.projectId);
 
-      console.log(`[SessionPersistence] Restored session for ${worktreeId}: ${newSessionId}`);
+      console.log(`[SessionPersistence] Restored session for ${worktreeId}: ${newSessionId} (resume count: ${newSession.resumeCount})`);
       return newSession;
     } catch (error) {
       console.error(`[SessionPersistence] Failed to restore session for ${worktreeId}:`, error);
@@ -311,7 +383,9 @@ class SessionPersistenceService {
     const dead: PersistedSession[] = [];
 
     if (!daemonClient.isConnected()) {
-      return dead;
+      // Return disconnected sessions from cache
+      return Array.from(this.sessions.values())
+        .filter(s => s.status === 'disconnected');
     }
 
     try {
@@ -365,6 +439,16 @@ class SessionPersistenceService {
     );
 
     return await this.registerSession(worktreeId, projectId, sessionId, command, cwd);
+  }
+
+  /**
+   * Clean up old terminated sessions
+   */
+  cleanupOldSessions(projectId: string, olderThanDays: number = 7): number {
+    const project = projectService.getProject(projectId);
+    if (!project) return 0;
+
+    return databaseService.cleanupOldSessions(project.path, projectId, olderThanDays);
   }
 }
 

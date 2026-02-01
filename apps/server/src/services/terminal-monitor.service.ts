@@ -5,11 +5,12 @@ import { join, dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { projectService } from './project.service.js';
 import { daemonClient } from '../pty/daemon-client.js';
+import { sessionPersistenceService } from './session-persistence.service.js';
 
 /**
  * Pattern types that can be detected in terminal output
  */
-export type PatternType = 'TASK_COMPLETE' | 'QUESTION' | 'ERROR' | 'RATE_LIMIT' | 'READY';
+export type PatternType = 'TASK_COMPLETE' | 'QUESTION' | 'ERROR' | 'RATE_LIMIT' | 'READY' | 'SESSION_ID';
 
 /**
  * A detected pattern in terminal output
@@ -87,6 +88,22 @@ const PATTERNS: Array<{ type: PatternType; patterns: RegExp[] }> = [
       /^>\s*$/m,
     ],
   },
+];
+
+/**
+ * Patterns for extracting Claude session IDs from terminal output
+ * Claude Code outputs session IDs in formats like:
+ * - "Session: abc123-def456-..."
+ * - "session_id: abc123..."
+ * - "Resuming session abc123..."
+ * - agentId: abc123 (in completion output)
+ */
+const SESSION_ID_PATTERNS = [
+  /session[_\s]?id[:\s]+([a-f0-9-]{7,})/i,
+  /agentId[:\s]+([a-f0-9-]{7,})/i,
+  /resuming\s+session\s+([a-f0-9-]{7,})/i,
+  /session[:\s]+([a-f0-9-]{36})/i, // Full UUID
+  /\(session:\s*([a-f0-9-]{7,})\)/i,
 ];
 
 /**
@@ -260,6 +277,47 @@ class TerminalMonitorService extends EventEmitter {
 
     // Check for patterns
     this.detectPatterns(sessionId, meta.worktreeId, meta.projectId, buffer);
+
+    // Check for Claude session IDs
+    this.detectClaudeSessionId(sessionId, meta.worktreeId, buffer);
+  }
+
+  /**
+   * Detect Claude session ID in terminal output
+   */
+  private detectClaudeSessionId(
+    sessionId: string,
+    worktreeId: string,
+    buffer: string
+  ): void {
+    const cleanBuffer = this.stripAnsi(buffer);
+
+    for (const pattern of SESSION_ID_PATTERNS) {
+      const match = cleanBuffer.match(pattern);
+      if (match && match[1]) {
+        const claudeSessionId = match[1];
+
+        // Check cooldown to avoid duplicate updates
+        const key = `claude_session:${worktreeId}`;
+        const lastTime = this.lastDetection.get(key) || 0;
+        const now = Date.now();
+
+        if (now - lastTime < this.DETECTION_COOLDOWN_MS) {
+          continue;
+        }
+
+        this.lastDetection.set(key, now);
+
+        // Update session persistence with the Claude session ID
+        const updated = sessionPersistenceService.updateClaudeSessionId(worktreeId, claudeSessionId);
+        if (updated) {
+          console.log(`[TerminalMonitor] Captured Claude session ID for ${worktreeId}: ${claudeSessionId}`);
+          this.emit('claude_session_id', { worktreeId, claudeSessionId, sessionId });
+        }
+
+        return;
+      }
+    }
   }
 
   /**
