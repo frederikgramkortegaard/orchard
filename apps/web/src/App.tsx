@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
-import { Sun, Moon, Heart } from 'lucide-react';
+import { Sun, Moon } from 'lucide-react';
 import { useProjectStore } from './stores/project.store';
 import { useTheme } from './contexts/ThemeContext';
 import { useToast } from './contexts/ToastContext';
@@ -17,7 +17,7 @@ import { Dashboard } from './components/dashboard/Dashboard';
 import * as api from './api/projects';
 
 function App() {
-  const { theme, toggleTheme, setPinkMode, isPink } = useTheme();
+  const { theme, toggleTheme } = useTheme();
   const { addToast } = useToast();
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [showWorktreeModal, setShowWorktreeModal] = useState(false);
@@ -111,7 +111,7 @@ function App() {
   const activeProject = projects.find((p) => p.id === activeProjectId);
 
   return (
-    <div className="h-screen flex flex-col bg-white dark:bg-zinc-900 pink:bg-pink-50 text-zinc-900 dark:text-zinc-100 pink:text-pink-900">
+    <div className="h-screen flex flex-col bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">
       {/* Project tabs bar */}
       <ProjectTabBar
         onNewProject={() => setShowProjectModal(true)}
@@ -120,11 +120,11 @@ function App() {
       />
 
       {/* Header */}
-      <header className="flex items-center justify-between px-4 py-2 bg-zinc-100 dark:bg-zinc-800 pink:bg-pink-100 border-b border-zinc-300 dark:border-zinc-700 pink:border-pink-300">
+      <header className="flex items-center justify-between px-4 py-2 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700">
         <div className="flex items-center gap-4 min-w-0 flex-1">
-          <h1 className="text-xl font-bold pink:text-pink-600 flex-shrink-0">Orchard {isPink && '💖'}</h1>
+          <h1 className="text-xl font-bold flex-shrink-0">Orchard</h1>
           {activeProject && (
-            <span className="text-sm text-zinc-500 dark:text-zinc-400 pink:text-pink-500 truncate">
+            <span className="text-sm text-zinc-500 dark:text-zinc-400 truncate">
               {activeProject.name}
               {activeWorktree && ` / ${activeWorktree.branch}`}
             </span>
@@ -132,34 +132,16 @@ function App() {
           {activeProjectId && <OrchestratorStatus projectId={activeProjectId} />}
         </div>
         <div className="flex items-center gap-4 flex-shrink-0">
-          <span className="text-sm text-zinc-500 dark:text-zinc-400 pink:text-pink-500 truncate max-w-xs">
+          <span className="text-sm text-zinc-500 dark:text-zinc-400 truncate max-w-xs">
             {activeWorktree ? activeWorktree.path : 'No worktree selected'}
           </span>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <button
-              onClick={() => setPinkMode(!isPink)}
-              className={`p-2 rounded-lg transition-colors ${
-                isPink
-                  ? 'bg-pink-400 text-white hover:bg-pink-500'
-                  : 'bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-600 dark:text-zinc-300'
-              }`}
-              title={isPink ? 'Exit pink mode' : 'Activate pink mode!'}
-            >
-              <Heart size={18} fill={isPink ? 'currentColor' : 'none'} />
-            </button>
-            <button
-              onClick={toggleTheme}
-              className={`p-2 rounded-lg transition-colors ${
-                isPink
-                  ? 'invisible'
-                  : 'bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600'
-              }`}
-              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-              disabled={isPink}
-            >
-              {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-            </button>
-          </div>
+          <button
+            onClick={toggleTheme}
+            className="p-2 rounded-lg transition-colors bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600"
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
         </div>
       </header>
 
@@ -182,13 +164,13 @@ function App() {
             />
           </Panel>
 
-          <Separator className="w-1 bg-zinc-300 dark:bg-zinc-700 pink:bg-pink-200 hover:bg-zinc-400 dark:hover:bg-zinc-600 pink:hover:bg-pink-300 cursor-col-resize" />
+          <Separator className="w-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-col-resize" />
 
           {/* Center: Chat (main focus) */}
           <Panel defaultSize={60} minSize={5}>
             {activeProjectId && activeProject ? (
-              <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-900 pink:bg-pink-50">
-                <div className="flex-shrink-0 p-2 border-b border-zinc-300 dark:border-zinc-700 pink:border-pink-200">
+              <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-900">
+                <div className="flex-shrink-0 p-2 border-b border-zinc-300 dark:border-zinc-700">
                   <OrchestratorLoopControl projectId={activeProjectId} />
                 </div>
                 <div className="flex-1 min-h-0 p-2">
@@ -196,7 +178,7 @@ function App() {
                 </div>
               </div>
             ) : (
-              <div className="h-full bg-zinc-50 dark:bg-zinc-900 pink:bg-pink-50 flex items-center justify-center text-zinc-500 dark:text-zinc-500 pink:text-pink-400">
+              <div className="h-full bg-zinc-50 dark:bg-zinc-900 flex items-center justify-center text-zinc-500 dark:text-zinc-500">
                 <div className="text-center">
                   <p>Open a project to get started</p>
                   <button
@@ -213,9 +195,9 @@ function App() {
           {/* Right: Activity feed / Orchestrator log */}
           {activeProjectId && (
             <>
-              <Separator className="w-1 bg-zinc-300 dark:bg-zinc-700 pink:bg-pink-200 hover:bg-zinc-400 dark:hover:bg-zinc-600 pink:hover:bg-pink-300 cursor-col-resize" />
+              <Separator className="w-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-col-resize" />
               <Panel defaultSize={20} minSize={5}>
-                <div className="h-full p-2 bg-zinc-100 dark:bg-zinc-800 pink:bg-pink-100">
+                <div className="h-full p-2 bg-zinc-100 dark:bg-zinc-800">
                   <ActivityLog projectId={activeProjectId} />
                 </div>
               </Panel>
