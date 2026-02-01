@@ -170,20 +170,24 @@ const tools: Tool[] = [
   },
   {
     name: 'get_messages',
-    description: 'Get recent chat messages from the user. Use this to check what the user has said.',
+    description: 'Get recent chat messages from the user. Use this to check what the user has said. If no projectId is specified or allProjects is true, returns messages from ALL open projects grouped by project.',
     inputSchema: {
       type: 'object',
       properties: {
         projectId: {
           type: 'string',
-          description: 'Project ID to get messages for',
+          description: 'Project ID to get messages for. If omitted, returns messages from all open projects.',
         },
         limit: {
           type: 'number',
-          description: 'Maximum number of messages to retrieve (default: 20)',
+          description: 'Maximum number of messages to retrieve per project (default: 20)',
+        },
+        allProjects: {
+          type: 'boolean',
+          description: 'If true, fetch messages from all open projects regardless of projectId',
         },
       },
-      required: ['projectId'],
+      required: [],
     },
   },
   {
@@ -433,7 +437,7 @@ const toolHandlers: Record<string, (args: Record<string, unknown>) => Promise<st
   },
 
   get_project_status: async (args) => getProjectStatus(ORCHARD_API, args as { projectId: string }),
-  get_messages: async (args) => getMessages(ORCHARD_API, args as { projectId: string; limit?: number }),
+  get_messages: async (args) => getMessages(ORCHARD_API, args as { projectId?: string; limit?: number; allProjects?: boolean }),
   send_message: async (args) => sendMessage(ORCHARD_API, args as { projectId: string; message: string }),
 
   archive_worktree: async (args) => {
