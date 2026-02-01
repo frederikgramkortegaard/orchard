@@ -6,6 +6,8 @@ import { MessagesChart } from './MessagesChart';
 import { WorktreesCard } from './WorktreesCard';
 import { AgentActivityCard } from './AgentActivityCard';
 
+const APPROVAL_MESSAGE = 'Your plan is approved. Proceed with implementation.';
+
 export function Dashboard() {
   const { activeProjectId, worktrees, projects } = useProjectStore();
   const [refreshKey, setRefreshKey] = useState(0);
@@ -15,6 +17,34 @@ export function Dashboard() {
 
   const handleRefresh = () => {
     setRefreshKey((k) => k + 1);
+  };
+
+  const handleApprove = async (worktreeId: string) => {
+    try {
+      // First, get the terminal sessions for this worktree
+      const sessionsRes = await fetch(`/api/terminals/worktree/${worktreeId}`);
+      if (!sessionsRes.ok) throw new Error('Failed to get sessions');
+      const sessions = await sessionsRes.json();
+
+      if (sessions.length === 0) {
+        console.error('No active sessions for worktree');
+        return;
+      }
+
+      // Send approval message to the first active session
+      const sessionId = sessions[0].id;
+      const inputRes = await fetch(`/api/terminals/${sessionId}/input`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: APPROVAL_MESSAGE, sendEnter: true }),
+      });
+
+      if (!inputRes.ok) throw new Error('Failed to send approval');
+
+      console.log(`Sent approval to worktree ${worktreeId}`);
+    } catch (err) {
+      console.error('Error approving plan:', err);
+    }
   };
 
   if (!activeProjectId || !activeProject) {
@@ -55,7 +85,7 @@ export function Dashboard() {
 
         {/* Activity Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <WorktreesCard worktrees={projectWorktrees} />
+          <WorktreesCard worktrees={projectWorktrees} onApprove={handleApprove} />
           <AgentActivityCard projectId={activeProjectId} />
         </div>
       </div>

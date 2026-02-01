@@ -15,9 +15,9 @@ export async function worktreesRoutes(fastify: FastifyInstance) {
 
   // Create worktree
   fastify.post<{
-    Body: { projectId: string; branch: string; newBranch?: boolean; baseBranch?: string };
+    Body: { projectId: string; branch: string; newBranch?: boolean; baseBranch?: string; mode?: 'normal' | 'plan' };
   }>('/worktrees', async (request, reply) => {
-    const { projectId, branch, newBranch, baseBranch } = request.body;
+    const { projectId, branch, newBranch, baseBranch, mode } = request.body;
 
     if (!projectId || !branch) {
       return reply.status(400).send({ error: 'projectId and branch required' });
@@ -27,6 +27,7 @@ export async function worktreesRoutes(fastify: FastifyInstance) {
       const worktree = await worktreeService.createWorktree(projectId, branch, {
         newBranch,
         baseBranch,
+        mode,
       });
 
       // Auto-spawn a Claude session for this worktree (with skip-permissions since inside project)

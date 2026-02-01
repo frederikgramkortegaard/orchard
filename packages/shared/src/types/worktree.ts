@@ -1,3 +1,5 @@
+export type AgentMode = 'normal' | 'plan';
+
 export interface Worktree {
   id: string;
   projectId: string;
@@ -6,6 +8,7 @@ export interface Worktree {
   isMain: boolean;
   isLocked: boolean;
   merged: boolean;        // True if worktree branch has been merged
+  mode?: AgentMode;       // Agent execution mode (normal or plan)
   status: WorktreeStatus;
   terminalSessions: string[];
 }

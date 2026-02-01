@@ -9,6 +9,8 @@ export interface Project {
   createdAt: string;
 }
 
+export type AgentMode = 'normal' | 'plan';
+
 export interface Worktree {
   id: string;
   projectId: string;
@@ -17,6 +19,7 @@ export interface Worktree {
   isMain: boolean;
   merged: boolean;
   archived: boolean;
+  mode?: AgentMode;  // Agent execution mode (normal or plan)
   status: {
     ahead: number;
     behind: number;
