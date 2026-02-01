@@ -8,6 +8,7 @@ import { ProjectTabBar } from './components/layout/ProjectTabBar';
 import { Sidebar } from './components/sidebar/Sidebar';
 import { CreateProjectModal } from './components/modals/CreateProjectModal';
 import { CreateWorktreeModal } from './components/modals/CreateWorktreeModal';
+import { KeyboardShortcutsModal } from './components/modals/KeyboardShortcutsModal';
 import { DiffViewerModal } from './components/diff';
 import { OrchestratorPanel } from './components/orchestrator/OrchestratorPanel';
 import { OrchestratorLoopControl } from './components/OrchestratorLoopControl';
@@ -22,6 +23,7 @@ function App() {
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [showWorktreeModal, setShowWorktreeModal] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
+  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [diffViewerState, setDiffViewerState] = useState<{ worktreeId: string; branch: string } | null>(null);
   const {
     projects,
@@ -55,6 +57,44 @@ function App() {
       setWorktrees([]);
     }
   }, [activeProjectId, setWorktrees]);
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger shortcuts when typing in input fields
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return;
+      }
+
+      // ? - Show keyboard shortcuts
+      if (e.key === '?' && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        setShowShortcutsModal(true);
+      }
+
+      // Escape - Close modals
+      if (e.key === 'Escape') {
+        setShowShortcutsModal(false);
+        setShowProjectModal(false);
+        setShowWorktreeModal(false);
+        setDiffViewerState(null);
+      }
+
+      // Cmd/Ctrl + 1-9 - Switch to worktree
+      if ((e.metaKey || e.ctrlKey) && e.key >= '1' && e.key <= '9') {
+        const index = parseInt(e.key) - 1;
+        const sortedWorktrees = worktrees.filter(w => !w.archived);
+        if (index < sortedWorktrees.length) {
+          e.preventDefault();
+          useProjectStore.getState().setActiveWorktree(sortedWorktrees[index].id);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [worktrees]);
 
   const handleCreateProject = useCallback(async (data: { repoUrl?: string; localPath?: string; name?: string; inPlace?: boolean }) => {
     const project = await api.createProject(data);
@@ -231,6 +271,11 @@ function App() {
           onClose={() => setDiffViewerState(null)}
         />
       )}
+
+      <KeyboardShortcutsModal
+        isOpen={showShortcutsModal}
+        onClose={() => setShowShortcutsModal(false)}
+      />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { Plus, GitBranch, Folder, Trash2, CheckCircle, Archive, Clock, GitCompare } from 'lucide-react';
+import { Plus, GitBranch, Folder, Trash2, CheckCircle, Archive, Clock, GitCompare, Loader2 } from 'lucide-react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import { useProjectStore, type Worktree } from '../../stores/project.store';
 import { useTerminalStore } from '../../stores/terminal.store';
@@ -137,6 +137,8 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
                   <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
                 ) : rateLimited ? (
                   <Clock size={14} className="text-amber-500 animate-pulse flex-shrink-0" />
+                ) : hasActiveSession(worktree.id) ? (
+                  <Loader2 size={14} className="text-blue-500 animate-spin flex-shrink-0" />
                 ) : (
                   <GitBranch size={14} className="text-zinc-500 dark:text-zinc-400 flex-shrink-0" />
                 )}
