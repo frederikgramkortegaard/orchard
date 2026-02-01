@@ -19,9 +19,9 @@ interface Tab {
 }
 
 const TABS: Tab[] = [
-  { id: 'activity', label: 'Activity', icon: Activity },
-  { id: 'git-history', label: 'Git History', icon: GitCommit },
-  { id: 'usage', label: 'AI Usage', icon: BarChart3 },
+  { id: 'activity', label: '✨ Activity 💖', icon: Activity },
+  { id: 'git-history', label: '💖 Git History ✨', icon: GitCommit },
+  { id: 'usage', label: '✨ AI Usage 💖', icon: BarChart3 },
 ];
 
 export function ActivityPane({ projectId, worktreeId, worktreeBranch }: ActivityPaneProps) {

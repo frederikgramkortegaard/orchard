@@ -194,7 +194,7 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
         {chatMessages.length === 0 ? (
           <div className="text-xs text-zinc-400 text-center py-8 bg-zinc-800/80 rounded-lg mx-auto max-w-xs shadow-sm">
             <Bot size={24} className="mx-auto mb-2 text-blue-500" />
-            No messages yet. Send a message to the orchestrator.
+            ✨💖 No messages yet. Send a message to the orchestrator! 💖✨
           </div>
         ) : (
           chatMessages.map((msg) => (
@@ -237,17 +237,17 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
             onClick={handleClearPending}
             disabled={isClearing}
             className="text-xs text-zinc-300 hover:text-zinc-100 flex items-center gap-1.5 disabled:opacity-50"
-            title="Mark all pending messages as processed"
+            title="✨💖 Mark all pending messages as processed 💖✨"
           >
             {isClearing ? (
               <>
                 <LoadingSpinner size="sm" />
-                Clearing...
+                ✨ Clearing... 💖
               </>
             ) : (
               <>
                 <XCircle size={14} />
-                {pendingCount} pending message{pendingCount > 1 ? 's' : ''} - tap to clear
+                💖 {pendingCount} pending message{pendingCount > 1 ? 's' : ''} - tap to clear ✨
               </>
             )}
           </button>
@@ -260,7 +260,7 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
           type="text"
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
-          placeholder="Type a message"
+          placeholder="✨ Type a message 💖"
           className={`flex-1 px-4 py-2.5 bg-zinc-700 rounded-full text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm placeholder:text-zinc-400 ${isRecording ? 'hidden' : ''}`}
           onKeyDown={(e) => e.key === 'Enter' && !isSending && handleSend()}
         />

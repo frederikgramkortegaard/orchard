@@ -39,14 +39,14 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   if (!isOpen) return null;
 
   const themeOptions: { value: ThemePreference; label: string; icon: React.ReactNode }[] = [
-    { value: 'light', label: 'Light', icon: <Sun size={16} /> },
-    { value: 'dark', label: 'Dark', icon: <Moon size={16} /> },
-    { value: 'system', label: 'System', icon: <Monitor size={16} /> },
+    { value: 'light', label: '✨ Light 💖', icon: <Sun size={16} /> },
+    { value: 'dark', label: '💖 Dark ✨', icon: <Moon size={16} /> },
+    { value: 'system', label: '✨ System 💖', icon: <Monitor size={16} /> },
   ];
 
   const timeFormatOptions: { value: TimeFormat; label: string }[] = [
-    { value: '12h', label: '12-hour (2:30 PM)' },
-    { value: '24h', label: '24-hour (14:30)' },
+    { value: '12h', label: '✨ 12-hour (2:30 PM) 💖' },
+    { value: '24h', label: '💖 24-hour (14:30) ✨' },
   ];
 
   // Get current time preview in selected timezone
@@ -71,7 +71,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       <div className="bg-white dark:bg-zinc-800 rounded-lg w-full max-w-lg mx-4 shadow-xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-700 flex-shrink-0">
-          <h2 className="text-lg font-semibold">Settings</h2>
+          <h2 className="text-lg font-semibold">✨💖 Settings 💖✨</h2>
           <button
             onClick={onClose}
             className="text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
@@ -85,7 +85,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           {/* Appearance Section */}
           <section>
             <h3 className="text-sm font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-3">
-              Appearance
+              ✨ Appearance 💖
             </h3>
 
             {/* Theme */}
@@ -127,7 +127,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           {/* Time & Date Section */}
           <section>
             <h3 className="text-sm font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-3">
-              Time & Date
+              💖 Time & Date ✨
             </h3>
 
             {/* Timezone */}
@@ -187,7 +187,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           {/* Notifications Section */}
           <section>
             <h3 className="text-sm font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-3">
-              Notifications
+              ✨ Notifications 💖
             </h3>
 
             {/* Enable Notifications */}
@@ -223,7 +223,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           {/* Audio Section */}
           <section>
             <h3 className="text-sm font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-3">
-              Audio
+              💖 Audio ✨
             </h3>
 
             {/* Auto-Read Messages */}
@@ -244,7 +244,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           {/* Language Section */}
           <section>
             <h3 className="text-sm font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-3">
-              Language
+              ✨ Language 💖
             </h3>
 
             {/* Response Language */}
@@ -275,13 +275,13 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
           >
             <RotateCcw size={16} />
-            Reset to Defaults
+            💖 Reset to Defaults ✨
           </button>
           <button
             onClick={onClose}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded"
           >
-            Done
+            ✨ Done 💖
           </button>
         </div>
       </div>

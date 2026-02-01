@@ -69,7 +69,7 @@ function SortableTab({ project, isActive, onProjectClick, onCloseTab }: Sortable
       <button
         onClick={(e) => onCloseTab(e, project.id)}
         className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-opacity"
-        title="Close tab (files are kept on disk)"
+        title="💖 Close tab (files are kept on disk) ✨"
       >
         <X size={11} />
       </button>
@@ -143,10 +143,10 @@ export function ProjectTabBar({ onNewProject, onProjectSwitch, onOpenSettings, o
       <button
         onClick={onNewProject}
         className="flex items-center gap-1 px-2.5 py-1 rounded-md text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 transition-colors"
-        title="Open Project"
+        title="✨💖 Open Project 💖✨"
       >
         <Plus size={13} />
-        <span className="text-xs">New</span>
+        <span className="text-xs">✨ New 💖</span>
       </button>
 
       <div className="flex-1" />
@@ -159,7 +159,7 @@ export function ProjectTabBar({ onNewProject, onProjectSwitch, onOpenSettings, o
       <button
         onClick={toggleTheme}
         className="p-1.5 rounded-md text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 transition-colors"
-        title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        title={theme === 'dark' ? '✨ Switch to light mode 💖' : '💖 Switch to dark mode ✨'}
       >
         {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
       </button>
@@ -168,7 +168,7 @@ export function ProjectTabBar({ onNewProject, onProjectSwitch, onOpenSettings, o
         <button
           onClick={onOpenDebug}
           className="p-1.5 rounded-md text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 transition-colors"
-          title="Debug Panel"
+          title="💖 Debug Panel ✨"
         >
           <Bug size={14} />
         </button>
@@ -178,7 +178,7 @@ export function ProjectTabBar({ onNewProject, onProjectSwitch, onOpenSettings, o
         <button
           onClick={onOpenSettings}
           className="p-1.5 rounded-md text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 transition-colors"
-          title="Settings"
+          title="✨💖 Settings 💖✨"
         >
           <Settings size={14} />
         </button>

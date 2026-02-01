@@ -167,13 +167,13 @@ function App() {
       ) : (
         <div className="flex-1 bg-zinc-900 flex items-center justify-center text-warm-muted">
           <div className="text-center">
-            <p className="text-lg mb-2">Welcome to Orchard</p>
-            <p className="text-sm mb-4">Open a project to get started</p>
+            <p className="text-lg mb-2">✨💖 Welcome to Orchard 💖✨</p>
+            <p className="text-sm mb-4">✨ Open a project to get started 💖</p>
             <button
               onClick={() => setShowProjectModal(true)}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg"
             >
-              Open Project
+              💖 Open Project ✨
             </button>
           </div>
         </div>

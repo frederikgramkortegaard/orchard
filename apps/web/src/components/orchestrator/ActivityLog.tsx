@@ -44,16 +44,16 @@ type ActivityKind =
   | 'default';
 
 const ACTIVITY_KIND_LABELS: Record<ActivityKind, string> = {
-  file_edit: 'File Edits',
-  command: 'Commands',
-  commit: 'Commits',
-  question: 'Questions',
-  task_complete: 'Task Complete',
-  error: 'Errors',
-  progress: 'Progress',
-  orchestrator: 'Orchestrator',
-  system: 'System',
-  default: 'Other',
+  file_edit: '✨ File Edits 💖',
+  command: '💖 Commands ✨',
+  commit: '✨ Commits 💖',
+  question: '💖 Questions ✨',
+  task_complete: '✨ Task Complete 💖',
+  error: '💖 Errors ✨',
+  progress: '✨ Progress 💖',
+  orchestrator: '💖 Orchestrator ✨',
+  system: '✨ System 💖',
+  default: '💖 Other ✨',
 };
 
 const ALL_ACTIVITY_KINDS: ActivityKind[] = [
@@ -449,14 +449,14 @@ export function ActivityLog({ projectId }: ActivityLogProps) {
                   ? 'text-blue-500 dark:text-blue-400'
                   : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
               }`}
-              title="Filter activity"
+              title="✨ Filter activity 💖"
             >
               <Filter size={14} />
             </button>
             {filterOpen && (
               <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-zinc-800 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-700 z-50 overflow-hidden">
                 <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-200 dark:border-zinc-700">
-                  <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Filters</span>
+                  <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">✨ Filters 💖</span>
                   {hasActiveFilters && (
                     <button
                       onClick={resetFilters}
@@ -468,7 +468,7 @@ export function ActivityLog({ projectId }: ActivityLogProps) {
                 </div>
                 <div className="p-2 space-y-1 max-h-64 overflow-y-auto">
                   <div className="px-2 py-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                    Activity Types
+                    💖 Activity Types ✨
                   </div>
                   {ALL_ACTIVITY_KINDS.map((kind) => {
                     const colors = getActivityColors(kind);
@@ -495,7 +495,7 @@ export function ActivityLog({ projectId }: ActivityLogProps) {
                   })}
                   <div className="border-t border-zinc-200 dark:border-zinc-700 my-2" />
                   <div className="px-2 py-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                    Source
+                    ✨ Source 💖
                   </div>
                   <label className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700/50 cursor-pointer">
                     <input
@@ -505,7 +505,7 @@ export function ActivityLog({ projectId }: ActivityLogProps) {
                       className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-600 text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
                     />
                     <span className="text-sm text-zinc-700 dark:text-zinc-300">
-                      Only show branch updates
+                      💖 Only show branch updates ✨
                     </span>
                   </label>
                 </div>
@@ -516,7 +516,7 @@ export function ActivityLog({ projectId }: ActivityLogProps) {
             onClick={clearLog}
             disabled={isClearing || entries.length === 0}
             className="p-1.5 text-zinc-500 dark:text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-zinc-300 dark:hover:bg-zinc-700 rounded-full transition-colors disabled:opacity-50"
-            title="Clear log"
+            title="💖 Clear log ✨"
           >
             <Trash2 size={14} />
           </button>
@@ -524,7 +524,7 @@ export function ActivityLog({ projectId }: ActivityLogProps) {
             onClick={fetchLog}
             disabled={isLoading}
             className="p-1.5 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-300 dark:hover:bg-zinc-700 rounded-full transition-colors disabled:opacity-50"
-            title="Refresh"
+            title="✨ Refresh 💖"
           >
             <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
           </button>
@@ -536,7 +536,7 @@ export function ActivityLog({ projectId }: ActivityLogProps) {
       >
         {filteredEntries.length === 0 ? (
           <div className="text-zinc-500 text-center py-8 text-sm">
-            {entries.length === 0 ? 'No activity yet' : 'No activity matches filters'}
+            {entries.length === 0 ? '✨💖 No activity yet 💖✨' : '✨💖 No activity matches filters 💖✨'}
           </div>
         ) : (
           groupedEntries.map((group) => {

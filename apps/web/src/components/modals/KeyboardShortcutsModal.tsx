@@ -6,12 +6,12 @@ interface KeyboardShortcutsModalProps {
 }
 
 const shortcuts = [
-  { keys: ['?'], description: 'Show keyboard shortcuts' },
-  { keys: ['Cmd/Ctrl', ','], description: 'Open settings' },
-  { keys: ['Escape'], description: 'Close modal/panel' },
-  { keys: ['Cmd/Ctrl', 'K'], description: 'Focus chat input' },
-  { keys: ['Ctrl', '1-9'], description: 'Switch to project tab 1-9' },
-  { keys: ['Cmd', '1-9'], description: 'Switch to worktree 1-9' },
+  { keys: ['?'], description: '✨ Show keyboard shortcuts 💖' },
+  { keys: ['Cmd/Ctrl', ','], description: '💖 Open settings ✨' },
+  { keys: ['Escape'], description: '✨ Close modal/panel 💖' },
+  { keys: ['Cmd/Ctrl', 'K'], description: '💖 Focus chat input ✨' },
+  { keys: ['Ctrl', '1-9'], description: '✨ Switch to project tab 1-9 💖' },
+  { keys: ['Cmd', '1-9'], description: '💖 Switch to worktree 1-9 ✨' },
 ];
 
 export function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsModalProps) {
@@ -26,7 +26,7 @@ export function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsMod
         <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-700">
           <div className="flex items-center gap-2">
             <Keyboard size={20} className="text-zinc-500 dark:text-zinc-400" />
-            <h2 className="text-lg font-semibold">Keyboard Shortcuts</h2>
+            <h2 className="text-lg font-semibold">✨💖 Keyboard Shortcuts 💖✨</h2>
           </div>
           <button onClick={onClose} className="text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white">
             <X size={20} />
@@ -53,7 +53,7 @@ export function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsMod
 
         <div className="px-4 py-3 border-t border-zinc-200 dark:border-zinc-700">
           <p className="text-xs text-zinc-500 dark:text-zinc-400 text-center">
-            Press <kbd className="px-1 bg-zinc-100 dark:bg-zinc-700 rounded text-xs">Escape</kbd> to close
+            ✨ Press <kbd className="px-1 bg-zinc-100 dark:bg-zinc-700 rounded text-xs">Escape</kbd> to close 💖
           </p>
         </div>
       </div>
