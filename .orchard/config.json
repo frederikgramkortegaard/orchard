@@ -3,11 +3,11 @@
     "enabled": true,
     "provider": "ollama",
     "baseUrl": "http://localhost:11434/v1",
-    "model": "llama3.1:8b",
+    "model": "qwen2.5:14b",
     "tickIntervalMs": 30000
   },
-  "id": "e57f6e9b-b099-4a0f-932f-06056f73da05",
+  "id": "cf6dd0fd-d04c-3242-51f8-721b3d75ad35",
   "name": "orchard",
-  "createdAt": "2026-02-01T12:49:12.850Z",
+  "createdAt": "2026-02-01T13:11:28.414Z",
   "inPlace": true
 }

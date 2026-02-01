@@ -111,7 +111,7 @@ export async function printSessionsRoutes(fastify: FastifyInstance) {
       mcpServers: {
         'orchard-agent': {
           command: 'node',
-          args: [join(process.cwd(), 'packages/mcp-agent/dist/index.js')],
+          args: [join(project.path, 'packages/mcp-agent/dist/index.js')],
           env: {
             ORCHARD_API: process.env.ORCHARD_API || 'http://localhost:3001',
             WORKTREE_ID: worktreeId,
