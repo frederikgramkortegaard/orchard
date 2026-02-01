@@ -34,7 +34,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
       type: 'event',
       category: 'agent',
       summary: `Agent completed: ${summary}`,
-      details: { worktreeId, summary, details, branch: worktree.branch },
+      details: { worktreeId, summary, details, branch: worktree.branch, activityType: 'task_complete' },
     });
 
     return {
@@ -76,7 +76,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
       type: 'event',
       category: 'agent',
       summary: `Agent question: ${question}`,
-      details: { worktreeId, question, context, options, questionId, branch: worktree.branch },
+      details: { worktreeId, question, context, options, questionId, branch: worktree.branch, activityType: 'question' },
     });
 
     return {
@@ -118,7 +118,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
       type: 'event',
       category: 'agent',
       summary: `Agent progress: ${status}`,
-      details: { worktreeId, status, percentComplete, currentStep, details, branch: worktree.branch },
+      details: { worktreeId, status, percentComplete, currentStep, details, branch: worktree.branch, activityType: 'progress' },
     });
 
     const progressInfo = percentComplete !== undefined ? ` (${percentComplete}%)` : '';
@@ -160,7 +160,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
       type: 'error',
       category: 'agent',
       summary: `Agent ${severity}: ${error}`,
-      details: { worktreeId, error, severity, context, suggestedAction, branch: worktree.branch },
+      details: { worktreeId, error, severity, context, suggestedAction, branch: worktree.branch, activityType: 'error' },
     });
 
     return {

@@ -41,7 +41,7 @@ export async function reportProgress(
     'event',
     'agent',
     `Agent progress: ${status}`,
-    { worktreeId, status, percentComplete, currentStep, details },
+    { worktreeId, status, percentComplete, currentStep, details, activityType: 'progress' },
   );
 
   const progressInfo = percentComplete !== undefined

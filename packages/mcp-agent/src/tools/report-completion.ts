@@ -37,7 +37,7 @@ export async function reportCompletion(
     'event',
     'agent',
     `Agent completed task: ${summary}`,
-    { worktreeId, summary, details },
+    { worktreeId, summary, details, activityType: 'task_complete' },
   );
 
   return result.message || `Completion reported: ${summary}`;
