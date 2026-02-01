@@ -58,8 +58,13 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
     const fetchExistingSessions = async () => {
       try {
         // Fetch existing sessions for this worktree (don't create new ones)
+        // Also pass worktreePath to match sessions by cwd if worktreeId doesn't match (handles orphaned sessions with old IDs)
         console.log('[SplitTerminalPane] Fetching sessions for worktree:', worktreeId);
-        const res = await fetch(`/api/terminals/worktree/${encodeURIComponent(worktreeId)}`);
+        const url = new URL(`/api/terminals/worktree/${encodeURIComponent(worktreeId)}`, window.location.origin);
+        if (worktreePath) {
+          url.searchParams.set('path', worktreePath);
+        }
+        const res = await fetch(url.toString());
         if (res.ok) {
           const existingSessions = await res.json();
           console.log('[SplitTerminalPane] Found sessions:', existingSessions.length, existingSessions);
@@ -88,7 +93,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
     };
 
     fetchExistingSessions();
-  }, [worktreeId]); // Only depend on worktreeId to avoid loops
+  }, [worktreeId, worktreePath]); // Depend on worktreeId and worktreePath for path-based fallback matching
 
   // Filter to only show terminals for current worktree, exclude orchestrator terminals
   const filteredSessions = worktreeId

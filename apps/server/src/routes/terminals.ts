@@ -105,8 +105,8 @@ export async function terminalsRoutes(fastify: FastifyInstance) {
     return { success: true, sessionId: request.params.id };
   });
 
-  // Get terminals by worktree ID
-  fastify.get<{ Params: { worktreeId: string } }>(
+  // Get terminals by worktree ID (with optional path fallback for orphaned sessions)
+  fastify.get<{ Params: { worktreeId: string }; Querystring: { path?: string } }>(
     '/terminals/worktree/:worktreeId',
     async (request, reply) => {
       if (!daemonClient.isConnected()) {
@@ -114,7 +114,9 @@ export async function terminalsRoutes(fastify: FastifyInstance) {
       }
 
       try {
-        const sessions = await daemonClient.getSessionsForWorktree(request.params.worktreeId);
+        const { worktreeId } = request.params;
+        const { path } = request.query;
+        const sessions = await daemonClient.getSessionsForWorktree(worktreeId, path);
         return sessions;
       } catch (err: any) {
         return reply.status(500).send({ error: err.message });
