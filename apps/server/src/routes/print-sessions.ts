@@ -39,31 +39,45 @@ export async function printSessionsRoutes(fastify: FastifyInstance) {
       task,
     });
 
-    // Spawn claude -p process
-    const claude = spawn('claude', ['-p', task, '--dangerously-skip-permissions'], {
+    // Escape task for shell
+    const escapedTask = task.replace(/'/g, "'\\''");
+
+    // Spawn claude -p via shell for proper output capture
+    const claude = spawn('sh', ['-c', `claude -p '${escapedTask}' --dangerously-skip-permissions 2>&1`], {
       cwd: worktree.path,
       env: {
         ...process.env,
         WORKTREE_ID: worktreeId,
+        TERM: 'dumb', // Disable terminal formatting
+        NO_COLOR: '1', // Disable colors
       },
+      stdio: ['ignore', 'pipe', 'pipe'],
     });
 
+    console.log(`[PrintSessions] Started claude -p for session ${sessionId}, pid: ${claude.pid}`);
+
     // Stream stdout to SQLite
-    claude.stdout.on('data', (data: Buffer) => {
-      databaseService.appendTerminalOutput(project.path, sessionId, data.toString());
+    claude.stdout?.on('data', (data: Buffer) => {
+      const text = data.toString();
+      console.log(`[PrintSessions] stdout (${sessionId}): ${text.substring(0, 100)}`);
+      databaseService.appendTerminalOutput(project.path, sessionId, text);
     });
 
     // Stream stderr to SQLite
-    claude.stderr.on('data', (data: Buffer) => {
-      databaseService.appendTerminalOutput(project.path, sessionId, data.toString());
+    claude.stderr?.on('data', (data: Buffer) => {
+      const text = data.toString();
+      console.log(`[PrintSessions] stderr (${sessionId}): ${text.substring(0, 100)}`);
+      databaseService.appendTerminalOutput(project.path, sessionId, text);
     });
 
     // Handle completion
     claude.on('close', (code) => {
+      console.log(`[PrintSessions] Session ${sessionId} closed with code ${code}`);
       databaseService.completePrintSession(project.path, sessionId, code ?? 1);
     });
 
     claude.on('error', (err) => {
+      console.error(`[PrintSessions] Error for session ${sessionId}:`, err);
       databaseService.appendTerminalOutput(project.path, sessionId, `\nError: ${err.message}\n`);
       databaseService.completePrintSession(project.path, sessionId, 1);
     });
