@@ -221,7 +221,7 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
             <p className="text-sm">No matching branches</p>
           </div>
         ) : (
-          <div className="space-y-0.5">
+          <div className="space-y-1.5">
             {filteredWorktrees.map((worktree) => {
               const rateLimited = isWorktreeRateLimited(worktree.id);
               return (
@@ -229,8 +229,10 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
                 key={worktree.id}
                 onClick={() => setActiveWorktree(worktree.id)}
                 onContextMenu={(e) => handleContextMenu(e, worktree)}
-                className={`w-full flex items-center gap-2 px-3 py-2 rounded text-left group cursor-pointer ${
-                  activeWorktreeId === worktree.id ? 'bg-zinc-300 dark:bg-zinc-600' : 'hover:bg-zinc-200/50 dark:hover:bg-zinc-700/50'
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left group cursor-pointer transition-all ${
+                  activeWorktreeId === worktree.id
+                    ? 'bg-blue-100 dark:bg-blue-900/40 ring-1 ring-blue-300 dark:ring-blue-700'
+                    : 'bg-zinc-200/50 dark:bg-zinc-700/50 hover:bg-zinc-300/70 dark:hover:bg-zinc-600/70'
                 } ${worktree.archived ? 'opacity-40' : worktree.merged ? 'opacity-60' : ''} ${rateLimited ? 'ring-1 ring-amber-500/50' : ''}`}
               >
                 {worktree.archived ? (
