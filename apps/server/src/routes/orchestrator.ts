@@ -178,34 +178,6 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Send prompt to a worktree's Claude session
-  // This allows the orchestrator to communicate with other agents
-  fastify.post<{
-    Params: { projectId: string };
-    Body: { worktreeId: string; prompt: string };
-  }>('/orchestrator/:projectId/send-prompt', async (request, reply) => {
-    const { worktreeId, prompt } = request.body;
-
-    if (!worktreeId || !prompt) {
-      return reply.status(400).send({ error: 'worktreeId and prompt are required' });
-    }
-
-    const success = await orchestratorService.sendPromptToWorktree(worktreeId, prompt);
-    if (!success) {
-      return reply.status(404).send({ error: 'No active session found for worktree' });
-    }
-
-    return { success: true, worktreeId, promptSent: true };
-  });
-
-  // List active worktree sessions that can receive prompts
-  fastify.get<{
-    Params: { projectId: string };
-  }>('/orchestrator/:projectId/sessions', async (request) => {
-    const sessions = orchestratorService.getActiveWorktreeSessions(request.params.projectId);
-    return { sessions };
-  });
-
   // Consolidated health check endpoint
   fastify.get<{
     Params: { projectId: string };
@@ -241,9 +213,9 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
         archiveCandidates.push({
           worktreeId: w.id,
           branch: w.branch,
-          reason: 'Branch merged and no active session',
+          reason: 'Branch merged',
         });
-      } else if (!hasSession && !hasChanges && w.status.ahead === 0) {
+      } else if (!hasChanges && w.status.ahead === 0) {
         // Idle worktree with no changes and nothing to push
         archiveCandidates.push({
           worktreeId: w.id,
@@ -258,8 +230,6 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
 
     for (const w of worktrees) {
       if (w.isMain) continue;
-
-      const hasSession = activeWorktreeIds.has(w.id);
 
       // Behind remote - needs sync
       if (w.status.behind > 0) {
@@ -284,7 +254,7 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
       }
 
       // Merged and ready to archive
-      if (w.merged && !w.archived && !hasSession) {
+      if (w.merged && !w.archived) {
         suggestedActions.push({
           type: 'archive',
           worktreeId: w.id,
@@ -313,7 +283,7 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
     // Build summary
     const summary = {
       totalWorktrees: worktrees.length,
-      activeWorktrees: activeSessions.length,
+      activeWorktrees: 0,
       mergedWorktrees: worktrees.filter(w => w.merged).length,
       archivedWorktrees: worktrees.filter(w => w.archived).length,
       worktreesWithChanges: worktrees.filter(w =>
@@ -325,7 +295,7 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
       projectId,
       timestamp: new Date().toISOString(),
       worktrees: worktreeHealth,
-      activeSessions,
+      activeSessions: [],
       archiveCandidates,
       suggestedActions,
       summary,
