@@ -518,6 +518,46 @@ class WorktreeService {
     return Array.from(this.worktrees.values()).filter(w => w.projectId === projectId);
   }
 
+  /**
+   * Lightweight worktree listing - just gets branch names and IDs without git status checks.
+   * Use this for orchestrator ticks where we don't need detailed status.
+   */
+  async listWorktreesLight(projectId: string): Promise<Array<{ id: string; branch: string; archived: boolean }>> {
+    const project = projectService.getProject(projectId);
+    if (!project) return [];
+
+    const mainPath = projectService.getMainWorktreePath(projectId);
+    if (!mainPath || !existsSync(mainPath)) return [];
+
+    // Load archived set
+    const archivedSet = await this.loadArchivedWorktrees(project.path);
+
+    const git = simpleGit(mainPath);
+    const result = await git.raw(['worktree', 'list', '--porcelain']);
+    const worktreeBlocks = result.split('\n\n').filter(Boolean);
+
+    const worktrees: Array<{ id: string; branch: string; archived: boolean }> = [];
+
+    for (const block of worktreeBlocks) {
+      const lines = block.split('\n');
+      let path = '';
+      let branch = '';
+
+      for (const line of lines) {
+        if (line.startsWith('worktree ')) path = line.replace('worktree ', '');
+        else if (line.startsWith('branch ')) branch = line.replace('branch refs/heads/', '');
+      }
+
+      if (path && path !== mainPath) {
+        const id = this.getOrCreateId(project.id, path);
+        const archived = archivedSet.has(id) || this.archivedWorktrees.has(id);
+        worktrees.push({ id, branch: branch || 'detached', archived });
+      }
+    }
+
+    return worktrees;
+  }
+
   // Check if a branch has been fully merged into the default branch
   async checkIfMerged(projectId: string, branch: string): Promise<boolean> {
     const mainPath = projectService.getMainWorktreePath(projectId);

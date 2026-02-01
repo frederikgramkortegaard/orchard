@@ -2003,26 +2003,11 @@ class OrchestratorLoopService extends EventEmitter {
   /**
    * Gather context for the tick
    */
-  private lastFullRefresh = 0;
-  private readonly FULL_REFRESH_INTERVAL_MS = 60000; // Full refresh every 60s
-
   private async gatherTickContext(): Promise<TickContext> {
     const projectId = this.projectId || '';
 
-    // Use cached worktrees, only do full refresh every 60 seconds
-    const now = Date.now();
-    let worktrees = worktreeService.getWorktreesForProject(projectId);
-    const cachedCount = worktrees.length;
-    const timeSinceRefresh = now - this.lastFullRefresh;
-
-    if (worktrees.length === 0 || timeSinceRefresh > this.FULL_REFRESH_INTERVAL_MS) {
-      // Need full refresh (empty cache or stale)
-      await this.logToTextFile(`  Cache miss: ${cachedCount} cached, ${timeSinceRefresh}ms since refresh`);
-      worktrees = await worktreeService.loadWorktreesForProject(projectId);
-      this.lastFullRefresh = now;
-    } else {
-      await this.logToTextFile(`  Cache hit: ${cachedCount} worktrees from cache`);
-    }
+    // Use lightweight worktree listing (no git status checks)
+    const lightWorktrees = await worktreeService.listWorktreesLight(projectId);
     const sessions = sessionPersistenceService.getSessionsForProject(projectId);
     const sessionByWorktree = new Map(sessions.map(s => [s.worktreeId, s]));
 
@@ -2031,8 +2016,8 @@ class OrchestratorLoopService extends EventEmitter {
     const deadWorktreeIds = deadSessions.map(s => s.worktreeId);
 
     // Build agent status list - only include active (non-archived) agents
-    const activeAgents: AgentStatus[] = worktrees
-      .filter(w => !w.isMain && !w.archived)
+    const activeAgents: AgentStatus[] = lightWorktrees
+      .filter(w => !w.archived)
       .map(w => {
         const session = sessionByWorktree.get(w.id);
         const isDead = deadWorktreeIds.includes(w.id);
@@ -2040,8 +2025,7 @@ class OrchestratorLoopService extends EventEmitter {
         return {
           worktreeId: w.id,
           branch: w.branch,
-          status: this.determineAgentStatus(w, !!session, isDead),
-          lastActivity: w.lastCommitDate || undefined,
+          status: session ? (isDead ? 'dead' : 'running') : 'idle',
           hasActiveSession: !!session && !isDead,
           sessionId: session?.id,
         };
