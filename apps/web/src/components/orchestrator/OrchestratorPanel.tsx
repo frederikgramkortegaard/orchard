@@ -245,7 +245,7 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
     <div className="flex flex-col h-full bg-zinc-900 rounded-lg overflow-hidden shadow-sm">
       {/* Chat header */}
       <div className="flex items-center gap-3 px-4 py-3 bg-zinc-800 text-white border-b border-zinc-700">
-        <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center">
+        <div className="w-10 h-10 rounded-full bg-red-600 flex items-center justify-center">
           <MessageCircle size={20} />
         </div>
         <div className="flex-1">
@@ -268,7 +268,7 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
       >
         {chatMessages.length === 0 ? (
           <div className="text-xs text-zinc-400 text-center py-8 bg-zinc-800/80 rounded-lg mx-auto max-w-xs shadow-sm">
-            <Bot size={24} className="mx-auto mb-2 text-blue-500" />
+            <Bot size={24} className="mx-auto mb-2 text-red-500" />
             No messages yet. Send a message to the orchestrator.
           </div>
         ) : (
@@ -281,11 +281,11 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
               <div
                 className={`relative max-w-[85%] px-3 py-2 text-sm shadow-sm cursor-context-menu ${
                   msg.from === 'user'
-                    ? 'bg-blue-600 text-white rounded-tl-xl rounded-tr-sm rounded-bl-xl rounded-br-xl'
+                    ? 'bg-red-600 text-white rounded-tl-xl rounded-tr-sm rounded-bl-xl rounded-br-xl'
                     : 'bg-zinc-700 text-zinc-100 rounded-tl-sm rounded-tr-xl rounded-bl-xl rounded-br-xl'
                 }`}
               >
-                <div className="prose prose-sm prose-invert max-w-none break-words [&_p]:my-0 [&_p:not(:last-child)]:mb-2 [&_ul]:my-1 [&_ul]:pl-4 [&_ol]:my-1 [&_ol]:pl-4 [&_li]:my-0 [&_pre]:my-2 [&_pre]:p-2 [&_pre]:rounded [&_pre]:bg-black/20 [&_code]:text-xs [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:bg-black/20 [&_pre_code]:p-0 [&_pre_code]:bg-transparent [&_a]:text-blue-300 [&_a]:underline [&_strong]:font-semibold [&_em]:italic [&_blockquote]:border-l-2 [&_blockquote]:border-zinc-500 [&_blockquote]:pl-2 [&_blockquote]:my-2 [&_blockquote]:italic">
+                <div className="prose prose-sm prose-invert max-w-none break-words [&_p]:my-0 [&_p:not(:last-child)]:mb-2 [&_ul]:my-1 [&_ul]:pl-4 [&_ol]:my-1 [&_ol]:pl-4 [&_li]:my-0 [&_pre]:my-2 [&_pre]:p-2 [&_pre]:rounded [&_pre]:bg-black/20 [&_code]:text-xs [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:bg-black/20 [&_pre_code]:p-0 [&_pre_code]:bg-transparent [&_a]:text-red-300 [&_a]:underline [&_strong]:font-semibold [&_em]:italic [&_blockquote]:border-l-2 [&_blockquote]:border-zinc-500 [&_blockquote]:pl-2 [&_blockquote]:my-2 [&_blockquote]:italic">
                   <ReactMarkdown>{msg.text}</ReactMarkdown>
                 </div>
                 <div className={`flex items-center gap-1.5 mt-1 ${
@@ -326,7 +326,7 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           placeholder="Type a message"
-          className="flex-1 px-4 py-2.5 bg-zinc-700 rounded-full text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm placeholder:text-zinc-400"
+          className="flex-1 px-4 py-2.5 bg-zinc-700 rounded-full text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-red-500 shadow-sm placeholder:text-zinc-400"
           onKeyDown={(e) => e.key === 'Enter' && !isSending && handleSend()}
         />
         <button
@@ -334,7 +334,7 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
           disabled={isSending || !inputText.trim()}
           className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shadow-sm ${
             inputText.trim()
-              ? 'bg-blue-600 hover:bg-blue-500 text-white'
+              ? 'bg-red-600 hover:bg-red-500 text-white'
               : 'bg-zinc-600 text-zinc-400'
           } disabled:opacity-50`}
         >

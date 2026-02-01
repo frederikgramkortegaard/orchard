@@ -178,7 +178,7 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Escape' && setSearchQuery('')}
               placeholder="Filter branches..."
-              className="w-full pl-7 pr-7 py-1 text-sm bg-zinc-200 dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 rounded text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full pl-7 pr-7 py-1 text-sm bg-zinc-200 dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 rounded text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-red-500"
             />
             {searchQuery && (
               <button
@@ -200,7 +200,7 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
             <p className="text-sm">No project selected</p>
             <button
               onClick={onOpenProject}
-              className="mt-2 text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 text-sm"
+              className="mt-2 text-red-600 dark:text-red-400 hover:text-red-500 dark:hover:text-red-300 text-sm"
             >
               Open a project
             </button>
@@ -211,7 +211,7 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
             <p className="text-sm">No worktrees</p>
             <button
               onClick={onCreateWorktree}
-              className="mt-2 text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 text-sm"
+              className="mt-2 text-red-600 dark:text-red-400 hover:text-red-500 dark:hover:text-red-300 text-sm"
             >
               Create a worktree
             </button>
@@ -231,7 +231,7 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
                 onContextMenu={(e) => handleContextMenu(e, worktree)}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left group cursor-pointer transition-all ${
                   activeWorktreeId === worktree.id
-                    ? 'bg-blue-100 dark:bg-blue-900/40 ring-1 ring-blue-300 dark:ring-blue-700'
+                    ? 'bg-red-100 dark:bg-red-900/40 ring-1 ring-red-300 dark:ring-red-700'
                     : 'bg-zinc-200/50 dark:bg-zinc-700/50 hover:bg-zinc-300/70 dark:hover:bg-zinc-600/70'
                 } ${worktree.archived ? 'opacity-40' : ''} ${rateLimited ? 'ring-1 ring-amber-500/50' : ''}`}
               >
@@ -240,7 +240,7 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
                 ) : rateLimited ? (
                   <Clock size={14} className="text-amber-500 animate-pulse flex-shrink-0" />
                 ) : hasActiveSession(worktree.id) ? (
-                  <Loader2 size={14} className="text-blue-500 animate-spin flex-shrink-0" />
+                  <Loader2 size={14} className="text-red-500 animate-spin flex-shrink-0" />
                 ) : (
                   <GitBranch size={14} className="text-zinc-500 dark:text-zinc-400 flex-shrink-0" />
                 )}
@@ -257,7 +257,7 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
                       e.stopPropagation();
                       onViewDiff(worktree.id, worktree.branch);
                     }}
-                    className="opacity-0 group-hover:opacity-100 p-0.5 text-zinc-500 dark:text-zinc-400 hover:text-blue-500 dark:hover:text-blue-400"
+                    className="opacity-0 group-hover:opacity-100 p-0.5 text-zinc-500 dark:text-zinc-400 hover:text-red-500 dark:hover:text-red-400"
                     title="View diff"
                   >
                     <GitCompare size={12} />

@@ -139,7 +139,7 @@ export function FolderBrowser({ onSelect, onCancel, initialPath, selectGitReposO
                 onDoubleClick={() => handleDoubleClick(entry)}
                 className={`w-full flex items-center gap-2 px-3 py-2 rounded text-left text-sm ${
                   selectedPath === entry.path
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-red-600 text-white'
                     : entry.isGitRepo
                     ? 'bg-zinc-800 hover:bg-zinc-700 text-green-400'
                     : 'hover:bg-zinc-800 text-zinc-300'
@@ -183,7 +183,7 @@ export function FolderBrowser({ onSelect, onCancel, initialPath, selectGitReposO
         <button
           onClick={() => selectedPath && onSelect(selectedPath)}
           disabled={!selectedPath}
-          className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded text-sm disabled:opacity-50"
+          className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-500 rounded text-sm disabled:opacity-50"
         >
           Select
         </button>
