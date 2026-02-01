@@ -52,6 +52,7 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
     return () => clearInterval(interval);
   }, []);
   const chatRef = useRef<HTMLDivElement>(null);
+  const isAtBottomRef = useRef(true);
 
   // Use persisted chat store instead of local state
   const chatMessages = useChatStore((state) => state.getMessages(projectId));
@@ -76,9 +77,24 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
     return () => clearInterval(interval);
   }, [projectId, setMessages]);
 
-  // Auto-scroll to bottom when new messages arrive
+  // Track scroll position to determine if user is at bottom
   useEffect(() => {
-    if (chatRef.current) {
+    const chatEl = chatRef.current;
+    if (!chatEl) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = chatEl;
+      // Consider "at bottom" if within 50px of the bottom
+      isAtBottomRef.current = scrollHeight - scrollTop - clientHeight < 50;
+    };
+
+    chatEl.addEventListener('scroll', handleScroll);
+    return () => chatEl.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Auto-scroll to bottom when new messages arrive, but only if user is at bottom
+  useEffect(() => {
+    if (chatRef.current && isAtBottomRef.current) {
       chatRef.current.scrollTop = chatRef.current.scrollHeight;
     }
   }, [chatMessages]);
