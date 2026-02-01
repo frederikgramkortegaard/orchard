@@ -1391,43 +1391,21 @@ class OrchestratorLoopService extends EventEmitter {
   }
 
   /**
-   * Tool: Send a message to the user
+   * Tool: Send a message to the activity log
+   * NOTE: This only logs to activity log, not to chat. Agent completion messages
+   * should appear in the activity log, not in the user-facing chat interface.
    */
   private async toolSendMessage(message: string, correlationId: string): Promise<void> {
     const projectId = this.projectId;
     if (!projectId) throw new Error('No project context');
 
-    // Add to chat.json (not message queue)
-    const project = projectService.getProject(projectId);
-    if (project?.path) {
-      const chatPath = join(project.path, '.orchard', 'chat.json');
-      let messages: Array<{ id: string; projectId: string; text: string; timestamp: string; from: string }> = [];
-
-      try {
-        if (existsSync(chatPath)) {
-          const data = await readFile(chatPath, 'utf-8');
-          messages = JSON.parse(data);
-        }
-      } catch {
-        messages = [];
-      }
-
-      messages.push({
-        id: randomUUID(),
-        projectId,
-        text: message,
-        timestamp: new Date().toISOString(),
-        from: 'orchestrator',
-      });
-
-      await writeFile(chatPath, JSON.stringify(messages, null, 2), 'utf-8');
-    }
-
+    // Log to activity log only (not chat.json)
+    // Agent completion messages belong in activity log, not user chat
     await activityLoggerService.log({
       type: 'event',
-      category: 'user',
-      summary: `Orchestrator message: ${message.slice(0, 100)}`,
-      details: { message },
+      category: 'orchestrator',
+      summary: message,
+      details: { message, source: 'send_message' },
       correlationId,
     });
 
