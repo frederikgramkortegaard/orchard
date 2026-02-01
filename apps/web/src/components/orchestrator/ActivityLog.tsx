@@ -300,59 +300,59 @@ export function ActivityLog({ projectId }: ActivityLogProps) {
   }, [entries]);
 
   return (
-    <div className="h-full flex flex-col bg-zinc-200 dark:bg-zinc-900 rounded-lg border border-zinc-300 dark:border-zinc-700 overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700">
-        <div className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400">
-          <Activity size={14} />
-          <span className="text-xs font-medium">Activity</span>
+    <div className="h-full flex flex-col bg-zinc-100 dark:bg-zinc-900 rounded-2xl overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 bg-zinc-200 dark:bg-zinc-800">
+        <div className="flex items-center gap-2 text-zinc-700 dark:text-zinc-300">
+          <Activity size={16} />
+          <span className="text-sm font-semibold">Activity</span>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
           <button
             onClick={clearLog}
             disabled={isClearing || entries.length === 0}
-            className="p-1 text-zinc-600 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 rounded disabled:opacity-50"
+            className="p-1.5 text-zinc-500 dark:text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-zinc-300 dark:hover:bg-zinc-700 rounded-full transition-colors disabled:opacity-50"
             title="Clear log"
           >
-            <Trash2 size={12} />
+            <Trash2 size={14} />
           </button>
           <button
             onClick={fetchLog}
             disabled={isLoading}
-            className="p-1 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white rounded disabled:opacity-50"
+            className="p-1.5 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-300 dark:hover:bg-zinc-700 rounded-full transition-colors disabled:opacity-50"
             title="Refresh"
           >
-            <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />
+            <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
           </button>
         </div>
       </div>
       <div
         ref={logRef}
-        className="flex-1 overflow-y-auto p-2 space-y-2"
+        className="flex-1 overflow-y-auto p-3 space-y-3"
       >
         {entries.length === 0 ? (
-          <div className="text-zinc-500 text-center py-4 text-xs">No activity yet</div>
+          <div className="text-zinc-500 text-center py-8 text-sm">No activity yet</div>
         ) : (
           groupedEntries.map((group) => {
             const isCollapsed = collapsedSections.has(group.source);
 
             return (
-              <div key={group.source} className="border border-zinc-300 dark:border-zinc-700 rounded-lg overflow-hidden">
+              <div key={group.source} className="bg-zinc-200/50 dark:bg-zinc-800/50 rounded-2xl overflow-hidden">
                 <button
                   onClick={() => toggleSection(group.source)}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                  className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-zinc-300/50 dark:hover:bg-zinc-700/50 transition-colors"
                 >
                   <span className="text-zinc-500 dark:text-zinc-400">
-                    {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                    {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
                   </span>
-                  <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                  <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
                     {group.source}
                   </span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400">
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-300 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400">
                     {group.entries.length}
                   </span>
                 </button>
                 {!isCollapsed && (
-                  <div className="p-1.5 space-y-1">
+                  <div className="px-3 pb-3 space-y-2">
                     {group.entries.map((entry) => {
                       const kind = getActivityKind(entry);
                       const colors = getActivityColors(kind);
@@ -360,19 +360,17 @@ export function ActivityLog({ projectId }: ActivityLogProps) {
                       return (
                         <div
                           key={entry.id}
-                          className={`flex items-start gap-2 p-1.5 rounded text-xs ${colors.bg}`}
+                          className={`flex items-start gap-3 px-4 py-3 rounded-2xl text-sm ${colors.bg} shadow-sm`}
                         >
-                          <div className={`flex-shrink-0 mt-0.5 ${colors.icon}`}>
+                          <div className={`flex-shrink-0 mt-0.5 p-1.5 rounded-full bg-white/50 dark:bg-black/20 ${colors.icon}`}>
                             {getActivityIcon(kind)}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-zinc-500 dark:text-zinc-500 flex-shrink-0">
-                                {formatTime(entry.timestamp)}
-                              </span>
-                            </div>
-                            <div className="text-zinc-700 dark:text-zinc-300 break-words">
+                            <div className="text-zinc-700 dark:text-zinc-200 break-words leading-relaxed">
                               {entry.summary}
+                            </div>
+                            <div className="text-xs text-zinc-500 dark:text-zinc-500 mt-1">
+                              {formatTime(entry.timestamp)}
                             </div>
                           </div>
                         </div>
