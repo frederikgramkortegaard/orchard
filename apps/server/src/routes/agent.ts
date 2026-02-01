@@ -1,8 +1,35 @@
 import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'crypto';
+import { execSync } from 'child_process';
 import { worktreeService } from '../services/worktree.service.js';
 import { databaseService } from '../services/database.service.js';
 import { projectService } from '../services/project.service.js';
+
+/**
+ * Check if a worktree has any commits beyond the main branch
+ */
+function worktreeHasCommits(worktreePath: string, mainBranch: string = 'main'): boolean {
+  try {
+    // Count commits on this branch that aren't in main
+    const result = execSync(
+      `git log ${mainBranch}..HEAD --oneline 2>/dev/null | wc -l`,
+      { cwd: worktreePath, encoding: 'utf-8' }
+    );
+    const commitCount = parseInt(result.trim(), 10);
+    return commitCount > 0;
+  } catch {
+    // If git log fails (e.g., main doesn't exist), try checking if there are any commits at all
+    try {
+      const result = execSync('git log --oneline -1 2>/dev/null', {
+        cwd: worktreePath,
+        encoding: 'utf-8',
+      });
+      return result.trim().length > 0;
+    } catch {
+      return false;
+    }
+  }
+}
 
 export async function agentRoutes(fastify: FastifyInstance) {
   // Report task completion
@@ -29,18 +56,43 @@ export async function agentRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Project not found' });
     }
 
+    // Check if the worktree has any commits
+    const hasCommits = worktreeHasCommits(worktree.path);
+
     // Log the completion to activity feed only (not chat)
     const logId = databaseService.addActivityLog(project.path, worktree.projectId, {
       type: 'event',
       category: 'agent',
       summary: `Agent completed: ${summary}`,
-      details: { worktreeId, summary, details, branch: worktree.branch },
+      details: { worktreeId, summary, details, branch: worktree.branch, hasCommits },
     });
+
+    // If the worktree has commits, add to merge queue
+    let addedToMergeQueue = false;
+    if (hasCommits) {
+      databaseService.addToMergeQueue(project.path, {
+        worktreeId,
+        branch: worktree.branch,
+        summary,
+        hasCommits: true,
+      });
+      addedToMergeQueue = true;
+
+      // Log the merge queue addition
+      databaseService.addActivityLog(project.path, worktree.projectId, {
+        type: 'event',
+        category: 'system',
+        summary: `Added ${worktree.branch} to merge queue`,
+        details: { worktreeId, branch: worktree.branch, summary },
+      });
+    }
 
     return {
       success: true,
       message: `Completion reported for ${worktree.branch}`,
       logId,
+      hasCommits,
+      addedToMergeQueue,
     };
   });
 

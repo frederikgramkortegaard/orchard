@@ -80,6 +80,15 @@ export interface TerminalOutputChunk {
   timestamp: string;
 }
 
+export interface MergeQueueEntry {
+  worktreeId: string;
+  branch: string;
+  completedAt: string;
+  summary: string;
+  hasCommits: boolean;
+  merged: boolean;
+}
+
 class DatabaseService extends EventEmitter {
   private databases: Map<string, Database.Database> = new Map();
   private initialized = false;
@@ -244,6 +253,20 @@ class DatabaseService extends EventEmitter {
       );
 
       CREATE INDEX IF NOT EXISTS idx_terminal_output_session_id ON terminal_output(session_id);
+    `);
+
+    // Merge queue table (tracks completed agents ready for merging)
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS merge_queue (
+        worktree_id TEXT PRIMARY KEY,
+        branch TEXT NOT NULL,
+        completed_at TEXT NOT NULL DEFAULT (datetime('now')),
+        summary TEXT NOT NULL DEFAULT '',
+        has_commits INTEGER NOT NULL DEFAULT 0,
+        merged INTEGER NOT NULL DEFAULT 0
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_merge_queue_merged ON merge_queue(merged);
     `);
 
     console.log('[DatabaseService] Schema initialized');
@@ -1054,6 +1077,113 @@ class DatabaseService extends EventEmitter {
   getFullTerminalOutput(projectPath: string, sessionId: string): string {
     const chunks = this.getTerminalOutput(projectPath, sessionId);
     return chunks.map(c => c.chunk).join('');
+  }
+
+  // ============ Merge Queue ============
+
+  /**
+   * Add an entry to the merge queue
+   */
+  addToMergeQueue(
+    projectPath: string,
+    entry: {
+      worktreeId: string;
+      branch: string;
+      summary?: string;
+      hasCommits: boolean;
+    }
+  ): void {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      INSERT INTO merge_queue (worktree_id, branch, completed_at, summary, has_commits, merged)
+      VALUES (?, ?, datetime('now'), ?, ?, 0)
+      ON CONFLICT (worktree_id) DO UPDATE SET
+        completed_at = datetime('now'),
+        summary = excluded.summary,
+        has_commits = excluded.has_commits,
+        merged = 0
+    `);
+    stmt.run(entry.worktreeId, entry.branch, entry.summary || '', entry.hasCommits ? 1 : 0);
+    this.emit('merge_queue', { type: 'added', entry });
+  }
+
+  /**
+   * Get pending (unmerged) entries from the merge queue
+   */
+  getMergeQueue(projectPath: string): MergeQueueEntry[] {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      SELECT worktree_id as worktreeId, branch, completed_at as completedAt,
+             summary, has_commits as hasCommits, merged
+      FROM merge_queue
+      WHERE merged = 0
+      ORDER BY completed_at ASC
+    `);
+    const rows = stmt.all() as any[];
+    return rows.map(row => ({
+      worktreeId: row.worktreeId,
+      branch: row.branch,
+      completedAt: row.completedAt,
+      summary: row.summary,
+      hasCommits: !!row.hasCommits,
+      merged: !!row.merged,
+    }));
+  }
+
+  /**
+   * Get a specific merge queue entry
+   */
+  getMergeQueueEntry(projectPath: string, worktreeId: string): MergeQueueEntry | null {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      SELECT worktree_id as worktreeId, branch, completed_at as completedAt,
+             summary, has_commits as hasCommits, merged
+      FROM merge_queue
+      WHERE worktree_id = ?
+    `);
+    const row = stmt.get(worktreeId) as any;
+    if (!row) return null;
+    return {
+      worktreeId: row.worktreeId,
+      branch: row.branch,
+      completedAt: row.completedAt,
+      summary: row.summary,
+      hasCommits: !!row.hasCommits,
+      merged: !!row.merged,
+    };
+  }
+
+  /**
+   * Mark an entry as merged
+   */
+  markMergeQueueEntryMerged(projectPath: string, worktreeId: string): boolean {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      UPDATE merge_queue SET merged = 1
+      WHERE worktree_id = ?
+    `);
+    const result = stmt.run(worktreeId);
+    if (result.changes > 0) {
+      this.emit('merge_queue', { type: 'merged', worktreeId });
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Remove an entry from the merge queue
+   */
+  removeFromMergeQueue(projectPath: string, worktreeId: string): boolean {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      DELETE FROM merge_queue WHERE worktree_id = ?
+    `);
+    const result = stmt.run(worktreeId);
+    if (result.changes > 0) {
+      this.emit('merge_queue', { type: 'removed', worktreeId });
+      return true;
+    }
+    return false;
   }
 
   /**

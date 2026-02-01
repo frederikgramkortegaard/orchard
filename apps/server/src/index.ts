@@ -12,6 +12,7 @@ import { diffRoutes } from './routes/diff.js';
 import { printSessionsRoutes } from './routes/print-sessions.js';
 import { usageRoutes } from './routes/usage.js';
 import { gitHistoryRoutes } from './routes/git-history.js';
+import { mergeQueueRoutes } from './routes/merge-queue.js';
 import { handleTerminalWebSocket } from './websocket/terminal.handler.js';
 import { projectService } from './services/project.service.js';
 import { messageQueueService } from './services/message-queue.service.js';
@@ -49,6 +50,7 @@ fastify.register(diffRoutes);
 fastify.register(printSessionsRoutes);
 fastify.register(usageRoutes);
 fastify.register(gitHistoryRoutes);
+fastify.register(mergeQueueRoutes);
 
 // WebSocket endpoint
 fastify.register(async function (fastify) {

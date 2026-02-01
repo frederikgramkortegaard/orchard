@@ -2,10 +2,27 @@ import type { FastifyInstance } from 'fastify';
 import { databaseService } from '../services/database.service.js';
 import { projectService } from '../services/project.service.js';
 import { worktreeService } from '../services/worktree.service.js';
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import { randomUUID } from 'crypto';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
+
+/**
+ * Check if a worktree has commits since the task started (on its branch vs main)
+ */
+async function hasCommitsSinceStart(worktreePath: string, projectId: string): Promise<boolean> {
+  try {
+    const defaultBranch = await worktreeService.getDefaultBranch(projectId);
+    // Check if there are any commits on this branch that aren't on the default branch
+    const result = execSync(`git log ${defaultBranch}..HEAD --oneline`, {
+      cwd: worktreePath,
+      encoding: 'utf-8',
+    });
+    return result.trim().length > 0;
+  } catch {
+    return false;
+  }
+}
 
 // MCP tools prompt to inject into every agent task
 const MCP_AGENT_PROMPT = `
@@ -230,9 +247,29 @@ export async function printSessionsRoutes(fastify: FastifyInstance) {
     });
 
     // Handle completion
-    claude.on('close', (code) => {
+    claude.on('close', async (code) => {
       console.log(`[PrintSessions] Session ${sessionId} closed with code ${code}`);
       databaseService.completePrintSession(project.path, sessionId, code ?? 1);
+
+      // If task completed successfully (exit code 0), check for commits and add to merge queue
+      if (code === 0) {
+        try {
+          const hasCommits = await hasCommitsSinceStart(worktree.path, worktree.projectId);
+          if (hasCommits) {
+            console.log(`[PrintSessions] Adding ${worktreeId} to merge queue (has commits)`);
+            databaseService.addToMergeQueue(project.path, {
+              worktreeId,
+              branch: worktree.branch,
+              summary: '', // Will be updated if agent called report_completion
+              hasCommits: true,
+            });
+          } else {
+            console.log(`[PrintSessions] Skipping merge queue for ${worktreeId} (no commits)`);
+          }
+        } catch (err) {
+          console.error(`[PrintSessions] Error checking commits for ${worktreeId}:`, err);
+        }
+      }
     });
 
     claude.on('error', (err) => {
