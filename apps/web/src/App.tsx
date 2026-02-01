@@ -11,9 +11,7 @@ import { CreateWorktreeModal } from './components/modals/CreateWorktreeModal';
 import { KeyboardShortcutsModal } from './components/modals/KeyboardShortcutsModal';
 import { DiffViewerModal } from './components/diff';
 import { OrchestratorPanel } from './components/orchestrator/OrchestratorPanel';
-import { OrchestratorLoopControl } from './components/OrchestratorLoopControl';
 import { ActivityLog } from './components/orchestrator/ActivityLog';
-import { OrchestratorStatus } from './components/orchestrator/OrchestratorStatus';
 import { Dashboard } from './components/dashboard/Dashboard';
 import * as api from './api/projects';
 
@@ -169,7 +167,7 @@ function App() {
               {activeWorktree && ` / ${activeWorktree.branch}`}
             </span>
           )}
-          {activeProjectId && <OrchestratorStatus projectId={activeProjectId} />}
+          {/* OrchestratorStatus hidden - loop UI disabled */}
         </div>
         <div className="flex items-center gap-4 flex-shrink-0">
           <span className="text-sm text-zinc-500 dark:text-zinc-400 truncate max-w-xs">
@@ -210,9 +208,7 @@ function App() {
           <Panel defaultSize={60} minSize={5}>
             {activeProjectId && activeProject ? (
               <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-900">
-                <div className="flex-shrink-0 p-2 border-b border-zinc-300 dark:border-zinc-700">
-                  <OrchestratorLoopControl projectId={activeProjectId} />
-                </div>
+                {/* Loop control hidden - see OrchestratorLoopControl if re-enabling */}
                 <div className="flex-1 min-h-0 p-2">
                   <OrchestratorPanel projectId={activeProjectId} projectPath={activeProject.path} />
                 </div>
