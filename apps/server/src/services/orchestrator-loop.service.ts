@@ -865,11 +865,18 @@ class OrchestratorLoopService extends EventEmitter {
     let tookAction = false;
 
     try {
+      const startTime = Date.now();
+
       // Get pending messages BEFORE gathering context (so we can mark them processed after)
       const pendingMessages = await this.getPendingUserMessages();
 
       // Gather tick context
       context = await this.gatherTickContext();
+
+      const contextTime = Date.now() - startTime;
+      if (contextTime > 1000) {
+        await this.logToTextFile(`[TICK #${this.tickNumber}] Context gathered in ${contextTime}ms (slow!)`);
+      }
 
       // Log tick
       await activityLoggerService.log({
@@ -1047,9 +1054,15 @@ class OrchestratorLoopService extends EventEmitter {
       }
 
       // Log response to text file
-      const toolNames = assistantMessage.tool_calls?.map(tc => tc.function.name).join(', ') || 'none';
-      await this.logToTextFile(`  Response: ${assistantMessage.content?.slice(0, 150) || '(no text)'}`);
-      await this.logToTextFile(`  Tools called: ${toolNames}`);
+      const toolCalls = assistantMessage.tool_calls || [];
+      const toolSummary = toolCalls.map(tc => {
+        const args = JSON.parse(tc.function.arguments || '{}');
+        return `${tc.function.name}(${Object.entries(args).map(([k,v]) => `${k}=${JSON.stringify(v)?.slice(0,50)}`).join(', ')})`;
+      }).join(', ') || 'none';
+      if (assistantMessage.content) {
+        await this.logToTextFile(`  Thinking: ${assistantMessage.content.slice(0, 200)}`);
+      }
+      await this.logToTextFile(`  Action: ${toolSummary}`);
 
       // Add assistant response to history
       this.conversationHistory.push(assistantMessage);
