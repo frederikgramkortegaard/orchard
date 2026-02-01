@@ -88,8 +88,18 @@ function App() {
         setDiffViewerState(null);
       }
 
-      // Cmd/Ctrl + 1-9 - Switch to worktree
-      if ((e.metaKey || e.ctrlKey) && e.key >= '1' && e.key <= '9') {
+      // Ctrl + 1-9 (without Cmd) - Switch to project tab
+      if (e.ctrlKey && !e.metaKey && e.key >= '1' && e.key <= '9') {
+        const index = parseInt(e.key) - 1;
+        if (index < projects.length) {
+          e.preventDefault();
+          useProjectStore.getState().setActiveProject(projects[index].id);
+        }
+        return;
+      }
+
+      // Cmd + 1-9 - Switch to worktree
+      if (e.metaKey && e.key >= '1' && e.key <= '9') {
         const index = parseInt(e.key) - 1;
         const sortedWorktrees = worktrees.filter(w => !w.archived);
         if (index < sortedWorktrees.length) {
@@ -101,7 +111,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [worktrees]);
+  }, [projects, worktrees]);
 
   const handleCreateProject = useCallback(async (data: { repoUrl?: string; localPath?: string; name?: string; inPlace?: boolean }) => {
     const project = await api.createProject(data);

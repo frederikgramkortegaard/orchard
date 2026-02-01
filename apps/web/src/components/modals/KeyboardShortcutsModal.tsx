@@ -10,7 +10,8 @@ const shortcuts = [
   { keys: ['Cmd/Ctrl', ','], description: 'Open settings' },
   { keys: ['Escape'], description: 'Close modal/panel' },
   { keys: ['Cmd/Ctrl', 'K'], description: 'Focus chat input' },
-  { keys: ['Cmd/Ctrl', '1-9'], description: 'Switch to worktree 1-9' },
+  { keys: ['Ctrl', '1-9'], description: 'Switch to project tab 1-9' },
+  { keys: ['Cmd', '1-9'], description: 'Switch to worktree 1-9' },
 ];
 
 export function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsModalProps) {
