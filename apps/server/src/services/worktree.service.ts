@@ -684,7 +684,14 @@ class WorktreeService {
   // Archive a worktree (mark as archived, sessions should be closed by caller)
   async archiveWorktree(worktreeId: string): Promise<Worktree | undefined> {
     const worktree = this.worktrees.get(worktreeId);
-    if (!worktree || worktree.isMain) return undefined;
+    if (!worktree) {
+      console.error(`[WorktreeService] archiveWorktree: Worktree ${worktreeId} not found in memory`);
+      return undefined;
+    }
+    if (worktree.isMain) {
+      console.error(`[WorktreeService] archiveWorktree: Cannot archive main worktree`);
+      return undefined;
+    }
 
     worktree.archived = true;
     this.archivedWorktrees.add(worktreeId);
@@ -694,6 +701,9 @@ class WorktreeService {
     const project = projectService.getProject(worktree.projectId);
     if (project) {
       await this.saveArchivedWorktree(project.path, worktreeId, true);
+      console.log(`[WorktreeService] Archived worktree ${worktree.branch} (${worktreeId})`);
+    } else {
+      console.error(`[WorktreeService] archiveWorktree: Project ${worktree.projectId} not found, archive not persisted!`);
     }
 
     return worktree;
