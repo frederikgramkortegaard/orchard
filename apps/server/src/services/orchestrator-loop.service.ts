@@ -43,6 +43,14 @@ export interface AgentStatus {
   sessionId?: string;
 }
 
+export interface MergeQueueItem {
+  worktreeId: string;
+  branch: string;
+  completedAt: string;
+  summary: string;
+  hasCommits: boolean;
+}
+
 export interface TickContext {
   timestamp: Date;
   tickNumber: number;
@@ -52,6 +60,7 @@ export interface TickContext {
   completions: DetectedPattern[];
   questions: DetectedPattern[];
   errors: DetectedPattern[];
+  mergeQueue: MergeQueueItem[];
   projectId: string;
 }
 
@@ -302,6 +311,52 @@ const ORCHESTRATOR_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'get_merge_queue',
+      description: 'Get the list of completed worktrees waiting to be merged. Use this to see what branches are ready for merging.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'merge_from_queue',
+      description: 'Merge a worktree from the merge queue into main. Use this after reviewing a completed task.',
+      parameters: {
+        type: 'object',
+        properties: {
+          worktreeId: {
+            type: 'string',
+            description: 'The ID of the worktree to merge from the queue',
+          },
+        },
+        required: ['worktreeId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'remove_from_queue',
+      description: 'Remove a worktree from the merge queue without merging. Use this if the work should be discarded.',
+      parameters: {
+        type: 'object',
+        properties: {
+          worktreeId: {
+            type: 'string',
+            description: 'The ID of the worktree to remove from the queue',
+          },
+        },
+        required: ['worktreeId'],
+      },
+    },
+  },
 ];
 
 const SYSTEM_PROMPT = `You are the orchestrator for a multi-agent development system called Orchard. Your role is to:
@@ -338,11 +393,22 @@ Guidelines:
 - If an agent has a question, help answer it
 - If sessions are dead, they will be auto-restarted - no action needed
 - Use archive_worktree to clean up merged worktrees
+- Check the merge queue (mergeQueueSize > 0) for completed work ready to merge
+
+MERGE QUEUE WORKFLOW:
+When agents complete tasks, they add themselves to the merge queue. You should:
+1. Use get_merge_queue to see what's waiting
+2. Review the summary to ensure the work looks complete
+3. Use merge_from_queue to merge, or remove_from_queue to discard
+4. Archive the worktree after merging (optional, for cleanup)
 
 Available tools:
 - create_worktree: Start a new feature with a Claude agent
 - send_task: Send instructions to an existing agent
-- merge_worktree: Merge completed work into main
+- merge_worktree: Merge completed work into main (direct merge)
+- merge_from_queue: Merge a worktree from the merge queue
+- remove_from_queue: Remove a worktree from merge queue without merging
+- get_merge_queue: List worktrees waiting to be merged
 - send_message: Communicate with the user
 - check_status: Get detailed status of worktrees
 - get_user_messages: Read recent chat messages
@@ -831,7 +897,8 @@ class OrchestratorLoopService extends EventEmitter {
       const hasWork = context.pendingUserMessages > 0 ||
                       context.completions.length > 0 ||
                       context.questions.length > 0 ||
-                      context.errors.length > 0;
+                      context.errors.length > 0 ||
+                      context.mergeQueue.length > 0;
 
       if (!hasWork) {
         await this.logToTextFile(`[TICK #${this.tickNumber}] Nothing to do - skipping LLM call`);
@@ -1185,6 +1252,14 @@ class OrchestratorLoopService extends EventEmitter {
       }
     }
 
+    // Merge queue
+    if (context.mergeQueue.length > 0) {
+      lines.push(`- Merge queue: ${context.mergeQueue.length} branches waiting`);
+      for (const item of context.mergeQueue) {
+        lines.push(`  - ${item.branch} (${item.worktreeId.slice(0, 8)}): ${item.summary || 'No summary'}`);
+      }
+    }
+
     lines.push('');
     lines.push('What actions should be taken?');
 
@@ -1264,6 +1339,15 @@ class OrchestratorLoopService extends EventEmitter {
         case 'get_file_tree':
           await this.toolGetFileTree(args.depth || 2, correlationId);
           return `SUCCESS: Retrieved file tree`;
+        case 'get_merge_queue':
+          await this.toolGetMergeQueue(correlationId);
+          return `SUCCESS: Retrieved merge queue`;
+        case 'merge_from_queue':
+          await this.toolMergeFromQueue(args.worktreeId, correlationId);
+          return `SUCCESS: Merged ${args.worktreeId} from queue`;
+        case 'remove_from_queue':
+          await this.toolRemoveFromQueue(args.worktreeId, correlationId);
+          return `SUCCESS: Removed ${args.worktreeId} from queue`;
         default:
           return `ERROR: Unknown tool: ${name}`;
       }
@@ -1736,6 +1820,128 @@ class OrchestratorLoopService extends EventEmitter {
   }
 
   /**
+   * Tool: Get the merge queue
+   */
+  private async toolGetMergeQueue(correlationId: string): Promise<void> {
+    const projectId = this.projectId;
+    if (!projectId) throw new Error('No project context');
+
+    const project = projectService.getProject(projectId);
+    if (!project?.path) throw new Error('Project path not found');
+
+    const queue = databaseService.getMergeQueue(project.path);
+
+    await activityLoggerService.log({
+      type: 'event',
+      category: 'orchestrator',
+      summary: `Retrieved merge queue (${queue.length} items)`,
+      details: { queueSize: queue.length, queue },
+      correlationId,
+    });
+
+    // Add to conversation history
+    if (queue.length > 0) {
+      const queueList = queue.map(item =>
+        `- ${item.branch} (${item.worktreeId.slice(0, 8)}): ${item.summary || 'No summary'} [hasCommits: ${item.hasCommits}]`
+      ).join('\n');
+      this.conversationHistory.push({
+        role: 'user',
+        content: `Merge queue (${queue.length} items waiting):\n${queueList}`,
+      });
+    } else {
+      this.conversationHistory.push({
+        role: 'user',
+        content: 'Merge queue is empty - no branches waiting to be merged.',
+      });
+    }
+  }
+
+  /**
+   * Tool: Merge a worktree from the merge queue
+   */
+  private async toolMergeFromQueue(worktreeId: string, correlationId: string): Promise<void> {
+    const projectId = this.projectId;
+    if (!projectId) throw new Error('No project context');
+
+    const project = projectService.getProject(projectId);
+    if (!project?.path) throw new Error('Project path not found');
+
+    // Check if the worktree is in the merge queue
+    const entry = databaseService.getMergeQueueEntry(project.path, worktreeId);
+    if (!entry) {
+      throw new Error(`Worktree ${worktreeId} is not in the merge queue`);
+    }
+
+    const worktree = worktreeService.getWorktree(worktreeId);
+    if (!worktree) throw new Error('Worktree not found');
+
+    await this.logToTextFile(`Merging ${worktree.branch} from queue...`);
+
+    // Use git commands directly
+    const { execSync } = await import('node:child_process');
+
+    try {
+      // Merge the branch into master from the main worktree
+      execSync(`git merge ${worktree.branch} --no-edit`, {
+        cwd: project.path,
+        encoding: 'utf-8',
+      });
+
+      await this.logToTextFile(`Merged ${worktree.branch} successfully`);
+
+      // Mark as merged in the queue
+      databaseService.markMergeQueueEntryMerged(project.path, worktreeId);
+
+      // Mark worktree as merged
+      await worktreeService.markAsMerged(worktreeId);
+
+      await activityLoggerService.log({
+        type: 'action',
+        category: 'worktree',
+        summary: `Merged ${entry.branch} from queue`,
+        details: { worktreeId, branch: entry.branch, summary: entry.summary },
+        correlationId,
+      });
+
+      this.emit('worktree:merged', { worktreeId, branch: entry.branch });
+    } catch (error: any) {
+      await this.logToTextFile(`ERROR merging from queue: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Tool: Remove a worktree from the merge queue without merging
+   */
+  private async toolRemoveFromQueue(worktreeId: string, correlationId: string): Promise<void> {
+    const projectId = this.projectId;
+    if (!projectId) throw new Error('No project context');
+
+    const project = projectService.getProject(projectId);
+    if (!project?.path) throw new Error('Project path not found');
+
+    const entry = databaseService.getMergeQueueEntry(project.path, worktreeId);
+    if (!entry) {
+      throw new Error(`Worktree ${worktreeId} is not in the merge queue`);
+    }
+
+    const success = databaseService.removeFromMergeQueue(project.path, worktreeId);
+    if (!success) {
+      throw new Error(`Failed to remove ${worktreeId} from merge queue`);
+    }
+
+    await activityLoggerService.log({
+      type: 'action',
+      category: 'orchestrator',
+      summary: `Removed ${entry.branch} from merge queue`,
+      details: { worktreeId, branch: entry.branch },
+      correlationId,
+    });
+
+    await this.logToTextFile(`Removed ${entry.branch} from merge queue`);
+  }
+
+  /**
    * Get pending user messages from chat.json (messages after lastProcessedMessageId)
    */
   private async getPendingUserMessages(): Promise<Array<{ id: string; text: string; timestamp: string; from: string }>> {
@@ -1823,6 +2029,20 @@ class OrchestratorLoopService extends EventEmitter {
     this.pendingQuestions = [];
     this.pendingErrors = [];
 
+    // Get merge queue
+    let mergeQueue: MergeQueueItem[] = [];
+    const project = projectService.getProject(projectId);
+    if (project?.path) {
+      const queueEntries = databaseService.getMergeQueue(project.path);
+      mergeQueue = queueEntries.map(entry => ({
+        worktreeId: entry.worktreeId,
+        branch: entry.branch,
+        completedAt: entry.completedAt,
+        summary: entry.summary,
+        hasCommits: entry.hasCommits,
+      }));
+    }
+
     return {
       timestamp: new Date(),
       tickNumber: this.tickNumber,
@@ -1832,6 +2052,7 @@ class OrchestratorLoopService extends EventEmitter {
       completions,
       questions,
       errors,
+      mergeQueue,
       projectId,
     };
   }

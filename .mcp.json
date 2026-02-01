@@ -3,20 +3,11 @@
     "orchard-agent": {
       "command": "node",
       "args": [
-        "/Users/fgk/Developer/orchard/packages/mcp-agent/dist/index.js"
+        "/Users/fgk/Developer/orchard/apps/server/packages/mcp-agent/dist/index.js"
       ],
       "env": {
         "ORCHARD_API": "http://localhost:3001",
-        "WORKTREE_ID": "44c7a962-cdb6-6937-9561-f2cc24027807"
-      }
-    },
-    "orchard-orchestrator": {
-      "command": "node",
-      "args": [
-        "/Users/fgk/Developer/orchard/packages/mcp-orchestrator/dist/index.js"
-      ],
-      "env": {
-        "ORCHARD_API": "http://localhost:3001"
+        "WORKTREE_ID": "8f86036c-ef6a-af74-c56d-6061e0a20e02"
       }
     }
   }
