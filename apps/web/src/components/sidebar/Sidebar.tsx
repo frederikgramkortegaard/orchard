@@ -3,6 +3,7 @@ import { Group, Panel, Separator } from 'react-resizable-panels';
 import { useProjectStore, type Worktree } from '../../stores/project.store';
 import { useTerminalStore } from '../../stores/terminal.store';
 import { SplitTerminalPane } from '../terminal/SplitTerminalPane';
+import { FileViewer } from './FileViewer';
 
 interface SidebarProps {
   onOpenProject: () => void;
@@ -189,6 +190,9 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
           </div>
         )}
       </div>
+
+      {/* File Viewer */}
+      <FileViewer worktreePath={worktrees.find(w => w.id === activeWorktreeId)?.path} />
     </div>
   );
 
