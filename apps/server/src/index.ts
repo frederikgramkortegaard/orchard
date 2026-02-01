@@ -1,7 +1,6 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
-import { terminalsRoutes } from './routes/terminals.js';
 import { projectsRoutes } from './routes/projects.js';
 import { worktreesRoutes } from './routes/worktrees.js';
 import { orchestratorRoutes } from './routes/orchestrator.js';
@@ -9,12 +8,10 @@ import { filesRoutes } from './routes/files.js';
 import { messagesRoutes } from './routes/messages.js';
 import { agentRoutes } from './routes/agent.js';
 import { diffRoutes } from './routes/diff.js';
-import { printSessionsRoutes } from './routes/print-sessions.js';
 import { usageRoutes } from './routes/usage.js';
 import { gitHistoryRoutes } from './routes/git-history.js';
 import { mergeQueueRoutes } from './routes/merge-queue.js';
 import { debugRoutes } from './routes/debug.js';
-import { handleTerminalWebSocket } from './websocket/terminal.handler.js';
 import { projectService } from './services/project.service.js';
 import { messageQueueService } from './services/message-queue.service.js';
 import { orchestratorLoopService } from './services/orchestrator-loop.service.js';
@@ -40,7 +37,6 @@ fastify.get('/health', async () => {
 });
 
 // Register routes
-fastify.register(terminalsRoutes);
 fastify.register(projectsRoutes);
 fastify.register(worktreesRoutes);
 fastify.register(orchestratorRoutes);
@@ -48,18 +44,10 @@ fastify.register(filesRoutes);
 fastify.register(messagesRoutes);
 fastify.register(agentRoutes);
 fastify.register(diffRoutes);
-fastify.register(printSessionsRoutes);
 fastify.register(usageRoutes);
 fastify.register(gitHistoryRoutes);
 fastify.register(mergeQueueRoutes);
 fastify.register(debugRoutes);
-
-// WebSocket endpoint
-fastify.register(async function (fastify) {
-  fastify.get('/ws', { websocket: true }, (socket) => {
-    handleTerminalWebSocket(socket);
-  });
-});
 
 const start = async () => {
   try {

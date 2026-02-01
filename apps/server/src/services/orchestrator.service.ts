@@ -1,13 +1,11 @@
 import { worktreeService } from './worktree.service.js';
 import { projectService } from './project.service.js';
-import { daemonClient } from '../pty/daemon-client.js';
 import { simpleGit } from 'simple-git';
 import { join } from 'path';
 
 export interface OrchestratorSession {
   id: string;
   projectId: string;
-  terminalSessionId: string;
   createdAt: Date;
 }
 
@@ -18,7 +16,6 @@ export interface OrchestratorCommand {
 
 interface TaskCompletion {
   worktreeId: string;
-  sessionId: string;
   completedAt: Date;
   branch?: string;
 }
@@ -27,15 +24,14 @@ class OrchestratorService {
   private sessions = new Map<string, OrchestratorSession>();
   private completions: TaskCompletion[] = [];
 
-  // Called by daemon client when task complete is detected
-  recordCompletion(worktreeId: string, sessionId: string, branch?: string): void {
+  // Record task completion
+  recordCompletion(worktreeId: string, branch?: string): void {
     this.completions.push({
       worktreeId,
-      sessionId,
       completedAt: new Date(),
       branch,
     });
-    console.log(`Task completed: worktree ${worktreeId}, session ${sessionId}`);
+    console.log(`Task completed: worktree ${worktreeId}`);
   }
 
   getRecentCompletions(since?: Date): TaskCompletion[] {
@@ -55,20 +51,9 @@ class OrchestratorService {
       throw new Error('Project not found');
     }
 
-    const mainPath = join(project.path, 'main');
-
-    // Create a terminal session for the orchestrator Claude via daemon
-    const terminalSessionId = await daemonClient.createSession(
-      `orchestrator-${projectId}`,
-      project.path,
-      mainPath,
-      'claude --dangerously-skip-permissions'  // Orchestrator has full permissions in project
-    );
-
     const session: OrchestratorSession = {
       id: `orch-${projectId}`,
       projectId,
-      terminalSessionId,
       createdAt: new Date(),
     };
 
@@ -97,7 +82,7 @@ class OrchestratorService {
   }
 
   private async createFeature(projectId: string, args: Record<string, string>): Promise<string> {
-    const { name, description } = args;
+    const { name } = args;
     if (!name) {
       throw new Error('Feature name is required');
     }
@@ -114,46 +99,6 @@ class OrchestratorService {
       baseBranch: defaultBranch,
     });
 
-    // Get project path for session storage
-    const project = projectService.getProject(projectId);
-    if (!project) {
-      throw new Error('Project not found');
-    }
-
-    // Create a Claude terminal session for this worktree via daemon
-    // Use --dangerously-skip-permissions since worktree is inside the trusted project folder
-    const terminalSessionId = await daemonClient.createSession(
-      worktree.id,
-      project.path,
-      worktree.path,
-      'claude --dangerously-skip-permissions'
-    );
-
-    // Wait for Claude to be ready (daemon handles bypass permissions prompt automatically)
-    // Then send the task description
-    if (description) {
-      // Wait for agent ready event (or timeout after 30s)
-      daemonClient.waitForAgentReady(terminalSessionId)
-        .then(() => {
-          console.log(`Agent ready, sending task to session ${terminalSessionId}`);
-          daemonClient.writeToSession(terminalSessionId, description);
-          // Small delay to ensure message is received before pressing enter
-          setTimeout(() => {
-            daemonClient.writeToSession(terminalSessionId, '\r');
-            console.log(`Sent task to session ${terminalSessionId}`);
-          }, 100);
-        })
-        .catch((err) => {
-          console.error(`Failed to wait for agent ready: ${err.message}`);
-          // Fallback: send task anyway after timeout
-          daemonClient.writeToSession(terminalSessionId, description);
-          setTimeout(() => {
-            daemonClient.writeToSession(terminalSessionId, '\r');
-            console.log(`Sent task to session ${terminalSessionId} (after timeout fallback)`);
-          }, 100);
-        });
-    }
-
     return JSON.stringify({
       success: true,
       worktree: {
@@ -161,8 +106,7 @@ class OrchestratorService {
         branch: worktree.branch,
         path: worktree.path,
       },
-      terminalSessionId,
-      message: `Created feature branch "${branchName}" with Claude session`,
+      message: `Created feature branch "${branchName}"`,
     });
   }
 
@@ -225,10 +169,6 @@ class OrchestratorService {
   private async getProjectStatus(projectId: string): Promise<string> {
     const worktrees = await worktreeService.loadWorktreesForProject(projectId);
     const project = projectService.getProject(projectId);
-    const sessions = await daemonClient.listSessions();
-    const projectSessions = sessions.filter(s =>
-      worktrees.some(w => w.id === s.worktreeId) || s.worktreeId.startsWith(`orchestrator-${projectId}`)
-    );
 
     return JSON.stringify({
       project: {
@@ -243,7 +183,6 @@ class OrchestratorService {
         isMain: w.isMain,
         status: w.status,
       })),
-      activeTerminals: projectSessions.length,
     });
   }
 
@@ -260,50 +199,12 @@ class OrchestratorService {
     return this.sessions.get(`orch-${projectId}`);
   }
 
-  async destroySession(sessionId: string): Promise<boolean> {
+  destroySession(sessionId: string): boolean {
     const session = this.sessions.get(sessionId);
     if (!session) return false;
 
-    await daemonClient.destroySession(session.terminalSessionId);
     this.sessions.delete(sessionId);
     return true;
-  }
-
-  // Send a prompt to a specific worktree's Claude session
-  async sendPromptToWorktree(worktreeId: string, prompt: string): Promise<boolean> {
-    const sessions = await daemonClient.getSessionsForWorktree(worktreeId);
-    if (sessions.length === 0) {
-      return false;
-    }
-
-    // Send to the first session for this worktree
-    const session = sessions[0];
-    // Send prompt, then enter to submit
-    daemonClient.writeToSession(session.id, prompt);
-    // Small delay to ensure message is received before pressing enter
-    setTimeout(() => {
-      daemonClient.writeToSession(session.id, '\r');
-    }, 100);
-    return true;
-  }
-
-  // Get all active terminal sessions that can receive prompts
-  async getActiveWorktreeSessions(projectId: string): Promise<Array<{ worktreeId: string; sessionId: string; branch: string }>> {
-    const worktrees = worktreeService.getWorktreesForProject(projectId);
-    const result: Array<{ worktreeId: string; sessionId: string; branch: string }> = [];
-
-    for (const worktree of worktrees) {
-      const sessions = await daemonClient.getSessionsForWorktree(worktree.id);
-      if (sessions.length > 0) {
-        result.push({
-          worktreeId: worktree.id,
-          sessionId: sessions[0].id,
-          branch: worktree.branch,
-        });
-      }
-    }
-
-    return result;
   }
 }
 

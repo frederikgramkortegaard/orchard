@@ -251,7 +251,7 @@ function App() {
         <Dashboard />
       ) : (
         <Group orientation="horizontal" className="flex-1 overflow-hidden">
-          {/* Left sidebar: Terminal + Worktrees */}
+          {/* Left sidebar: Worktrees */}
           <Panel defaultSize={20} minSize={5}>
             <Sidebar
               onOpenProject={() => setShowProjectModal(true)}

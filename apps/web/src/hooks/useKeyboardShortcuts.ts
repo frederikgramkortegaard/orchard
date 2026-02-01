@@ -1,11 +1,7 @@
 import { useEffect, useCallback } from 'react';
 import { useEditorStore } from '../stores/editor.store';
 
-interface KeyboardShortcutsOptions {
-  onNewTerminal?: () => void;
-}
-
-export function useKeyboardShortcuts({ onNewTerminal }: KeyboardShortcutsOptions = {}) {
+export function useKeyboardShortcuts() {
   const { openFiles, activeFilePath, closeFile, setActiveFile, markFileSaved } = useEditorStore();
 
   const saveCurrentFile = useCallback(async () => {
@@ -58,13 +54,6 @@ export function useKeyboardShortcuts({ onNewTerminal }: KeyboardShortcutsOptions
         return;
       }
 
-      // Cmd/Ctrl+T - New terminal
-      if (e.key === 't') {
-        e.preventDefault();
-        onNewTerminal?.();
-        return;
-      }
-
       // Cmd/Ctrl+W - Close current tab
       if (e.key === 'w') {
         e.preventDefault();
@@ -83,5 +72,5 @@ export function useKeyboardShortcuts({ onNewTerminal }: KeyboardShortcutsOptions
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [saveCurrentFile, closeCurrentTab, switchToTab, onNewTerminal]);
+  }, [saveCurrentFile, closeCurrentTab, switchToTab]);
 }
