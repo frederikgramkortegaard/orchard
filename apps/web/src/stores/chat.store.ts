@@ -1,12 +1,15 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+export type MessageStatus = 'unread' | 'read' | 'working' | 'resolved';
+
 export interface ChatMessage {
   id: string;
   text: string;
   timestamp: string;
   from: 'user' | 'orchestrator';
   replyTo?: string;
+  status?: MessageStatus;
 }
 
 interface ChatState {
@@ -16,6 +19,7 @@ interface ChatState {
   // Actions
   setMessages: (projectId: string, messages: ChatMessage[]) => void;
   addMessage: (projectId: string, message: ChatMessage) => void;
+  updateMessageStatus: (projectId: string, messageId: string, status: MessageStatus) => void;
   clearMessages: (projectId: string) => void;
   getMessages: (projectId: string) => ChatMessage[];
 }
@@ -44,6 +48,20 @@ export const useChatStore = create<ChatState>()(
             messagesByProject: {
               ...state.messagesByProject,
               [projectId]: [...existing, message],
+            },
+          };
+        }),
+
+      updateMessageStatus: (projectId, messageId, status) =>
+        set((state) => {
+          const existing = state.messagesByProject[projectId] || [];
+          const updatedMessages = existing.map((m) =>
+            m.id === messageId ? { ...m, status } : m
+          );
+          return {
+            messagesByProject: {
+              ...state.messagesByProject,
+              [projectId]: updatedMessages,
             },
           };
         }),

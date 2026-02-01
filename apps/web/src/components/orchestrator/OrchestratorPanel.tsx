@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Send, Loader2, Bot, XCircle, MessageCircle } from 'lucide-react';
-import { useChatStore } from '../../stores/chat.store';
+import { Send, Loader2, Bot, XCircle, MessageCircle, Circle, Check, CheckCheck, Clock } from 'lucide-react';
+import { useChatStore, type MessageStatus } from '../../stores/chat.store';
 
 interface OrchestratorPanelProps {
   projectId: string;
@@ -14,12 +14,55 @@ interface TerminalSession {
   createdAt: string;
 }
 
+interface ContextMenuState {
+  visible: boolean;
+  x: number;
+  y: number;
+  messageId: string | null;
+}
+
+function StatusIndicator({ status, from }: { status?: MessageStatus; from: 'user' | 'orchestrator' }) {
+  // For user messages, show status on the right side
+  if (from === 'user') {
+    switch (status) {
+      case 'resolved':
+        return <CheckCheck size={14} className="text-green-400" title="Resolved" />;
+      case 'working':
+        return <Loader2 size={14} className="text-yellow-400 animate-spin" title="Being worked on" />;
+      case 'read':
+        return <Check size={14} className="text-blue-300" title="Read" />;
+      case 'unread':
+      default:
+        return <Circle size={8} className="text-blue-400 fill-current" title="Unread" />;
+    }
+  }
+
+  // For orchestrator messages, show status on the left side
+  switch (status) {
+    case 'resolved':
+      return <CheckCheck size={14} className="text-green-400" title="Resolved" />;
+    case 'working':
+      return <Clock size={14} className="text-yellow-400" title="Being worked on" />;
+    case 'read':
+      return <Check size={14} className="text-zinc-400" title="Read" />;
+    case 'unread':
+    default:
+      return <Circle size={8} className="text-blue-400 fill-current" title="Unread" />;
+  }
+}
+
 export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelProps) {
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [orchestratorSessionId, setOrchestratorSessionId] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>({
+    visible: false,
+    x: 0,
+    y: 0,
+    messageId: null,
+  });
 
   const handleClearPending = async () => {
     setIsClearing(true);
@@ -57,6 +100,46 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
   const chatMessages = useChatStore((state) => state.getMessages(projectId));
   const setMessages = useChatStore((state) => state.setMessages);
   const addMessage = useChatStore((state) => state.addMessage);
+  const updateMessageStatus = useChatStore((state) => state.updateMessageStatus);
+
+  // Handle right-click context menu
+  const handleContextMenu = useCallback((e: React.MouseEvent, messageId: string) => {
+    e.preventDefault();
+    setContextMenu({
+      visible: true,
+      x: e.clientX,
+      y: e.clientY,
+      messageId,
+    });
+  }, []);
+
+  // Close context menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      if (contextMenu.visible) {
+        setContextMenu((prev) => ({ ...prev, visible: false }));
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [contextMenu.visible]);
+
+  // Update message status via API
+  const handleStatusChange = useCallback(async (messageId: string, status: MessageStatus) => {
+    try {
+      const res = await fetch(`/api/chat/${messageId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, status }),
+      });
+      if (res.ok) {
+        updateMessageStatus(projectId, messageId, status);
+      }
+    } catch (err) {
+      console.error('Failed to update message status:', err);
+    }
+    setContextMenu((prev) => ({ ...prev, visible: false }));
+  }, [projectId, updateMessageStatus]);
 
   // Load chat history on mount and poll for updates
   useEffect(() => {
@@ -192,20 +275,26 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
             <div
               key={msg.id}
               className={`flex ${msg.from === 'user' ? 'justify-end' : 'justify-start'}`}
+              onContextMenu={(e) => handleContextMenu(e, msg.id)}
             >
               <div
-                className={`relative max-w-[85%] px-3 py-2 text-sm shadow-sm ${
+                className={`relative max-w-[85%] px-3 py-2 text-sm shadow-sm cursor-context-menu ${
                   msg.from === 'user'
                     ? 'bg-blue-600 text-white rounded-tl-xl rounded-tr-sm rounded-bl-xl rounded-br-xl'
                     : 'bg-zinc-700 text-zinc-100 rounded-tl-sm rounded-tr-xl rounded-bl-xl rounded-br-xl'
                 }`}
               >
                 <p className="whitespace-pre-wrap break-words">{msg.text}</p>
-                <p className={`text-[10px] mt-1 text-right ${
-                  msg.from === 'user' ? 'text-blue-200' : 'text-zinc-400'
+                <div className={`flex items-center gap-1.5 mt-1 ${
+                  msg.from === 'user' ? 'justify-end' : 'justify-start'
                 }`}>
-                  {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </p>
+                  <span className={`text-[10px] ${
+                    msg.from === 'user' ? 'text-blue-200' : 'text-zinc-400'
+                  }`}>
+                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                  <StatusIndicator status={msg.status} from={msg.from} />
+                </div>
               </div>
             </div>
           ))
@@ -249,6 +338,47 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
           {isSending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
         </button>
       </div>
+
+      {/* Context menu for message status */}
+      {contextMenu.visible && contextMenu.messageId && (
+        <div
+          className="fixed z-50 bg-zinc-800 border border-zinc-600 rounded-lg shadow-xl py-1 min-w-[160px]"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-3 py-1.5 text-xs text-zinc-400 font-medium border-b border-zinc-700">
+            Set Status
+          </div>
+          <button
+            onClick={() => handleStatusChange(contextMenu.messageId!, 'unread')}
+            className="w-full px-3 py-2 text-sm text-left text-zinc-200 hover:bg-zinc-700 flex items-center gap-2"
+          >
+            <Circle size={14} className="text-blue-400 fill-current" />
+            Unread
+          </button>
+          <button
+            onClick={() => handleStatusChange(contextMenu.messageId!, 'read')}
+            className="w-full px-3 py-2 text-sm text-left text-zinc-200 hover:bg-zinc-700 flex items-center gap-2"
+          >
+            <Check size={14} className="text-zinc-400" />
+            Read
+          </button>
+          <button
+            onClick={() => handleStatusChange(contextMenu.messageId!, 'working')}
+            className="w-full px-3 py-2 text-sm text-left text-zinc-200 hover:bg-zinc-700 flex items-center gap-2"
+          >
+            <Clock size={14} className="text-yellow-400" />
+            Being worked on
+          </button>
+          <button
+            onClick={() => handleStatusChange(contextMenu.messageId!, 'resolved')}
+            className="w-full px-3 py-2 text-sm text-left text-zinc-200 hover:bg-zinc-700 flex items-center gap-2"
+          >
+            <CheckCheck size={14} className="text-green-400" />
+            Resolved
+          </button>
+        </div>
+      )}
     </div>
   );
 }
