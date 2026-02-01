@@ -172,6 +172,20 @@ class ProjectService {
   getProjectByName(name: string): Project | undefined {
     return Array.from(this.projects.values()).find(p => p.name === name);
   }
+
+  // Create project from git URL (clone)
+  async createProject(repoUrl: string, name?: string): Promise<Project> {
+    // For now, we don't support cloning - everything is in-place
+    throw new Error('Clone-based projects not supported. Use createProjectFromLocal instead.');
+  }
+
+  // Delete a project
+  async deleteProject(projectId: string): Promise<boolean> {
+    const project = this.projects.get(projectId);
+    if (!project) return false;
+    this.projects.delete(projectId);
+    return true;
+  }
 }
 
 export const projectService = new ProjectService();
