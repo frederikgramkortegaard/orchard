@@ -2,6 +2,9 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { Send, Loader2, Bot, XCircle, MessageCircle, Circle, Check, CheckCheck, Clock } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useChatStore, type MessageStatus } from '../../stores/chat.store';
+import { AudioRecorder } from '../audio/AudioRecorder';
+import { AudioPlayback } from '../audio/AudioPlayback';
+import { useAudioStore } from '../../stores/audio.store';
 
 interface OrchestratorPanelProps {
   projectId: string;
@@ -64,6 +67,9 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
     y: 0,
     messageId: null,
   });
+
+  // Audio recording state
+  const isRecording = useAudioStore((state) => state.recordingState === 'recording');
 
   const handleClearPending = async () => {
     setIsClearing(true);
@@ -206,11 +212,9 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
     return () => clearInterval(interval);
   }, [projectId]);
 
-  const handleSend = useCallback(async () => {
-    if (!inputText.trim()) return;
+  const sendMessage = useCallback(async (message: string) => {
+    if (!message.trim()) return;
 
-    const message = inputText.trim();
-    setInputText('');
     setIsSending(true);
 
     try {
@@ -239,7 +243,19 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
     } finally {
       setIsSending(false);
     }
-  }, [inputText, orchestratorSessionId, projectId, addMessage]);
+  }, [orchestratorSessionId, projectId, addMessage]);
+
+  const handleSend = useCallback(() => {
+    if (!inputText.trim()) return;
+    const message = inputText.trim();
+    setInputText('');
+    sendMessage(message);
+  }, [inputText, sendMessage]);
+
+  // Handle voice transcription
+  const handleVoiceTranscription = useCallback((text: string) => {
+    sendMessage(text);
+  }, [sendMessage]);
 
   return (
     <div className="flex flex-col h-full bg-zinc-900 rounded-lg overflow-hidden shadow-sm">
@@ -291,6 +307,9 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
                 <div className={`flex items-center gap-1.5 mt-1 ${
                   msg.from === 'user' ? 'justify-end' : 'justify-start'
                 }`}>
+                  {msg.from === 'orchestrator' && (
+                    <AudioPlayback text={msg.text} messageId={msg.id} />
+                  )}
                   <span className={`text-[10px] ${
                     msg.from === 'user' ? 'text-green-200' : 'text-zinc-500'
                   }`}>
@@ -321,25 +340,40 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
 
       {/* Input area */}
       <div className="flex items-center gap-2 p-2 bg-zinc-800 border-t border-zinc-700">
-        <input
-          type="text"
-          value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
-          placeholder="Type a message"
-          className="flex-1 px-4 py-2.5 bg-zinc-700 rounded-full text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-green-500 shadow-sm placeholder:text-zinc-400"
-          onKeyDown={(e) => e.key === 'Enter' && !isSending && handleSend()}
-        />
-        <button
-          onClick={handleSend}
-          disabled={isSending || !inputText.trim()}
-          className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shadow-sm ${
-            inputText.trim()
-              ? 'bg-green-600 hover:bg-green-500 text-white'
-              : 'bg-zinc-600 text-zinc-400'
-          } disabled:opacity-50`}
-        >
-          {isSending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-        </button>
+        {isRecording ? (
+          <div className="flex-1 flex items-center justify-center">
+            <AudioRecorder
+              onTranscription={handleVoiceTranscription}
+              disabled={isSending}
+            />
+          </div>
+        ) : (
+          <>
+            <input
+              type="text"
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              placeholder="Type a message"
+              className="flex-1 px-4 py-2.5 bg-zinc-700 rounded-full text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-green-500 shadow-sm placeholder:text-zinc-400"
+              onKeyDown={(e) => e.key === 'Enter' && !isSending && handleSend()}
+            />
+            <AudioRecorder
+              onTranscription={handleVoiceTranscription}
+              disabled={isSending}
+            />
+            <button
+              onClick={handleSend}
+              disabled={isSending || !inputText.trim()}
+              className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shadow-sm ${
+                inputText.trim()
+                  ? 'bg-green-600 hover:bg-green-500 text-white'
+                  : 'bg-zinc-600 text-zinc-400'
+              } disabled:opacity-50`}
+            >
+              {isSending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+            </button>
+          </>
+        )}
       </div>
 
       {/* Context menu for message status */}
