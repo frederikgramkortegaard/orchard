@@ -12,6 +12,7 @@ import { terminalMonitorService, type DetectedPattern } from './terminal-monitor
 import { worktreeService } from './worktree.service.js';
 import { orchestratorService } from './orchestrator.service.js';
 import { projectService } from './project.service.js';
+import { databaseService } from './database.service.js';
 import { daemonClient } from '../pty/daemon-client.js';
 
 export enum LoopState {
@@ -1391,22 +1392,31 @@ class OrchestratorLoopService extends EventEmitter {
   }
 
   /**
-   * Tool: Send a message to the activity log
-   * NOTE: This only logs to activity log, not to chat. Agent completion messages
-   * should appear in the activity log, not in the user-facing chat interface.
+   * Tool: Send a message to the user via chat
+   * This logs to both activity log and chat so messages appear in the chat UI.
    */
   private async toolSendMessage(message: string, correlationId: string): Promise<void> {
     const projectId = this.projectId;
     if (!projectId) throw new Error('No project context');
 
-    // Log to activity log only (not chat.json)
-    // Agent completion messages belong in activity log, not user chat
+    const project = projectService.getProject(projectId);
+    if (!project) throw new Error('Project not found');
+
+    // Log to activity log
     await activityLoggerService.log({
       type: 'event',
       category: 'orchestrator',
       summary: message,
       details: { message, source: 'send_message' },
       correlationId,
+    });
+
+    // Also add to chat so it appears in the chat UI
+    databaseService.addChatMessage(project.path, {
+      id: randomUUID(),
+      projectId: project.id,
+      from: 'orchestrator',
+      text: message,
     });
 
     this.emit('message:sent', { message });
