@@ -131,7 +131,7 @@ export function OrchestratorLoopControl({ projectId }: OrchestratorLoopControlPr
   const getStateColor = () => {
     switch (status?.state) {
       case 'RUNNING':
-        return 'bg-green-500';
+        return 'bg-emerald-500';
       case 'DEGRADED':
         return 'bg-amber-500';
       case 'PAUSED':
@@ -174,7 +174,7 @@ export function OrchestratorLoopControl({ projectId }: OrchestratorLoopControlPr
             <button
               onClick={handleStart}
               disabled={isLoading || isTransitioning}
-              className="p-1.5 text-zinc-500 dark:text-zinc-400 hover:text-green-500 dark:hover:text-green-400 hover:bg-zinc-300 dark:hover:bg-zinc-700 rounded disabled:opacity-50"
+              className="p-1.5 text-zinc-500 dark:text-zinc-400 hover:text-emerald-500 dark:hover:text-emerald-400 hover:bg-zinc-300 dark:hover:bg-zinc-700 rounded disabled:opacity-50"
               title="Start Loop"
             >
               {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}

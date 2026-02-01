@@ -97,7 +97,7 @@ export function CreateWorktreeModal({ isOpen, projectId, onClose, onSubmit }: Cr
                   value={branch}
                   onChange={(e) => setBranch(e.target.value)}
                   placeholder="feature/my-feature"
-                  className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded focus:outline-none focus:border-green-500"
+                  className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded focus:outline-none focus:border-emerald-500"
                   required
                 />
               </div>
@@ -106,7 +106,7 @@ export function CreateWorktreeModal({ isOpen, projectId, onClose, onSubmit }: Cr
                 <select
                   value={baseBranch}
                   onChange={(e) => setBaseBranch(e.target.value)}
-                  className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded focus:outline-none focus:border-green-500"
+                  className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded focus:outline-none focus:border-emerald-500"
                 >
                   {allBranches.map((b) => (
                     <option key={b} value={b}>{b}</option>
@@ -120,7 +120,7 @@ export function CreateWorktreeModal({ isOpen, projectId, onClose, onSubmit }: Cr
               <select
                 value={branch}
                 onChange={(e) => setBranch(e.target.value)}
-                className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded focus:outline-none focus:border-green-500"
+                className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded focus:outline-none focus:border-emerald-500"
                 required
               >
                 <option value="">Select a branch...</option>
@@ -148,7 +148,7 @@ export function CreateWorktreeModal({ isOpen, projectId, onClose, onSubmit }: Cr
             <button
               type="submit"
               disabled={isSubmitting || !branch}
-              className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded disabled:opacity-50"
+              className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded disabled:opacity-50"
             >
               {isSubmitting ? 'Creating...' : 'Create Worktree'}
             </button>

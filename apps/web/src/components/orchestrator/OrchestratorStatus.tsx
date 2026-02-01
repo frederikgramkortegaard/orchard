@@ -117,8 +117,8 @@ function determineActivity(
       return {
         icon: <Eye size={12} />,
         text: `Monitoring ${activeCount} agent${activeCount > 1 ? 's' : ''}`,
-        color: 'text-green-500 dark:text-green-400',
-        bgColor: 'bg-green-50 dark:bg-green-900/20',
+        color: 'text-emerald-500 dark:text-emerald-400',
+        bgColor: 'bg-emerald-50 dark:bg-emerald-900/20',
       };
     }
 

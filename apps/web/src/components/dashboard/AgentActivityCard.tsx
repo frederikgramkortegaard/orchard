@@ -65,7 +65,7 @@ export function AgentActivityCard({ projectId }: AgentActivityCardProps) {
       case 'start':
         return <Zap size={12} className="text-blue-500" />;
       case 'complete':
-        return <CheckCircle2 size={12} className="text-green-500" />;
+        return <CheckCircle2 size={12} className="text-emerald-500" />;
       case 'error':
         return <AlertTriangle size={12} className="text-red-500" />;
       default:
@@ -90,7 +90,7 @@ export function AgentActivityCard({ projectId }: AgentActivityCardProps) {
         </div>
         <div className="flex gap-3 text-xs">
           <span className="text-zinc-500">{stats.total} actions</span>
-          <span className="text-green-500">{stats.completed} done</span>
+          <span className="text-emerald-500">{stats.completed} done</span>
           {stats.errors > 0 && <span className="text-red-500">{stats.errors} errors</span>}
         </div>
       </div>

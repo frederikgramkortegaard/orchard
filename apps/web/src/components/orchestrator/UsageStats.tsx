@@ -248,7 +248,7 @@ export function UsageStats({ projectId }: UsageStatsProps) {
                 icon={Activity}
                 label="Activities"
                 value={data.summary.totalActivities}
-                color="bg-green-100 dark:bg-green-900/30 text-green-500 dark:text-green-400"
+                color="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-500 dark:text-emerald-400"
               />
               <StatCard
                 icon={Cpu}
@@ -270,7 +270,7 @@ export function UsageStats({ projectId }: UsageStatsProps) {
               </div>
               <div className="flex gap-3 text-xs">
                 <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full bg-green-500" />
+                  <div className="w-2 h-2 rounded-full bg-emerald-500" />
                   <span className="text-zinc-600 dark:text-zinc-400">
                     {data.summary.activeAgents} Active
                   </span>

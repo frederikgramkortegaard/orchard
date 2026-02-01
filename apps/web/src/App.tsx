@@ -281,7 +281,7 @@ function App() {
                   <p>Open a project to get started</p>
                   <button
                     onClick={() => setShowProjectModal(true)}
-                    className="mt-4 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded"
+                    className="mt-4 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded"
                   >
                     Open Project
                   </button>

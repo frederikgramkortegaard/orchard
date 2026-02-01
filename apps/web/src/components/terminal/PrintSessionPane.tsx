@@ -82,7 +82,7 @@ export function PrintSessionPane({ projectId, worktreeId }: PrintSessionPaneProp
             }`}
           >
             <span className={`w-2 h-2 rounded-full ${
-              session.status === 'running' ? 'bg-green-500 animate-pulse' :
+              session.status === 'running' ? 'bg-emerald-500 animate-pulse' :
               session.status === 'completed' ? 'bg-blue-500' : 'bg-red-500'
             }`} />
             <span className="truncate max-w-[150px]" title={session.task}>
@@ -103,7 +103,7 @@ export function PrintSessionPane({ projectId, worktreeId }: PrintSessionPaneProp
             <div className="flex items-center justify-between px-4 py-2 bg-zinc-800/50 border-b border-zinc-700">
               <div className="flex items-center gap-2">
                 <span className={`px-2 py-0.5 text-xs rounded ${
-                  activeSession.status === 'running' ? 'bg-green-500/20 text-green-400' :
+                  activeSession.status === 'running' ? 'bg-emerald-500/20 text-emerald-400' :
                   activeSession.status === 'completed' ? 'bg-blue-500/20 text-blue-400' :
                   'bg-red-500/20 text-red-400'
                 }`}>
@@ -114,7 +114,7 @@ export function PrintSessionPane({ projectId, worktreeId }: PrintSessionPaneProp
                 </span>
               </div>
               {activeSession.exitCode !== undefined && (
-                <span className={`text-xs ${activeSession.exitCode === 0 ? 'text-green-400' : 'text-red-400'}`}>
+                <span className={`text-xs ${activeSession.exitCode === 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                   Exit: {activeSession.exitCode}
                 </span>
               )}

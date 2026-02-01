@@ -106,7 +106,7 @@ export function AgentHealthDashboard() {
   const getStatusIcon = (status: AgentHealth['status']) => {
     switch (status) {
       case 'healthy':
-        return <CheckCircle2 size={14} className="text-green-500" />;
+        return <CheckCircle2 size={14} className="text-emerald-500" />;
       case 'working':
         return <Loader2 size={14} className="text-blue-500 animate-spin" />;
       case 'idle':
@@ -136,7 +136,7 @@ export function AgentHealthDashboard() {
   const getStatusColor = (status: AgentHealth['status']) => {
     switch (status) {
       case 'healthy':
-        return 'text-green-500';
+        return 'text-emerald-500';
       case 'working':
         return 'text-blue-500';
       case 'idle':
@@ -167,7 +167,7 @@ export function AgentHealthDashboard() {
   }, [stats]);
 
   const getHealthColor = (percentage: number) => {
-    if (percentage >= 80) return 'text-green-500';
+    if (percentage >= 80) return 'text-emerald-500';
     if (percentage >= 50) return 'text-amber-500';
     return 'text-red-500';
   };
@@ -188,7 +188,7 @@ export function AgentHealthDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <Activity size={16} className="text-green-500" />
+          <Activity size={16} className="text-emerald-500" />
           <h3 className="text-sm font-medium">Agent Health</h3>
         </div>
         <div className="flex items-center gap-3">
@@ -222,8 +222,8 @@ export function AgentHealthDashboard() {
           <div className="text-xs text-zinc-500">Working</div>
         </div>
         <div className="text-center p-2 bg-zinc-50 dark:bg-zinc-900 rounded">
-          <CheckCircle2 size={14} className="mx-auto text-green-500 mb-1" />
-          <div className="text-lg font-semibold text-green-500">{stats.healthy + stats.idle}</div>
+          <CheckCircle2 size={14} className="mx-auto text-emerald-500 mb-1" />
+          <div className="text-lg font-semibold text-emerald-500">{stats.healthy + stats.idle}</div>
           <div className="text-xs text-zinc-500">Ready</div>
         </div>
         <div className="text-center p-2 bg-zinc-50 dark:bg-zinc-900 rounded">

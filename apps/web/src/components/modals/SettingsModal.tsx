@@ -93,7 +93,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     onClick={() => setThemePreference(option.value)}
                     className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded transition-colors ${
                       themePreference === option.value
-                        ? 'bg-green-600 text-white'
+                        ? 'bg-emerald-600 text-white'
                         : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'
                     }`}
                   >
@@ -131,7 +131,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <select
                 value={timezone}
                 onChange={(e) => setTimezone(e.target.value)}
-                className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 rounded focus:outline-none focus:border-green-500"
+                className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 rounded focus:outline-none focus:border-emerald-500"
               >
                 {TIMEZONE_OPTIONS.map((tz) => (
                   <option key={tz.value} value={tz.value}>
@@ -154,7 +154,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     onClick={() => setTimeFormat(option.value)}
                     className={`flex-1 px-3 py-2 rounded text-sm transition-colors ${
                       timeFormat === option.value
-                        ? 'bg-green-600 text-white'
+                        ? 'bg-emerald-600 text-white'
                         : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'
                     }`}
                   >
@@ -227,7 +227,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           </button>
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-red-600 hover:bg-green-500 text-white rounded"
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded"
           >
             Done
           </button>
@@ -257,7 +257,7 @@ function ToggleSwitch({
           : 'cursor-pointer'
       } ${
         checked
-          ? 'bg-red-600'
+          ? 'bg-emerald-600'
           : 'bg-zinc-300 dark:bg-zinc-600'
       }`}
     >

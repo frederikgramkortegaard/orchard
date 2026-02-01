@@ -3,17 +3,17 @@ import { X, CheckCircle, XCircle, AlertTriangle, Info, ChevronDown, ChevronUp } 
 import { useToast, type Toast as ToastType, type ToastType as ToastVariant } from '../contexts/ToastContext';
 
 const iconMap: Record<ToastVariant, React.ReactNode> = {
-  success: <CheckCircle size={18} className="text-green-500" />,
+  success: <CheckCircle size={18} className="text-emerald-500" />,
   error: <XCircle size={18} className="text-red-500" />,
   warning: <AlertTriangle size={18} className="text-amber-500" />,
-  info: <Info size={18} className="text-green-500" />,
+  info: <Info size={18} className="text-emerald-500" />,
 };
 
 const bgColorMap: Record<ToastVariant, string> = {
-  success: 'bg-green-50 dark:bg-green-900/30 pink:bg-green-50 border-green-200 dark:border-green-800 pink:border-green-200',
+  success: 'bg-emerald-50 dark:bg-emerald-900/30 pink:bg-emerald-50 border-emerald-200 dark:border-emerald-800 pink:border-emerald-200',
   error: 'bg-red-50 dark:bg-red-900/30 pink:bg-red-50 border-red-200 dark:border-red-800 pink:border-red-200',
   warning: 'bg-amber-50 dark:bg-amber-900/30 pink:bg-amber-50 border-amber-200 dark:border-amber-800 pink:border-amber-200',
-  info: 'bg-green-50 dark:bg-green-900/30 pink:bg-green-50 border-green-200 dark:border-green-800 pink:border-green-200',
+  info: 'bg-emerald-50 dark:bg-emerald-900/30 pink:bg-emerald-50 border-emerald-200 dark:border-emerald-800 pink:border-emerald-200',
 };
 
 function ToastItem({ toast }: { toast: ToastType }) {

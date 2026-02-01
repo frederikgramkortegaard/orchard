@@ -139,9 +139,9 @@ export function FolderBrowser({ onSelect, onCancel, initialPath, selectGitReposO
                 onDoubleClick={() => handleDoubleClick(entry)}
                 className={`w-full flex items-center gap-2 px-3 py-2 rounded text-left text-sm ${
                   selectedPath === entry.path
-                    ? 'bg-green-600 text-white'
+                    ? 'bg-emerald-600 text-white'
                     : entry.isGitRepo
-                    ? 'bg-zinc-800 hover:bg-zinc-700 text-green-400'
+                    ? 'bg-zinc-800 hover:bg-zinc-700 text-emerald-400'
                     : 'hover:bg-zinc-800 text-zinc-300'
                 }`}
               >
@@ -154,7 +154,7 @@ export function FolderBrowser({ onSelect, onCancel, initialPath, selectGitReposO
                 )}
                 <span className="flex-1 truncate">{entry.name}</span>
                 {entry.isGitRepo && (
-                  <span className="text-xs text-green-500 bg-green-900/30 px-1.5 py-0.5 rounded">
+                  <span className="text-xs text-emerald-500 bg-emerald-900/30 px-1.5 py-0.5 rounded">
                     git
                   </span>
                 )}
@@ -168,7 +168,7 @@ export function FolderBrowser({ onSelect, onCancel, initialPath, selectGitReposO
       {selectedPath && (
         <div className="px-3 py-2 bg-zinc-800/50 border-t border-zinc-700 text-sm">
           <span className="text-zinc-400">Selected: </span>
-          <span className="text-green-400">{selectedPath}</span>
+          <span className="text-emerald-400">{selectedPath}</span>
         </div>
       )}
 
@@ -183,7 +183,7 @@ export function FolderBrowser({ onSelect, onCancel, initialPath, selectGitReposO
         <button
           onClick={() => selectedPath && onSelect(selectedPath)}
           disabled={!selectedPath}
-          className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-500 rounded text-sm disabled:opacity-50"
+          className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded text-sm disabled:opacity-50"
         >
           Select
         </button>

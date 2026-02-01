@@ -23,7 +23,7 @@ function formatDate(dateStr: string): string {
 function getFileStatusIcon(status: string) {
   switch (status) {
     case 'added':
-      return <Plus size={14} className="text-green-500" />;
+      return <Plus size={14} className="text-emerald-500" />;
     case 'deleted':
       return <Minus size={14} className="text-red-500" />;
     default:
@@ -34,7 +34,7 @@ function getFileStatusIcon(status: string) {
 function getFileStatusColor(status: string) {
   switch (status) {
     case 'added':
-      return 'text-green-600 dark:text-green-400';
+      return 'text-emerald-600 dark:text-emerald-400';
     case 'deleted':
       return 'text-red-600 dark:text-red-400';
     default:

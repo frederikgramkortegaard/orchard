@@ -117,7 +117,7 @@ export function TerminalPane({ worktreeId }: TerminalPaneProps) {
             {session.rateLimit?.isLimited ? (
               <Clock size={12} className="text-amber-500 animate-pulse" />
             ) : (
-              <span className={`w-2 h-2 rounded-full ${session.isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+              <span className={`w-2 h-2 rounded-full ${session.isConnected ? 'bg-emerald-500' : 'bg-red-500'}`} />
             )}
             <span>{session.name || 'Terminal'}</span>
             {session.rateLimit?.isLimited && (

@@ -71,7 +71,7 @@ export function FileViewerModal({ filePath, fileName, onClose }: FileViewerModal
               className="p-1.5 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded disabled:opacity-50"
               title="Copy content"
             >
-              {copied ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
+              {copied ? <Check size={16} className="text-emerald-500" /> : <Copy size={16} />}
             </button>
             <button
               onClick={onClose}

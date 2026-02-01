@@ -67,9 +67,9 @@ const SOURCE_COLORS: Record<DebugLogEntry['source'], { icon: string; bg: string;
     text: 'text-indigo-700 dark:text-indigo-300',
   },
   'ai-api': {
-    icon: 'text-green-500 dark:text-green-400',
-    bg: 'bg-green-100 dark:bg-green-900/30',
-    text: 'text-green-700 dark:text-green-300',
+    icon: 'text-emerald-500 dark:text-emerald-400',
+    bg: 'bg-emerald-100 dark:bg-emerald-900/30',
+    text: 'text-emerald-700 dark:text-emerald-300',
   },
 };
 
@@ -202,17 +202,17 @@ function AIRequestEntry({ entry }: { entry: AIRequestLogEntry }) {
     ? 'bg-blue-100 dark:bg-blue-900/30'
     : entry.error
     ? 'bg-red-100 dark:bg-red-900/30'
-    : 'bg-green-100 dark:bg-green-900/30';
+    : 'bg-emerald-100 dark:bg-emerald-900/30';
 
   return (
     <div className={`${bgColor} rounded-lg p-3`}>
       <div className="flex items-start gap-2">
-        <span className={`flex-shrink-0 ${isRequest ? 'text-blue-500' : entry.error ? 'text-red-500' : 'text-green-500'}`}>
+        <span className={`flex-shrink-0 ${isRequest ? 'text-blue-500' : entry.error ? 'text-red-500' : 'text-emerald-500'}`}>
           <Braces size={14} />
         </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 text-xs mb-1 flex-wrap">
-            <span className={`font-medium ${isRequest ? 'text-blue-700 dark:text-blue-300' : entry.error ? 'text-red-700 dark:text-red-300' : 'text-green-700 dark:text-green-300'}`}>
+            <span className={`font-medium ${isRequest ? 'text-blue-700 dark:text-blue-300' : entry.error ? 'text-red-700 dark:text-red-300' : 'text-emerald-700 dark:text-emerald-300'}`}>
               {isRequest ? 'REQUEST' : 'RESPONSE'}
             </span>
             {entry.tickNumber !== undefined && (

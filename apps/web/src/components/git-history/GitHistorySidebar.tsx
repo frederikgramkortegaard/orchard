@@ -32,7 +32,7 @@ interface GitHistorySidebarProps {
 // Colors for branch visualization
 const BRANCH_COLORS = [
   'text-blue-500',
-  'text-green-500',
+  'text-emerald-500',
   'text-purple-500',
   'text-orange-500',
   'text-pink-500',
@@ -41,7 +41,7 @@ const BRANCH_COLORS = [
 
 const BRANCH_BG_COLORS = [
   'bg-blue-500',
-  'bg-green-500',
+  'bg-emerald-500',
   'bg-purple-500',
   'bg-orange-500',
   'bg-pink-500',
@@ -72,7 +72,7 @@ function formatDate(dateStr: string): string {
 function getFileIcon(status: string) {
   switch (status) {
     case 'added':
-      return <Plus size={12} className="text-green-500" />;
+      return <Plus size={12} className="text-emerald-500" />;
     case 'deleted':
       return <Minus size={12} className="text-red-500" />;
     case 'renamed':
@@ -186,7 +186,7 @@ function CommitItem({
                 }}
                 className={`p-1 rounded text-xs ${
                   isCompareBase
-                    ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300'
+                    ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300'
                     : 'hover:bg-zinc-200 dark:hover:bg-zinc-600 text-zinc-600 dark:text-zinc-400'
                 }`}
                 title="Set as base"
@@ -465,7 +465,7 @@ export function GitHistorySidebar({
         <div className="flex items-center gap-2 px-3 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700">
           <span className="text-zinc-500">Comparing:</span>
           {compareBase ? (
-            <code className="px-1 py-0.5 bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 rounded">
+            <code className="px-1 py-0.5 bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 rounded">
               {compareBase.slice(0, 7)}
             </code>
           ) : (

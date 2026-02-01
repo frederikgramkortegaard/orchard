@@ -58,7 +58,7 @@ export function AgentHealthDashboard({ projectId }: AgentHealthDashboardProps) {
     }
     switch (status) {
       case 'active':
-        return <Activity size={14} className="text-green-400" />;
+        return <Activity size={14} className="text-emerald-400" />;
       case 'merged':
         return <CheckCircle size={14} className="text-purple-400" />;
       case 'error':
@@ -72,7 +72,7 @@ export function AgentHealthDashboard({ projectId }: AgentHealthDashboardProps) {
     if (hasSession) return 'border-blue-500/50 bg-blue-500/10';
     switch (status) {
       case 'active':
-        return 'border-green-500/50 bg-green-500/10';
+        return 'border-emerald-500/50 bg-emerald-500/10';
       case 'merged':
         return 'border-purple-500/50 bg-purple-500/10';
       case 'error':
@@ -132,7 +132,7 @@ export function AgentHealthDashboard({ projectId }: AgentHealthDashboardProps) {
           <div className="flex items-center gap-3 mt-1 text-xs text-zinc-500">
             <span>{formatTimeAgo(agent.lastActivity)}</span>
             {agent.commitsAhead > 0 && (
-              <span className="text-green-400">+{agent.commitsAhead} commits</span>
+              <span className="text-emerald-400">+{agent.commitsAhead} commits</span>
             )}
             {agent.modifiedFiles > 0 && (
               <span className="text-yellow-400">{agent.modifiedFiles} modified</span>

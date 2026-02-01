@@ -22,7 +22,7 @@ interface PrintSession {
 // Tool icons/colors mapping
 const toolStyles: Record<string, { icon: string; color: string; bg: string }> = {
   Bash: { icon: '⚡', color: 'text-yellow-400', bg: 'bg-yellow-500/10' },
-  Write: { icon: '✏️', color: 'text-green-400', bg: 'bg-green-500/10' },
+  Write: { icon: '✏️', color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
   Edit: { icon: '📝', color: 'text-blue-400', bg: 'bg-blue-500/10' },
   Read: { icon: '📖', color: 'text-purple-400', bg: 'bg-purple-500/10' },
   Glob: { icon: '🔍', color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
@@ -146,7 +146,7 @@ function ParsedOutput({ output }: { output: string }) {
               </div>
               {block.command && (
                 <div className="px-3 py-2 font-mono text-sm">
-                  <span className="text-green-400">$</span>
+                  <span className="text-emerald-400">$</span>
                   <span className="text-zinc-200 ml-2">{block.command}</span>
                 </div>
               )}
@@ -278,11 +278,11 @@ function PrintSessionViewer({ session, projectId }: { session: PrintSession; pro
       {/* Header */}
       <div className="flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-zinc-900 border-b border-zinc-800">
         <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
-          session.status === 'running' ? 'bg-green-500 animate-pulse' :
+          session.status === 'running' ? 'bg-emerald-500 animate-pulse' :
           session.status === 'completed' ? 'bg-emerald-500' : 'bg-red-500'
         }`} />
         <span className={`text-xs font-medium ${
-          session.status === 'running' ? 'text-green-400' :
+          session.status === 'running' ? 'text-emerald-400' :
           session.status === 'completed' ? 'text-emerald-400' : 'text-red-400'
         }`}>
           {session.status === 'running' ? 'Running' : session.status === 'completed' ? 'Completed' : 'Failed'}
@@ -343,7 +343,7 @@ function PrintSessionViewer({ session, projectId }: { session: PrintSession; pro
 function StatusIndicator({ status }: { status?: TerminalActivityStatus }) {
   if (!status || status === 'idle') {
     return (
-      <span className="flex items-center gap-1 text-xs text-green-500">
+      <span className="flex items-center gap-1 text-xs text-emerald-500">
         <Circle size={8} className="fill-current" />
         <span className="hidden sm:inline">Idle</span>
       </span>
@@ -658,7 +658,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
           {terminalSession && <StatusIndicator status={terminalSession.activityStatus} />}
           {printSession && (
             <span className={`w-2 h-2 rounded-full ${
-              printSession.status === 'running' ? 'bg-green-500 animate-pulse' :
+              printSession.status === 'running' ? 'bg-emerald-500 animate-pulse' :
               printSession.status === 'completed' ? 'bg-blue-500' : 'bg-red-500'
             }`} />
           )}
@@ -697,7 +697,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
                 <button
                   onClick={() => sendTerminalInput(terminalSession.id, '\r')}
                   disabled={!isConnected}
-                  className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded disabled:opacity-50"
+                  className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded disabled:opacity-50"
                   title="Continue (send Enter)"
                 >
                   <Play size={14} />

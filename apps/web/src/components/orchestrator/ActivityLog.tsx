@@ -168,8 +168,8 @@ function getActivityColors(kind: ActivityKind) {
       };
     case 'task_complete':
       return {
-        icon: 'text-green-500 dark:text-green-400',
-        bg: 'bg-green-100 dark:bg-green-900/30',
+        icon: 'text-emerald-500 dark:text-emerald-400',
+        bg: 'bg-emerald-100 dark:bg-emerald-900/30',
       };
     case 'error':
       return {

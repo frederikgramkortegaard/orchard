@@ -47,10 +47,10 @@ export function MessagesChart({ projectId }: MessagesChartProps) {
     <div className="bg-zinc-100 dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <MessageSquare size={16} className="text-green-500" />
+          <MessageSquare size={16} className="text-emerald-500" />
           <h3 className="text-sm font-medium">Messages (14 days)</h3>
         </div>
-        <span className="text-2xl font-bold text-green-500">{totalMessages}</span>
+        <span className="text-2xl font-bold text-emerald-500">{totalMessages}</span>
       </div>
 
       {isLoading ? (
@@ -58,7 +58,7 @@ export function MessagesChart({ projectId }: MessagesChartProps) {
           Loading...
         </div>
       ) : (
-        <SimpleLineChart data={chartData} height={120} lineColor="#22c55e" fillColor="rgba(34, 197, 94, 0.1)" />
+        <SimpleLineChart data={chartData} height={120} lineColor="#10b981" fillColor="rgba(16, 185, 129, 0.1)" />
       )}
     </div>
   );

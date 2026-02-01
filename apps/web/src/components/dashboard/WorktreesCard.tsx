@@ -28,7 +28,7 @@ export function WorktreesCard({ worktrees, onApprove }: WorktreesCardProps) {
 
   const getStatusColor = (worktree: Worktree) => {
     if (worktree.conflictingFiles && worktree.conflictingFiles.length > 0) return 'text-red-500';
-    if (worktree.merged) return 'text-green-500';
+    if (worktree.merged) return 'text-emerald-500';
     if (worktree.status.modified > 0 || worktree.status.staged > 0) return 'text-amber-500';
     return 'text-blue-500';
   };
@@ -38,7 +38,7 @@ export function WorktreesCard({ worktrees, onApprove }: WorktreesCardProps) {
     if (worktree.conflictingFiles && worktree.conflictingFiles.length > 0) {
       return <AlertTriangle size={12} className="text-red-500" />;
     }
-    if (worktree.merged) return <CheckCircle size={12} className="text-green-500" />;
+    if (worktree.merged) return <CheckCircle size={12} className="text-emerald-500" />;
     if (worktree.status.modified > 0 || worktree.status.staged > 0) {
       return <AlertCircle size={12} className="text-amber-500" />;
     }
@@ -106,7 +106,7 @@ export function WorktreesCard({ worktrees, onApprove }: WorktreesCardProps) {
                   <button
                     onClick={() => handleApprove(worktree.id)}
                     disabled={approvingId === worktree.id}
-                    className="flex items-center gap-1 px-2 py-1 bg-green-500/20 text-green-500 hover:bg-green-500/30 rounded transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1 px-2 py-1 bg-emerald-500/20 text-emerald-500 hover:bg-emerald-500/30 rounded transition-colors disabled:opacity-50"
                   >
                     <Play size={10} />
                     {approvingId === worktree.id ? 'Approving...' : 'Approve'}

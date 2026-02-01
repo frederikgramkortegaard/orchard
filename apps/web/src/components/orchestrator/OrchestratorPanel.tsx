@@ -27,7 +27,7 @@ function StatusIndicator({ status, from }: { status?: MessageStatus; from: 'user
   if (from === 'user') {
     switch (status) {
       case 'resolved':
-        return <span title="Resolved"><CheckCheck size={14} className="text-green-400" /></span>;
+        return <span title="Resolved"><CheckCheck size={14} className="text-emerald-400" /></span>;
       case 'working':
         return <span title="Being worked on"><Loader2 size={14} className="text-yellow-400 animate-spin" /></span>;
       case 'read':
@@ -41,7 +41,7 @@ function StatusIndicator({ status, from }: { status?: MessageStatus; from: 'user
   // For orchestrator messages, show status on the left side
   switch (status) {
     case 'resolved':
-      return <span title="Resolved"><CheckCheck size={14} className="text-green-400" /></span>;
+      return <span title="Resolved"><CheckCheck size={14} className="text-emerald-400" /></span>;
     case 'working':
       return <span title="Being worked on"><Clock size={14} className="text-yellow-400" /></span>;
     case 'read':
@@ -245,7 +245,7 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
     <div className="flex flex-col h-full bg-zinc-900 rounded-lg overflow-hidden shadow-sm">
       {/* Chat header */}
       <div className="flex items-center gap-3 px-4 py-3 bg-zinc-800 text-white border-b border-zinc-700">
-        <div className="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center">
+        <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center">
           <MessageCircle size={20} />
         </div>
         <div className="flex-1">
@@ -256,7 +256,7 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
         </div>
         <div
           className={`w-2.5 h-2.5 rounded-full ${
-            orchestratorSessionId ? 'bg-green-500' : 'bg-zinc-500'
+            orchestratorSessionId ? 'bg-emerald-500' : 'bg-zinc-500'
           }`}
         />
       </div>
@@ -268,7 +268,7 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
       >
         {chatMessages.length === 0 ? (
           <div className="text-xs text-zinc-400 text-center py-8 bg-zinc-800/80 rounded-lg mx-auto max-w-xs shadow-sm">
-            <Bot size={24} className="mx-auto mb-2 text-green-500" />
+            <Bot size={24} className="mx-auto mb-2 text-emerald-500" />
             No messages yet. Send a message to the orchestrator.
           </div>
         ) : (
@@ -281,18 +281,18 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
               <div
                 className={`relative max-w-[85%] px-3 py-2 text-sm shadow-sm cursor-context-menu ${
                   msg.from === 'user'
-                    ? 'bg-green-600 text-white rounded-tl-xl rounded-tr-sm rounded-bl-xl rounded-br-xl'
+                    ? 'bg-emerald-600 text-white rounded-tl-xl rounded-tr-sm rounded-bl-xl rounded-br-xl'
                     : 'bg-zinc-700 text-zinc-100 rounded-tl-sm rounded-tr-xl rounded-bl-xl rounded-br-xl'
                 }`}
               >
-                <div className="prose prose-sm prose-invert max-w-none break-words [&_p]:my-0 [&_p:not(:last-child)]:mb-2 [&_ul]:my-1 [&_ul]:pl-4 [&_ol]:my-1 [&_ol]:pl-4 [&_li]:my-0 [&_pre]:my-2 [&_pre]:p-2 [&_pre]:rounded [&_pre]:bg-black/20 [&_code]:text-xs [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:bg-black/20 [&_pre_code]:p-0 [&_pre_code]:bg-transparent [&_a]:text-green-300 [&_a]:underline [&_strong]:font-semibold [&_em]:italic [&_blockquote]:border-l-2 [&_blockquote]:border-zinc-500 [&_blockquote]:pl-2 [&_blockquote]:my-2 [&_blockquote]:italic">
+                <div className="prose prose-sm prose-invert max-w-none break-words [&_p]:my-0 [&_p:not(:last-child)]:mb-2 [&_ul]:my-1 [&_ul]:pl-4 [&_ol]:my-1 [&_ol]:pl-4 [&_li]:my-0 [&_pre]:my-2 [&_pre]:p-2 [&_pre]:rounded [&_pre]:bg-black/20 [&_code]:text-xs [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:bg-black/20 [&_pre_code]:p-0 [&_pre_code]:bg-transparent [&_a]:text-emerald-300 [&_a]:underline [&_strong]:font-semibold [&_em]:italic [&_blockquote]:border-l-2 [&_blockquote]:border-zinc-500 [&_blockquote]:pl-2 [&_blockquote]:my-2 [&_blockquote]:italic">
                   <ReactMarkdown>{msg.text}</ReactMarkdown>
                 </div>
                 <div className={`flex items-center gap-1.5 mt-1 ${
                   msg.from === 'user' ? 'justify-end' : 'justify-start'
                 }`}>
                   <span className={`text-[10px] ${
-                    msg.from === 'user' ? 'text-green-200' : 'text-zinc-500'
+                    msg.from === 'user' ? 'text-emerald-200' : 'text-zinc-500'
                   }`}>
                     {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
@@ -326,7 +326,7 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           placeholder="Type a message"
-          className="flex-1 px-4 py-2.5 bg-zinc-700 rounded-full text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-green-500 shadow-sm placeholder:text-zinc-400"
+          className="flex-1 px-4 py-2.5 bg-zinc-700 rounded-full text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm placeholder:text-zinc-400"
           onKeyDown={(e) => e.key === 'Enter' && !isSending && handleSend()}
         />
         <button
@@ -334,7 +334,7 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
           disabled={isSending || !inputText.trim()}
           className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shadow-sm ${
             inputText.trim()
-              ? 'bg-green-600 hover:bg-green-500 text-white'
+              ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
               : 'bg-zinc-600 text-zinc-400'
           } disabled:opacity-50`}
         >
@@ -377,7 +377,7 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
             onClick={() => handleStatusChange(contextMenu.messageId!, 'resolved')}
             className="w-full px-3 py-2 text-sm text-left text-zinc-200 hover:bg-zinc-700 flex items-center gap-2"
           >
-            <CheckCheck size={14} className="text-green-400" />
+            <CheckCheck size={14} className="text-emerald-400" />
             Resolved
           </button>
         </div>
