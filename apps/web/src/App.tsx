@@ -14,6 +14,7 @@ import { DiffViewerModal } from './components/diff';
 import { OrchestratorPanel } from './components/orchestrator/OrchestratorPanel';
 import { ActivityPane } from './components/orchestrator/ActivityPane';
 import { Dashboard } from './components/dashboard/Dashboard';
+import { OrchestratorLoopControl } from './components/OrchestratorLoopControl';
 import * as api from './api/projects';
 
 function App() {
@@ -259,7 +260,9 @@ function App() {
           <Panel defaultSize={60} minSize={5}>
             {activeProjectId && activeProject ? (
               <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-900">
-                {/* Loop control hidden - see OrchestratorLoopControl if re-enabling */}
+                <div className="p-2 border-b border-zinc-200 dark:border-zinc-700">
+                  <OrchestratorLoopControl projectId={activeProjectId} />
+                </div>
                 <div className="flex-1 min-h-0 p-2">
                   <OrchestratorPanel key={`chat-${activeProjectId}-${projectSwitchKey}`} projectId={activeProjectId} projectPath={activeProject.path} />
                 </div>
