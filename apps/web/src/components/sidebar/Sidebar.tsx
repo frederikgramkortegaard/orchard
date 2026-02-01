@@ -82,6 +82,7 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
   const handleCopyBranchName = () => {
     if (contextMenu) {
       navigator.clipboard.writeText(contextMenu.worktree.branch);
+      addToast('success', `Copied "${contextMenu.worktree.branch}" to clipboard`);
       closeContextMenu();
     }
   };
@@ -345,7 +346,7 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
       {/* Context Menu */}
       {contextMenu && (
         <div
-          className="fixed z-50 min-w-[160px] py-1 bg-zinc-800 border border-zinc-700 rounded-md shadow-lg"
+          className="fixed z-50 min-w-[160px] py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md shadow-lg"
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -355,7 +356,7 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
                 onViewDiff(contextMenu.worktree.id, contextMenu.worktree.branch);
                 closeContextMenu();
               }}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700 text-left"
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-left"
             >
               <GitCompare size={14} />
               View Diff
@@ -363,20 +364,20 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
           )}
           <button
             onClick={handleCopyBranchName}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700 text-left"
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-left"
           >
             <Copy size={14} />
             Copy Branch Name
           </button>
           {!contextMenu.worktree.isMain && !contextMenu.worktree.archived && (
             <>
-              <div className="my-1 border-t border-zinc-700" />
+              <div className="my-1 border-t border-zinc-200 dark:border-zinc-700" />
               <button
                 onClick={() => {
                   onArchiveWorktree(contextMenu.worktree.id);
                   closeContextMenu();
                 }}
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-amber-400 hover:bg-zinc-700 text-left"
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-amber-600 dark:text-amber-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-left"
               >
                 <Archive size={14} />
                 Archive
@@ -389,7 +390,7 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
                 onDeleteWorktree(contextMenu.worktree.id);
                 closeContextMenu();
               }}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-red-400 hover:bg-zinc-700 text-left"
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-left"
             >
               <Trash2 size={14} />
               Delete
