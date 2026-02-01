@@ -1,4 +1,4 @@
-import { GitBranch, Clock, AlertCircle, CheckCircle, FileText, Play } from 'lucide-react';
+import { GitBranch, Clock, AlertCircle, CheckCircle, FileText, Play, AlertTriangle } from 'lucide-react';
 import type { Worktree } from '../../stores/project.store';
 import { useState } from 'react';
 
@@ -13,6 +13,7 @@ export function WorktreesCard({ worktrees, onApprove }: WorktreesCardProps) {
   const archivedCount = worktrees.filter((w) => w.archived).length;
   const mergedCount = worktrees.filter((w) => w.merged).length;
   const planModeCount = worktrees.filter((w) => w.mode === 'plan' && !w.archived).length;
+  const conflictCount = worktrees.filter((w) => w.conflictingFiles && w.conflictingFiles.length > 0 && !w.archived).length;
 
   const handleApprove = async (worktreeId: string) => {
     setApprovingId(worktreeId);
@@ -26,17 +27,26 @@ export function WorktreesCard({ worktrees, onApprove }: WorktreesCardProps) {
   };
 
   const getStatusColor = (worktree: Worktree) => {
+    if (worktree.conflictingFiles && worktree.conflictingFiles.length > 0) return 'text-red-500';
     if (worktree.merged) return 'text-green-500';
     if (worktree.status.modified > 0 || worktree.status.staged > 0) return 'text-amber-500';
     return 'text-blue-500';
   };
 
   const getStatusIcon = (worktree: Worktree) => {
+    // Conflict warning takes priority
+    if (worktree.conflictingFiles && worktree.conflictingFiles.length > 0) {
+      return <AlertTriangle size={12} className="text-red-500" />;
+    }
     if (worktree.merged) return <CheckCircle size={12} className="text-green-500" />;
     if (worktree.status.modified > 0 || worktree.status.staged > 0) {
       return <AlertCircle size={12} className="text-amber-500" />;
     }
     return <GitBranch size={12} className="text-blue-500" />;
+  };
+
+  const hasConflicts = (worktree: Worktree) => {
+    return worktree.conflictingFiles && worktree.conflictingFiles.length > 0;
   };
 
   const formatDate = (dateStr: string | null) => {
@@ -60,6 +70,7 @@ export function WorktreesCard({ worktrees, onApprove }: WorktreesCardProps) {
         </div>
         <div className="flex gap-3 text-xs text-zinc-500">
           <span>{activeWorktrees.length} active</span>
+          {conflictCount > 0 && <span className="text-red-500">{conflictCount} conflicts</span>}
           {planModeCount > 0 && <span className="text-purple-500">{planModeCount} planning</span>}
           <span>{mergedCount} merged</span>
           <span>{archivedCount} archived</span>
@@ -100,6 +111,12 @@ export function WorktreesCard({ worktrees, onApprove }: WorktreesCardProps) {
                     <Play size={10} />
                     {approvingId === worktree.id ? 'Approving...' : 'Approve'}
                   </button>
+                )}
+                {hasConflicts(worktree) && (
+                  <span className="flex items-center gap-1 text-red-500" title={`Conflicting files: ${worktree.conflictingFiles?.join(', ')}`}>
+                    <AlertTriangle size={10} />
+                    {worktree.conflictingFiles?.length} conflict{worktree.conflictingFiles?.length !== 1 ? 's' : ''}
+                  </span>
                 )}
                 {(worktree.status.modified > 0 || worktree.status.staged > 0 || worktree.status.untracked > 0) && (
                   <span className="text-amber-500">

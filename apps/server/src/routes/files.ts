@@ -3,6 +3,7 @@ import { readdir, stat, readFile, writeFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join, basename, extname } from 'path';
 import { homedir } from 'os';
+import { fileTrackingService } from '../services/file-tracking.service.js';
 
 export interface DirectoryEntry {
   name: string;
@@ -246,6 +247,49 @@ export async function filesRoutes(fastify: FastifyInstance) {
 
       await writeFile(filePath, content, 'utf-8');
       return { path: filePath, saved: true };
+    } catch (err: any) {
+      return reply.status(500).send({ error: err.message });
+    }
+  });
+
+  // Get file locks per agent (which files are being modified by which worktree)
+  fastify.get<{
+    Querystring: { projectId: string };
+  }>('/files/locks', async (request, reply) => {
+    const { projectId } = request.query;
+
+    if (!projectId) {
+      return reply.status(400).send({ error: 'projectId query parameter required' });
+    }
+
+    try {
+      const locks = await fileTrackingService.getFileLocksGroupedByWorktree(projectId);
+      return { projectId, locks };
+    } catch (err: any) {
+      return reply.status(500).send({ error: err.message });
+    }
+  });
+
+  // Detect potential merge conflicts between agents
+  fastify.get<{
+    Querystring: { projectId: string };
+  }>('/files/conflicts', async (request, reply) => {
+    const { projectId } = request.query;
+
+    if (!projectId) {
+      return reply.status(400).send({ error: 'projectId query parameter required' });
+    }
+
+    try {
+      const conflicts = await fileTrackingService.detectConflicts(projectId);
+      const worktreeConflicts = await fileTrackingService.getWorktreesWithConflicts(projectId);
+
+      return {
+        projectId,
+        conflicts,
+        worktreeConflicts: Object.fromEntries(worktreeConflicts),
+        hasConflicts: conflicts.length > 0,
+      };
     } catch (err: any) {
       return reply.status(500).send({ error: err.message });
     }

@@ -29,6 +29,7 @@ export interface Worktree {
   };
   lastCommitDate: string | null;  // ISO date string of the most recent commit
   createdAt: string | null;       // ISO date string when worktree was created
+  conflictingFiles?: string[];    // Files that conflict with other worktrees
 }
 
 interface ProjectState {

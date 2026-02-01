@@ -2,6 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import { worktreeService } from '../services/worktree.service.js';
 import { projectService } from '../services/project.service.js';
 import { daemonClient } from '../pty/daemon-client.js';
+import { fileTrackingService } from '../services/file-tracking.service.js';
+import { databaseService } from '../services/database.service.js';
 
 export async function worktreesRoutes(fastify: FastifyInstance) {
   // List worktrees for a project
@@ -24,6 +26,34 @@ export async function worktreesRoutes(fastify: FastifyInstance) {
     }
 
     try {
+      // Check for existing file conflicts before creating the worktree
+      const existingConflicts = await fileTrackingService.detectConflicts(projectId);
+      const project = projectService.getProject(projectId);
+
+      // Log warning if there are already files being modified by multiple agents
+      if (existingConflicts.length > 0 && project) {
+        const conflictingFiles = existingConflicts.map(c => c.filePath);
+        const conflictingBranches = new Set<string>();
+        for (const conflict of existingConflicts) {
+          for (const wt of conflict.worktrees) {
+            conflictingBranches.add(wt.branch);
+          }
+        }
+
+        databaseService.addActivityLog(project.path, projectId, {
+          type: 'event',
+          category: 'worktree',
+          summary: `Creating agent ${branch} while ${conflictingFiles.length} file(s) have potential conflicts`,
+          details: {
+            warningType: 'pre_creation_conflict_check',
+            newBranch: branch,
+            existingConflicts: existingConflicts.length,
+            conflictingBranches: Array.from(conflictingBranches),
+            conflictingFiles,
+          },
+        });
+      }
+
       const worktree = await worktreeService.createWorktree(projectId, branch, {
         newBranch,
         baseBranch,
@@ -33,7 +63,6 @@ export async function worktreesRoutes(fastify: FastifyInstance) {
       // Auto-spawn a Claude session for this worktree (with skip-permissions since inside project)
       if (daemonClient.isConnected()) {
         try {
-          const project = projectService.getProject(projectId);
           if (project) {
             await daemonClient.createSession(worktree.id, project.path, worktree.path, 'claude --dangerously-skip-permissions');
             console.log(`Created Claude session for worktree ${worktree.id}`);
