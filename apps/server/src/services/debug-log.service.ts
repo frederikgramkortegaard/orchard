@@ -1,12 +1,15 @@
 /**
  * Debug Log Service
  *
- * Provides in-memory circular buffer storage for debug logs from various sources
+ * Provides SQLite-backed storage for debug logs from various sources
  * including server, terminal daemon, orchestrator, and AI API requests/responses.
  */
 
+import { databaseService } from './database.service.js';
+import { projectService } from './project.service.js';
+
 export interface DebugLogEntry {
-  id: string;
+  id: number;
   timestamp: string;
   source: 'server' | 'daemon' | 'orchestrator' | 'ai-api';
   level: 'debug' | 'info' | 'warn' | 'error';
@@ -15,7 +18,7 @@ export interface DebugLogEntry {
 }
 
 export interface AIRequestLogEntry {
-  id: string;
+  id: number;
   timestamp: string;
   type: 'request' | 'response';
   tickNumber?: number;
@@ -31,42 +34,12 @@ export interface AIRequestLogEntry {
   correlationId?: string;
 }
 
-class CircularBuffer<T> {
-  private buffer: T[] = [];
-  private maxSize: number;
-
-  constructor(maxSize: number) {
-    this.maxSize = maxSize;
-  }
-
-  push(item: T): void {
-    this.buffer.push(item);
-    if (this.buffer.length > this.maxSize) {
-      this.buffer.shift();
-    }
-  }
-
-  getAll(): T[] {
-    return [...this.buffer];
-  }
-
-  getRecent(count: number): T[] {
-    return this.buffer.slice(-count);
-  }
-
-  clear(): void {
-    this.buffer = [];
-  }
-
-  size(): number {
-    return this.buffer.length;
-  }
-}
-
 class DebugLogService {
-  private logs = new CircularBuffer<DebugLogEntry>(1000);
-  private aiRequests = new CircularBuffer<AIRequestLogEntry>(500);
-  private idCounter = 0;
+  private getProjectPath(): string | null {
+    const projects = projectService.getAllProjects();
+    if (projects.length === 0) return null;
+    return projects[0].path;
+  }
 
   /**
    * Add a general debug log entry
@@ -76,78 +49,74 @@ class DebugLogService {
     level: DebugLogEntry['level'],
     message: string,
     details?: Record<string, unknown>
-  ): DebugLogEntry {
-    const entry: DebugLogEntry = {
-      id: `log-${++this.idCounter}`,
-      timestamp: new Date().toISOString(),
+  ): void {
+    const projectPath = this.getProjectPath();
+    if (!projectPath) return;
+
+    databaseService.addDebugLog(projectPath, {
       source,
       level,
       message,
       details,
-    };
-    this.logs.push(entry);
-    return entry;
+    });
   }
 
   /**
    * Convenience methods for different log levels
    */
-  debug(source: DebugLogEntry['source'], message: string, details?: Record<string, unknown>): DebugLogEntry {
-    return this.log(source, 'debug', message, details);
+  debug(source: DebugLogEntry['source'], message: string, details?: Record<string, unknown>): void {
+    this.log(source, 'debug', message, details);
   }
 
-  info(source: DebugLogEntry['source'], message: string, details?: Record<string, unknown>): DebugLogEntry {
-    return this.log(source, 'info', message, details);
+  info(source: DebugLogEntry['source'], message: string, details?: Record<string, unknown>): void {
+    this.log(source, 'info', message, details);
   }
 
-  warn(source: DebugLogEntry['source'], message: string, details?: Record<string, unknown>): DebugLogEntry {
-    return this.log(source, 'warn', message, details);
+  warn(source: DebugLogEntry['source'], message: string, details?: Record<string, unknown>): void {
+    this.log(source, 'warn', message, details);
   }
 
-  error(source: DebugLogEntry['source'], message: string, details?: Record<string, unknown>): DebugLogEntry {
-    return this.log(source, 'error', message, details);
+  error(source: DebugLogEntry['source'], message: string, details?: Record<string, unknown>): void {
+    this.log(source, 'error', message, details);
   }
 
   /**
    * Log an AI API request
    */
-  logAIRequest(data: Omit<AIRequestLogEntry, 'id' | 'timestamp' | 'type'>): AIRequestLogEntry {
-    const entry: AIRequestLogEntry = {
-      id: `ai-req-${++this.idCounter}`,
-      timestamp: new Date().toISOString(),
+  logAIRequest(data: Omit<AIRequestLogEntry, 'id' | 'timestamp' | 'type'>): void {
+    const projectPath = this.getProjectPath();
+    if (!projectPath) return;
+
+    databaseService.addAIRequest(projectPath, {
       type: 'request',
       ...data,
-    };
-    this.aiRequests.push(entry);
-    return entry;
+    });
   }
 
   /**
    * Log an AI API response
    */
-  logAIResponse(data: Omit<AIRequestLogEntry, 'id' | 'timestamp' | 'type'>): AIRequestLogEntry {
-    const entry: AIRequestLogEntry = {
-      id: `ai-resp-${++this.idCounter}`,
-      timestamp: new Date().toISOString(),
+  logAIResponse(data: Omit<AIRequestLogEntry, 'id' | 'timestamp' | 'type'>): void {
+    const projectPath = this.getProjectPath();
+    if (!projectPath) return;
+
+    databaseService.addAIRequest(projectPath, {
       type: 'response',
       ...data,
-    };
-    this.aiRequests.push(entry);
-    return entry;
+    });
   }
 
   /**
    * Get all logs, optionally filtered by source
    */
-  getLogs(source?: DebugLogEntry['source'], limit?: number): DebugLogEntry[] {
-    let logs = this.logs.getAll();
+  getLogs(source?: DebugLogEntry['source'], limit: number = 100): DebugLogEntry[] {
+    const projectPath = this.getProjectPath();
+    if (!projectPath) return [];
+
+    let logs = databaseService.getDebugLogs(projectPath, limit) as DebugLogEntry[];
 
     if (source) {
       logs = logs.filter(l => l.source === source);
-    }
-
-    if (limit) {
-      logs = logs.slice(-limit);
     }
 
     return logs;
@@ -157,48 +126,34 @@ class DebugLogService {
    * Get recent logs
    */
   getRecentLogs(count: number = 100): DebugLogEntry[] {
-    return this.logs.getRecent(count);
+    return this.getLogs(undefined, count);
   }
 
   /**
    * Get all AI request/response logs
    */
-  getAIRequests(limit?: number): AIRequestLogEntry[] {
-    if (limit) {
-      return this.aiRequests.getRecent(limit);
-    }
-    return this.aiRequests.getAll();
+  getAIRequests(limit: number = 100): AIRequestLogEntry[] {
+    const projectPath = this.getProjectPath();
+    if (!projectPath) return [];
+
+    return databaseService.getAIRequests(projectPath, limit) as AIRequestLogEntry[];
   }
 
   /**
    * Get recent AI requests
    */
   getRecentAIRequests(count: number = 50): AIRequestLogEntry[] {
-    return this.aiRequests.getRecent(count);
-  }
-
-  /**
-   * Clear all logs
-   */
-  clearLogs(): void {
-    this.logs.clear();
-  }
-
-  /**
-   * Clear AI request logs
-   */
-  clearAIRequests(): void {
-    this.aiRequests.clear();
+    return this.getAIRequests(count);
   }
 
   /**
    * Get stats about stored logs
    */
   getStats(): { logCount: number; aiRequestCount: number } {
-    return {
-      logCount: this.logs.size(),
-      aiRequestCount: this.aiRequests.size(),
-    };
+    const projectPath = this.getProjectPath();
+    if (!projectPath) return { logCount: 0, aiRequestCount: 0 };
+
+    return databaseService.getDebugStats(projectPath);
   }
 }
 

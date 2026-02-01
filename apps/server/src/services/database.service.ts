@@ -395,6 +395,44 @@ class DatabaseService extends EventEmitter {
       CREATE INDEX IF NOT EXISTS idx_worktrees_archived ON worktrees(archived);
     `);
 
+    // Debug logs table
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS debug_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+        source TEXT NOT NULL,
+        level TEXT NOT NULL,
+        message TEXT NOT NULL,
+        details TEXT
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_debug_logs_timestamp ON debug_logs(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_debug_logs_source ON debug_logs(source);
+    `);
+
+    // AI requests table
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS ai_requests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+        type TEXT NOT NULL,
+        tick_number INTEGER,
+        model TEXT,
+        provider TEXT,
+        messages TEXT,
+        tool_calls TEXT,
+        content TEXT,
+        usage TEXT,
+        finish_reason TEXT,
+        error TEXT,
+        duration_ms INTEGER,
+        correlation_id TEXT
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_ai_requests_timestamp ON ai_requests(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_ai_requests_correlation_id ON ai_requests(correlation_id);
+    `);
+
     console.log('[DatabaseService] Schema initialized');
   }
 
@@ -1490,6 +1528,173 @@ class DatabaseService extends EventEmitter {
 
     this.emit('merge_queue', { type: 'popped', entry });
     return entry;
+  }
+
+  // ============ Debug Logs ============
+
+  /**
+   * Add a debug log entry
+   */
+  addDebugLog(
+    projectPath: string,
+    entry: {
+      source: string;
+      level: string;
+      message: string;
+      details?: Record<string, unknown>;
+    }
+  ): void {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      INSERT INTO debug_logs (source, level, message, details)
+      VALUES (?, ?, ?, ?)
+    `);
+    stmt.run(
+      entry.source,
+      entry.level,
+      entry.message,
+      entry.details ? JSON.stringify(entry.details) : null
+    );
+
+    // Keep only last 1000 entries
+    db.exec(`
+      DELETE FROM debug_logs WHERE id NOT IN (
+        SELECT id FROM debug_logs ORDER BY id DESC LIMIT 1000
+      )
+    `);
+  }
+
+  /**
+   * Get recent debug logs
+   */
+  getDebugLogs(projectPath: string, limit: number = 100): Array<{
+    id: number;
+    timestamp: string;
+    source: string;
+    level: string;
+    message: string;
+    details?: Record<string, unknown>;
+  }> {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      SELECT id, timestamp, source, level, message, details
+      FROM debug_logs
+      ORDER BY id DESC
+      LIMIT ?
+    `);
+    const rows = stmt.all(limit) as any[];
+    return rows.map(row => ({
+      id: row.id,
+      timestamp: row.timestamp,
+      source: row.source,
+      level: row.level,
+      message: row.message,
+      details: row.details ? JSON.parse(row.details) : undefined,
+    })).reverse(); // Return in chronological order
+  }
+
+  // ============ AI Requests ============
+
+  /**
+   * Add an AI request/response log entry
+   */
+  addAIRequest(
+    projectPath: string,
+    entry: {
+      type: string;
+      tickNumber?: number;
+      model?: string;
+      provider?: string;
+      messages?: Array<{ role: string; content: string }>;
+      toolCalls?: Array<{ name: string; arguments: string }>;
+      content?: string;
+      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+      finishReason?: string;
+      error?: string;
+      durationMs?: number;
+      correlationId?: string;
+    }
+  ): void {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      INSERT INTO ai_requests (type, tick_number, model, provider, messages, tool_calls, content, usage, finish_reason, error, duration_ms, correlation_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    stmt.run(
+      entry.type,
+      entry.tickNumber ?? null,
+      entry.model ?? null,
+      entry.provider ?? null,
+      entry.messages ? JSON.stringify(entry.messages) : null,
+      entry.toolCalls ? JSON.stringify(entry.toolCalls) : null,
+      entry.content ?? null,
+      entry.usage ? JSON.stringify(entry.usage) : null,
+      entry.finishReason ?? null,
+      entry.error ?? null,
+      entry.durationMs ?? null,
+      entry.correlationId ?? null
+    );
+
+    // Keep only last 500 entries
+    db.exec(`
+      DELETE FROM ai_requests WHERE id NOT IN (
+        SELECT id FROM ai_requests ORDER BY id DESC LIMIT 500
+      )
+    `);
+  }
+
+  /**
+   * Get recent AI requests
+   */
+  getAIRequests(projectPath: string, limit: number = 100): Array<{
+    id: number;
+    timestamp: string;
+    type: string;
+    tickNumber?: number;
+    model?: string;
+    provider?: string;
+    messages?: Array<{ role: string; content: string }>;
+    toolCalls?: Array<{ name: string; arguments: string }>;
+    content?: string;
+    usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+    finishReason?: string;
+    error?: string;
+    durationMs?: number;
+    correlationId?: string;
+  }> {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      SELECT * FROM ai_requests
+      ORDER BY id DESC
+      LIMIT ?
+    `);
+    const rows = stmt.all(limit) as any[];
+    return rows.map(row => ({
+      id: row.id,
+      timestamp: row.timestamp,
+      type: row.type,
+      tickNumber: row.tick_number,
+      model: row.model,
+      provider: row.provider,
+      messages: row.messages ? JSON.parse(row.messages) : undefined,
+      toolCalls: row.tool_calls ? JSON.parse(row.tool_calls) : undefined,
+      content: row.content,
+      usage: row.usage ? JSON.parse(row.usage) : undefined,
+      finishReason: row.finish_reason,
+      error: row.error,
+      durationMs: row.duration_ms,
+      correlationId: row.correlation_id,
+    })).reverse(); // Return in chronological order
+  }
+
+  /**
+   * Get debug stats
+   */
+  getDebugStats(projectPath: string): { logCount: number; aiRequestCount: number } {
+    const db = this.getDatabase(projectPath);
+    const logCount = (db.prepare('SELECT COUNT(*) as count FROM debug_logs').get() as any).count;
+    const aiRequestCount = (db.prepare('SELECT COUNT(*) as count FROM ai_requests').get() as any).count;
+    return { logCount, aiRequestCount };
   }
 
   /**
