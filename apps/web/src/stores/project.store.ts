@@ -46,6 +46,7 @@ interface ProjectState {
   addProject: (project: Project) => void;
   removeProject: (projectId: string) => void;  // Called after deleting from disk
   closeProject: (projectId: string) => void;   // Just close tab, keep files
+  reorderProjects: (activeId: string, overId: string) => void;  // Reorder project tabs
   setWorktrees: (worktrees: Worktree[]) => void;
   setActiveWorktree: (worktreeId: string | null) => void;
   addWorktree: (worktree: Worktree) => void;
@@ -112,6 +113,15 @@ export const useProjectStore = create<ProjectState>()(
           activeWorktreeId: state.worktrees.some(w => w.id === state.activeWorktreeId && w.projectId === projectId)
             ? null : state.activeWorktreeId,
         };
+      }),
+      reorderProjects: (activeId, overId) => set((state) => {
+        const oldIndex = state.projects.findIndex(p => p.id === activeId);
+        const newIndex = state.projects.findIndex(p => p.id === overId);
+        if (oldIndex === -1 || newIndex === -1) return state;
+        const newProjects = [...state.projects];
+        const [removed] = newProjects.splice(oldIndex, 1);
+        newProjects.splice(newIndex, 0, removed);
+        return { projects: newProjects };
       }),
       setWorktrees: (worktrees) => set({ worktrees }),
       setActiveWorktree: (worktreeId) => set({ activeWorktreeId: worktreeId }),
