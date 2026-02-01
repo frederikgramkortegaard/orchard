@@ -15,6 +15,191 @@ import { projectService } from './project.service.js';
 import { databaseService } from './database.service.js';
 import { daemonClient } from '../pty/daemon-client.js';
 
+/**
+ * HTTP API Client for orchestrator loop
+ * Provides methods to interact with the server's REST API endpoints.
+ * This allows the orchestrator loop to be decoupled from direct service imports
+ * and potentially run in a separate process.
+ */
+class OrchestratorHttpClient {
+  private baseUrl: string;
+
+  constructor(baseUrl: string = 'http://localhost:3001') {
+    this.baseUrl = baseUrl;
+  }
+
+  /**
+   * GET /chat?allProjects=true - Get messages from all projects
+   */
+  async getMessages(options?: { projectId?: string; allProjects?: boolean; limit?: number }): Promise<any> {
+    const params = new URLSearchParams();
+    if (options?.projectId) params.set('projectId', options.projectId);
+    if (options?.allProjects) params.set('allProjects', 'true');
+    if (options?.limit) params.set('limit', String(options.limit));
+
+    const response = await fetch(`${this.baseUrl}/chat?${params.toString()}`);
+    if (!response.ok) {
+      throw new Error(`Failed to get messages: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * POST /chat - Send a message
+   */
+  async sendMessage(projectId: string, text: string, from: 'user' | 'orchestrator', replyTo?: string): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId, text, from, replyTo }),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to send message: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * GET /merge-queue/:projectId - Get merge queue for a project
+   */
+  async getMergeQueue(projectId: string): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/merge-queue/${projectId}`);
+    if (!response.ok) {
+      throw new Error(`Failed to get merge queue: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * POST /merge-queue/:projectId/:worktreeId/merge - Merge from queue
+   */
+  async mergeFromQueue(projectId: string, worktreeId: string): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/merge-queue/${projectId}/${worktreeId}/merge`, {
+      method: 'POST',
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to merge from queue: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * DELETE /merge-queue/:projectId/:worktreeId - Remove from queue
+   */
+  async removeFromQueue(projectId: string, worktreeId: string): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/merge-queue/${projectId}/${worktreeId}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to remove from queue: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * POST /worktrees - Create a new worktree/agent
+   */
+  async createWorktree(projectId: string, branch: string, options?: {
+    newBranch?: boolean;
+    baseBranch?: string;
+    mode?: 'normal' | 'plan';
+    skipAutoSession?: boolean;
+  }): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/worktrees`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        projectId,
+        branch,
+        newBranch: options?.newBranch,
+        baseBranch: options?.baseBranch,
+        mode: options?.mode,
+        skipAutoSession: options?.skipAutoSession,
+      }),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(`Failed to create worktree: ${error.error || response.statusText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * GET /worktrees?projectId=... - List worktrees
+   */
+  async listWorktrees(projectId: string): Promise<any[]> {
+    const response = await fetch(`${this.baseUrl}/worktrees?projectId=${projectId}`);
+    if (!response.ok) {
+      throw new Error(`Failed to list worktrees: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * GET /worktrees/:id - Get a specific worktree
+   */
+  async getWorktree(worktreeId: string): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/worktrees/${worktreeId}`);
+    if (!response.ok) {
+      throw new Error(`Failed to get worktree: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * POST /worktrees/:id/archive - Archive a worktree
+   */
+  async archiveWorktree(worktreeId: string): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/worktrees/${worktreeId}/archive`, {
+      method: 'POST',
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to archive worktree: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * GET /projects - Get all projects
+   */
+  async getProjects(): Promise<any[]> {
+    const response = await fetch(`${this.baseUrl}/projects`);
+    if (!response.ok) {
+      throw new Error(`Failed to get projects: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * GET /projects/:id - Get a specific project
+   */
+  async getProject(projectId: string): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/projects/${projectId}`);
+    if (!response.ok) {
+      throw new Error(`Failed to get project: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * PATCH /chat/:messageId/status - Update message status
+   */
+  async updateMessageStatus(messageId: string, projectId: string, status: 'unread' | 'read' | 'working' | 'resolved'): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/chat/${messageId}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId, status }),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to update message status: ${response.statusText}`);
+    }
+    return response.json();
+  }
+}
+
+// Export the HTTP client for external use (e.g., standalone orchestrator process)
+export const orchestratorHttpClient = new OrchestratorHttpClient();
+
 export enum LoopState {
   STOPPED = 'STOPPED',
   STARTING = 'STARTING',
@@ -881,6 +1066,7 @@ class OrchestratorLoopService extends EventEmitter {
           deadSessions: context.deadSessions.length,
           completions: context.completions.length,
           questions: context.questions.length,
+          mergeQueueSize: context.mergeQueue.length,
         },
         correlationId,
       });
