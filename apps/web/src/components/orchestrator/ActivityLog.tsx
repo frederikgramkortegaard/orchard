@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Activity,
   RefreshCw,
@@ -12,6 +12,8 @@ import {
   Bot,
   Cpu,
   MessageSquare,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 
 interface ActivityLogProps {
@@ -177,11 +179,80 @@ function extractAgentBranch(entry: ActivityEntry): string | null {
   return detailsObj.branch || detailsObj.worktreeId?.split('-')[0] || null;
 }
 
+function getEntrySource(entry: ActivityEntry): string {
+  if (entry.category === 'orchestrator') {
+    return 'Orchestrator';
+  }
+  if (entry.category === 'system') {
+    return 'System';
+  }
+  const branch = extractAgentBranch(entry);
+  if (branch) {
+    return branch;
+  }
+  if (entry.category === 'agent') {
+    return 'Agent';
+  }
+  return 'General';
+}
+
+interface GroupedEntries {
+  source: string;
+  entries: ActivityEntry[];
+}
+
+function groupEntriesBySource(entries: ActivityEntry[]): GroupedEntries[] {
+  const groupMap = new Map<string, ActivityEntry[]>();
+  const groupOrder: string[] = [];
+
+  for (const entry of entries) {
+    const source = getEntrySource(entry);
+    if (!groupMap.has(source)) {
+      groupMap.set(source, []);
+      groupOrder.push(source);
+    }
+    groupMap.get(source)!.push(entry);
+  }
+
+  return groupOrder.map((source) => ({
+    source,
+    entries: groupMap.get(source)!,
+  }));
+}
+
 export function ActivityLog({ projectId }: ActivityLogProps) {
   const [entries, setEntries] = useState<ActivityEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('activityLog.collapsedSections');
+      if (saved) {
+        try {
+          return new Set(JSON.parse(saved));
+        } catch {
+          return new Set();
+        }
+      }
+    }
+    return new Set();
+  });
   const logRef = useRef<HTMLDivElement>(null);
+
+  const toggleSection = useCallback((source: string) => {
+    setCollapsedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(source)) {
+        next.delete(source);
+      } else {
+        next.add(source);
+      }
+      localStorage.setItem('activityLog.collapsedSections', JSON.stringify([...next]));
+      return next;
+    });
+  }, []);
+
+  const groupedEntries = groupEntriesBySource(entries);
 
   const clearLog = async () => {
     setIsClearing(true);
@@ -256,39 +327,59 @@ export function ActivityLog({ projectId }: ActivityLogProps) {
       </div>
       <div
         ref={logRef}
-        className="flex-1 overflow-y-auto p-2 space-y-1"
+        className="flex-1 overflow-y-auto p-2 space-y-2"
       >
         {entries.length === 0 ? (
           <div className="text-zinc-500 text-center py-4 text-xs">No activity yet</div>
         ) : (
-          entries.map((entry) => {
-            const kind = getActivityKind(entry);
-            const colors = getActivityColors(kind);
-            const branch = extractAgentBranch(entry);
+          groupedEntries.map((group) => {
+            const isCollapsed = collapsedSections.has(group.source);
 
             return (
-              <div
-                key={entry.id}
-                className={`flex items-start gap-2 p-1.5 rounded text-xs ${colors.bg}`}
-              >
-                <div className={`flex-shrink-0 mt-0.5 ${colors.icon}`}>
-                  {getActivityIcon(kind)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-zinc-500 dark:text-zinc-500 flex-shrink-0">
-                      {formatTime(entry.timestamp)}
-                    </span>
-                    {branch && entry.category === 'agent' && (
-                      <span className="px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300 text-[10px] font-medium">
-                        {branch}
-                      </span>
-                    )}
+              <div key={group.source} className="border border-zinc-300 dark:border-zinc-700 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => toggleSection(group.source)}
+                  className="w-full flex items-center gap-2 px-2 py-1.5 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                >
+                  <span className="text-zinc-500 dark:text-zinc-400">
+                    {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                  </span>
+                  <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                    {group.source}
+                  </span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400">
+                    {group.entries.length}
+                  </span>
+                </button>
+                {!isCollapsed && (
+                  <div className="p-1.5 space-y-1">
+                    {group.entries.map((entry) => {
+                      const kind = getActivityKind(entry);
+                      const colors = getActivityColors(kind);
+
+                      return (
+                        <div
+                          key={entry.id}
+                          className={`flex items-start gap-2 p-1.5 rounded text-xs ${colors.bg}`}
+                        >
+                          <div className={`flex-shrink-0 mt-0.5 ${colors.icon}`}>
+                            {getActivityIcon(kind)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-zinc-500 dark:text-zinc-500 flex-shrink-0">
+                                {formatTime(entry.timestamp)}
+                              </span>
+                            </div>
+                            <div className="text-zinc-700 dark:text-zinc-300 break-words">
+                              {entry.summary}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <div className="text-zinc-700 dark:text-zinc-300 break-words">
-                    {entry.summary}
-                  </div>
-                </div>
+                )}
               </div>
             );
           })
