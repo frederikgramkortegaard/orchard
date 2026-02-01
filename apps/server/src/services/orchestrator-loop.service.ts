@@ -1823,16 +1823,34 @@ class OrchestratorLoopService extends EventEmitter {
   }
 
   /**
-   * Tool: Get terminal output from an agent
+   * Tool: Get terminal output from an agent (from print session SQLite)
    */
   private async toolGetAgentOutput(worktreeId: string, lines: number, correlationId: string): Promise<void> {
-    const session = sessionPersistenceService.getSession(worktreeId);
-    if (!session) {
-      throw new Error(`No session found for worktree ${worktreeId}`);
+    const worktree = worktreeService.getWorktree(worktreeId);
+    if (!worktree) {
+      throw new Error(`Worktree ${worktreeId} not found`);
     }
 
-    // Get recent output from the terminal monitor
-    const recentOutput = terminalMonitorService.getRecentOutput(session.id, lines);
+    const project = projectService.getProject(worktree.projectId);
+    if (!project) {
+      throw new Error(`Project not found for worktree ${worktreeId}`);
+    }
+
+    // Get print sessions for this worktree
+    const sessions = databaseService.getPrintSessionsForWorktree(project.path, worktreeId);
+    if (sessions.length === 0) {
+      throw new Error(`No print sessions found for worktree ${worktreeId}`);
+    }
+
+    // Get the most recent session
+    const latestSession = sessions[0];
+
+    // Get terminal output from SQLite
+    const fullOutput = databaseService.getFullTerminalOutput(project.path, latestSession.id);
+
+    // Get last N lines worth of output
+    const outputLines = fullOutput.split('\n');
+    const recentOutput = outputLines.slice(-lines).join('\n');
 
     await activityLoggerService.log({
       type: 'event',
@@ -1840,9 +1858,10 @@ class OrchestratorLoopService extends EventEmitter {
       summary: `Retrieved output from ${worktreeId} (${recentOutput.length} chars)`,
       details: {
         worktreeId,
-        sessionId: session.id,
+        sessionId: latestSession.id,
+        sessionStatus: latestSession.status,
         outputLength: recentOutput.length,
-        output: recentOutput.slice(-2000), // Limit logged output
+        output: recentOutput.slice(-2000),
       },
       correlationId,
     });
@@ -1850,7 +1869,7 @@ class OrchestratorLoopService extends EventEmitter {
     // Add to conversation history so LLM can see the output
     this.conversationHistory.push({
       role: 'user',
-      content: `Terminal output from ${worktreeId}:\n\`\`\`\n${recentOutput.slice(-1000)}\n\`\`\``,
+      content: `Terminal output from ${worktreeId} (session: ${latestSession.status}):\n\`\`\`\n${recentOutput.slice(-1000)}\n\`\`\``,
     });
   }
 
@@ -1939,29 +1958,34 @@ class OrchestratorLoopService extends EventEmitter {
   }
 
   /**
-   * Tool: Nudge an agent by sending enter presses
+   * Tool: Nudge an agent - not applicable for print sessions (one-shot)
+   * Print sessions run `claude -p` which can't be nudged interactively.
+   * If an agent is stuck, check its status or create a new session.
    */
   private async toolNudgeAgent(worktreeId: string, correlationId: string): Promise<void> {
-    const session = sessionPersistenceService.getSession(worktreeId);
-    if (!session) {
-      throw new Error(`No session found for worktree ${worktreeId}`);
-    }
-
-    // Send enter press to wake up the agent
-    daemonClient.writeToSession(session.id, '\r');
-
-    // Send another after a short delay
-    setTimeout(() => {
-      daemonClient.writeToSession(session.id, '\r');
-    }, 500);
+    // Print sessions (claude -p) are one-shot and can't be nudged
+    // This tool is kept for API compatibility but doesn't do anything useful
 
     await activityLoggerService.log({
-      type: 'action',
+      type: 'event',
       category: 'agent',
-      summary: `Nudged agent in ${worktreeId}`,
-      details: { worktreeId, sessionId: session.id },
+      summary: `Nudge requested for ${worktreeId} (not applicable for print sessions)`,
+      details: { worktreeId, note: 'Print sessions are one-shot and cannot be nudged' },
       correlationId,
     });
+
+    // Check if there's a running print session
+    const worktree = worktreeService.getWorktree(worktreeId);
+    if (worktree) {
+      const project = projectService.getProject(worktree.projectId);
+      if (project) {
+        const sessions = databaseService.getPrintSessionsForWorktree(project.path, worktreeId);
+        const runningSession = sessions.find(s => s.status === 'running');
+        if (runningSession) {
+          debugLogService.info('orchestrator', `Worktree ${worktreeId} has a running print session - nudge not applicable`, { correlationId });
+        }
+      }
+    }
   }
 
   /**
