@@ -6,6 +6,8 @@ interface WebSocketContextValue {
   send: (data: unknown) => void;
   subscribe: (type: string, handler: MessageHandler) => () => void;
   isConnected: boolean;
+  isReconnecting: boolean;
+  reconnectAttempt: number;
   connectionId: number; // Incremented on each reconnect to trigger re-subscriptions
 }
 
@@ -13,14 +15,18 @@ const WebSocketContext = createContext<WebSocketContextValue | null>(null);
 
 const PING_INTERVAL = 30000; // Send ping every 30 seconds
 const PONG_TIMEOUT = 10000; // Expect pong within 10 seconds
+const RECONNECT_BASE_DELAY = 1000; // Start with 1 second
+const RECONNECT_MAX_DELAY = 30000; // Max 30 seconds
 
 export function WebSocketProvider({ children }: { children: ReactNode }) {
   const wsRef = useRef<WebSocket | null>(null);
   const handlersRef = useRef<Map<string, Set<MessageHandler>>>(new Map());
   const [isConnected, setIsConnected] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const [connectionId, setConnectionId] = useState(0);
   const reconnectTimeoutRef = useRef<number | null>(null);
-  const reconnectAttempts = useRef(0);
+  const reconnectAttemptsRef = useRef(0);
   const pingIntervalRef = useRef<number | null>(null);
   const pongTimeoutRef = useRef<number | null>(null);
   const lastPongRef = useRef<number>(Date.now());
@@ -80,7 +86,9 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
     ws.onopen = () => {
       setIsConnected(true);
-      reconnectAttempts.current = 0;
+      setIsReconnecting(false);
+      reconnectAttemptsRef.current = 0;
+      setReconnectAttempt(0);
       lastPongRef.current = Date.now();
       // Increment connectionId to trigger re-subscriptions in consumers
       setConnectionId((prev) => prev + 1);
@@ -96,9 +104,15 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       if (!isMountedRef.current) {
         return;
       }
-      // Auto-reconnect with exponential backoff (max 5 seconds)
-      const delay = Math.min(1000 * Math.pow(1.5, reconnectAttempts.current), 5000);
-      reconnectAttempts.current++;
+      // Auto-reconnect with exponential backoff (1s, 2s, 4s, ... max 30s)
+      setIsReconnecting(true);
+      const delay = Math.min(
+        RECONNECT_BASE_DELAY * Math.pow(2, reconnectAttemptsRef.current),
+        RECONNECT_MAX_DELAY
+      );
+      reconnectAttemptsRef.current++;
+      setReconnectAttempt(reconnectAttemptsRef.current);
+      console.log(`WebSocket disconnected. Reconnecting in ${delay / 1000}s (attempt ${reconnectAttemptsRef.current})...`);
       reconnectTimeoutRef.current = window.setTimeout(() => {
         connect();
       }, delay);
@@ -165,7 +179,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <WebSocketContext.Provider value={{ send, subscribe, isConnected, connectionId }}>
+    <WebSocketContext.Provider value={{ send, subscribe, isConnected, isReconnecting, reconnectAttempt, connectionId }}>
       {children}
     </WebSocketContext.Provider>
   );
