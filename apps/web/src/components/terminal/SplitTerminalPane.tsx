@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
-import { Plus, X, SplitSquareHorizontal, Square, Clock, Circle, Loader2, MessageCircleQuestion, Play, Check, StopCircle } from 'lucide-react';
+import { Plus, X, SplitSquareHorizontal, Clock, Circle, Loader2, MessageCircleQuestion, Play, Check, StopCircle } from 'lucide-react';
 import { useTerminalStore, type TerminalActivityStatus } from '../../stores/terminal.store';
 import { TerminalInstance } from './TerminalInstance';
 import { useWebSocket } from '../../contexts/WebSocketContext';
@@ -91,7 +91,6 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
       try {
         // Fetch existing sessions for this worktree (don't create new ones)
         // Also pass worktreePath to match sessions by cwd if worktreeId doesn't match (handles orphaned sessions with old IDs)
-        console.log('[SplitTerminalPane] Fetching sessions for worktree:', worktreeId);
         const url = new URL(`/api/terminals/worktree/${encodeURIComponent(worktreeId)}`, window.location.origin);
         if (worktreePath) {
           url.searchParams.set('path', worktreePath);
@@ -99,9 +98,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
         const res = await fetch(url.toString());
         if (res.ok) {
           const existingSessions = await res.json();
-          console.log('[SplitTerminalPane] Found sessions:', existingSessions.length, existingSessions);
           existingSessions.forEach((session: any) => {
-            console.log('[SplitTerminalPane] Adding session:', session.id);
             addSession({
               id: session.id,
               worktreeId: session.worktreeId,
@@ -116,11 +113,9 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
           if (existingSessions.length > 0) {
             setPanels([{ id: 'left', sessionId: existingSessions[0].id }]);
           }
-        } else {
-          console.error('[SplitTerminalPane] Failed to fetch sessions:', res.status, res.statusText);
         }
       } catch (err) {
-        console.error('[SplitTerminalPane] Failed to fetch sessions:', err);
+        // Session fetch failed - user can manually refresh
       }
     };
 
@@ -182,7 +177,6 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
         addToast('error', 'Failed to create terminal');
       }
     } catch (err) {
-      console.error('Failed to create terminal:', err);
       addToast('error', 'Failed to create terminal');
     } finally {
       setIsCreating(false);
@@ -198,8 +192,8 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
       setPanels((prev) =>
         prev.map((p) => (p.sessionId === sessionId ? { ...p, sessionId: null } : p))
       );
-    } catch (err) {
-      console.error('Failed to close terminal:', err);
+    } catch {
+      // Session close failed silently - UI state is already updated
     }
   }, [removeSession]);
 
@@ -336,14 +330,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
               <button
                 onClick={() => closeTerminal(session.id)}
                 className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded"
-                title="Stop & close terminal (kills process)"
-              >
-                <Square size={12} className="fill-current" />
-              </button>
-              <button
-                onClick={() => closeTerminal(session.id)}
-                className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded"
-                title="Close terminal tab"
+                title="Close terminal"
               >
                 <X size={14} />
               </button>
