@@ -24,9 +24,29 @@ import { stopSession } from './tools/stop-session.js';
 import { restartSession } from './tools/restart-session.js';
 import { runTask } from './tools/run-task.js';
 import { updateMessageStatus } from './tools/update-message-status.js';
+import { logActivity } from './tools/log-activity.js';
 
 // Orchard server base URL (configurable via env)
 const ORCHARD_API = process.env.ORCHARD_API || 'http://localhost:3001';
+
+// Helper to log activity after tool execution
+async function logToolActivity(
+  projectId: string | undefined,
+  activityType: 'orchestrator' | 'command' | 'task_complete',
+  summary: string,
+  details?: Record<string, unknown>
+): Promise<void> {
+  if (!projectId) return;
+  try {
+    await fetch(`${ORCHARD_API}/agent/activity`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId, activityType, summary, details }),
+    });
+  } catch {
+    // Silently ignore logging failures - don't break the tool execution
+  }
+}
 
 // Tool definitions
 const tools: Tool[] = [
@@ -351,27 +371,125 @@ const tools: Tool[] = [
       required: ['messageId', 'status'],
     },
   },
+  {
+    name: 'log_activity',
+    description: 'Log an activity to the activity feed for visibility',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: {
+          type: 'string',
+          description: 'Project ID to log activity for',
+        },
+        activityType: {
+          type: 'string',
+          enum: ['file_edit', 'command', 'commit', 'task_complete', 'error', 'progress', 'orchestrator'],
+          description: 'Type of activity being logged',
+        },
+        summary: {
+          type: 'string',
+          description: 'Brief description of the activity',
+        },
+        details: {
+          type: 'object',
+          description: 'Additional details about the activity (optional)',
+        },
+      },
+      required: ['projectId', 'activityType', 'summary'],
+    },
+  },
 ];
 
-// Tool handlers
+// Tool handlers with automatic activity logging
 const toolHandlers: Record<string, (args: Record<string, unknown>) => Promise<string>> = {
   list_agents: async (args) => listAgents(ORCHARD_API, args as { projectId: string; filter?: string }),
-  create_agent: async (args) => createAgent(ORCHARD_API, args as { projectId: string; name: string; task: string; mode?: 'normal' | 'plan' }),
+
+  create_agent: async (args) => {
+    const { projectId, name, task, mode } = args as { projectId: string; name: string; task: string; mode?: 'normal' | 'plan' };
+    const result = await createAgent(ORCHARD_API, { projectId, name, task, mode });
+    await logToolActivity(projectId, 'orchestrator', `Created agent: feature/${name}`, { task: task.slice(0, 100), mode });
+    return result;
+  },
+
   send_task: async (args) => sendTask(ORCHARD_API, args as { worktreeId: string; message: string }),
   get_agent_status: async (args) => getAgentStatus(ORCHARD_API, args as { worktreeId: string; includeOutput?: boolean; outputLines?: number }),
-  merge_branch: async (args) => mergeBranch(ORCHARD_API, args as { worktreeId: string; deleteAfterMerge?: boolean }),
+
+  merge_branch: async (args) => {
+    const { worktreeId, deleteAfterMerge } = args as { worktreeId: string; deleteAfterMerge?: boolean };
+    const result = await mergeBranch(ORCHARD_API, { worktreeId, deleteAfterMerge });
+    // Extract projectId from result or use worktree lookup
+    const match = result.match(/Merged .* into/);
+    if (match) {
+      // Try to get projectId - we'll need to fetch worktree info first
+      try {
+        const res = await fetch(`${ORCHARD_API}/worktrees/${worktreeId}`);
+        if (res.ok) {
+          const wt = await res.json();
+          await logToolActivity(wt.projectId, 'orchestrator', `Merged branch: ${wt.branch}`, { worktreeId });
+        }
+      } catch { /* ignore */ }
+    }
+    return result;
+  },
+
   get_project_status: async (args) => getProjectStatus(ORCHARD_API, args as { projectId: string }),
   get_messages: async (args) => getMessages(ORCHARD_API, args as { projectId: string; limit?: number }),
   send_message: async (args) => sendMessage(ORCHARD_API, args as { projectId: string; message: string }),
-  archive_worktree: async (args) => archiveWorktree(ORCHARD_API, args as { worktreeId: string }),
+
+  archive_worktree: async (args) => {
+    const { worktreeId } = args as { worktreeId: string };
+    // Get worktree info before archiving
+    let projectId: string | undefined;
+    let branch: string | undefined;
+    try {
+      const res = await fetch(`${ORCHARD_API}/worktrees/${worktreeId}`);
+      if (res.ok) {
+        const wt = await res.json();
+        projectId = wt.projectId;
+        branch = wt.branch;
+      }
+    } catch { /* ignore */ }
+    const result = await archiveWorktree(ORCHARD_API, { worktreeId });
+    if (projectId) {
+      await logToolActivity(projectId, 'orchestrator', `Archived worktree: ${branch || worktreeId}`, { worktreeId });
+    }
+    return result;
+  },
+
   nudge_agent: async (args) => nudgeAgent(ORCHARD_API, args as { worktreeId: string }),
   get_file_tree: async (args) => getFileTree(ORCHARD_API, args as { projectId: string; depth?: number }),
   list_sessions: async (args) => listSessions(ORCHARD_API, args as { projectId: string }),
-  start_session: async (args) => startSession(ORCHARD_API, args as { worktreeId: string; projectId: string; task?: string }),
-  stop_session: async (args) => stopSession(ORCHARD_API, args as { sessionId: string; projectId: string }),
-  restart_session: async (args) => restartSession(ORCHARD_API, args as { worktreeId: string; projectId: string; task?: string }),
-  run_task: async (args) => runTask(ORCHARD_API, args as { worktreeId: string; projectId: string; task: string; timeout?: number }),
+
+  start_session: async (args) => {
+    const { worktreeId, projectId, task } = args as { worktreeId: string; projectId: string; task?: string };
+    const result = await startSession(ORCHARD_API, { worktreeId, projectId, task });
+    await logToolActivity(projectId, 'orchestrator', `Started session for worktree`, { worktreeId, hasTask: !!task });
+    return result;
+  },
+
+  stop_session: async (args) => {
+    const { sessionId, projectId } = args as { sessionId: string; projectId: string };
+    const result = await stopSession(ORCHARD_API, { sessionId, projectId });
+    await logToolActivity(projectId, 'orchestrator', `Stopped session: ${sessionId.slice(0, 8)}`, { sessionId });
+    return result;
+  },
+
+  restart_session: async (args) => {
+    const { worktreeId, projectId, task } = args as { worktreeId: string; projectId: string; task?: string };
+    const result = await restartSession(ORCHARD_API, { worktreeId, projectId, task });
+    await logToolActivity(projectId, 'orchestrator', `Restarted session for worktree`, { worktreeId, hasTask: !!task });
+    return result;
+  },
+
+  run_task: async (args) => {
+    const { worktreeId, projectId, task, timeout } = args as { worktreeId: string; projectId: string; task: string; timeout?: number };
+    await logToolActivity(projectId, 'orchestrator', `Running task: ${task.slice(0, 50)}...`, { worktreeId });
+    const result = await runTask(ORCHARD_API, { worktreeId, projectId, task, timeout });
+    return result;
+  },
+
   update_message_status: async (args) => updateMessageStatus(ORCHARD_API, args as { messageId: string; status: 'unread' | 'read' | 'working' | 'resolved' }),
+  log_activity: async (args) => logActivity(ORCHARD_API, args as { projectId: string; activityType: 'file_edit' | 'command' | 'commit' | 'task_complete' | 'error' | 'progress' | 'orchestrator'; summary: string; details?: Record<string, unknown> }),
 };
 
 // Create and configure server

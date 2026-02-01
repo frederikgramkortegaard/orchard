@@ -140,6 +140,9 @@ class WorktreeService {
     const project = projectService.getProject(projectId);
     if (!project) return [];
 
+    // Always use the canonical project ID to ensure consistent worktree IDs
+    const canonicalProjectId = project.id;
+
     const mainPath = projectService.getMainWorktreePath(projectId);
     if (!mainPath || !existsSync(mainPath)) return [];
 
@@ -182,11 +185,11 @@ class WorktreeService {
           // For in-place projects, the project root is the main worktree
           // For cloned projects, the /main subdirectory is the main worktree
           const isMain = path === mainPath;
-          const id = this.getOrCreateId(projectId, path);
+          const id = this.getOrCreateId(canonicalProjectId, path);
 
           const status = await this.getWorktreeStatus(path);
           const archived = this.archivedWorktrees.has(id);
-          const { lastCommitDate, createdAt } = await this.getWorktreeDates(path, branch || 'HEAD', projectId);
+          const { lastCommitDate, createdAt } = await this.getWorktreeDates(path, branch || 'HEAD', canonicalProjectId);
 
           // Check if this branch has been merged into default branch
           // Only mark merged if: all commits in main AND no uncommitted changes AND no ahead commits AND no active terminal sessions
@@ -195,14 +198,14 @@ class WorktreeService {
             // Check for active terminal sessions first
             const hasActiveSessions = await this.hasActiveTerminalSessions(id);
             if (!hasActiveSessions) {
-              merged = await this.checkIfMerged(projectId, branch);
+              merged = await this.checkIfMerged(canonicalProjectId, branch);
             }
           }
 
           const mode = this.worktreeModes.get(id);
           const worktree: Worktree = {
             id,
-            projectId,
+            projectId: canonicalProjectId,
             path,
             branch: branch || 'detached',
             isMain,
@@ -236,6 +239,9 @@ class WorktreeService {
       throw new Error('Project not found');
     }
 
+    // Always use the canonical project ID to ensure consistent worktree IDs
+    const canonicalProjectId = project.id;
+
     const mainPath = projectService.getMainWorktreePath(projectId);
     if (!mainPath) {
       throw new Error('Could not find main worktree');
@@ -262,9 +268,9 @@ class WorktreeService {
       await git.raw(['worktree', 'add', worktreePath, branch]);
     }
 
-    const id = this.getOrCreateId(projectId, worktreePath);
+    const id = this.getOrCreateId(canonicalProjectId, worktreePath);
     const status = await this.getWorktreeStatus(worktreePath);
-    const { lastCommitDate, createdAt } = await this.getWorktreeDates(worktreePath, branch, projectId);
+    const { lastCommitDate, createdAt } = await this.getWorktreeDates(worktreePath, branch, canonicalProjectId);
 
     // Set up Claude permissions for this worktree
     await this.setupClaudePermissions(worktreePath, project.path);
@@ -275,7 +281,7 @@ class WorktreeService {
     const mode = options?.mode;
     const worktree: Worktree = {
       id,
-      projectId,
+      projectId: canonicalProjectId,
       path: worktreePath,
       branch,
       isMain: false,

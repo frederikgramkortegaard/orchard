@@ -4,6 +4,31 @@ import { projectService } from '../services/project.service.js';
 import { worktreeService } from '../services/worktree.service.js';
 import { spawn } from 'child_process';
 import { randomUUID } from 'crypto';
+import { writeFileSync } from 'fs';
+import { join } from 'path';
+
+// MCP tools prompt to inject into every agent task
+const MCP_AGENT_PROMPT = `
+## Important Guidelines
+
+1. **Commit often**: After making changes, commit them with clear commit messages. Don't wait until the end.
+2. **Report completion**: When done, call mcp__orchard-agent__report_completion with a summary.
+
+## MCP Agent Tools
+
+You have access to MCP tools for communicating with the orchestrator:
+
+- **mcp__orchard-agent__report_completion**: Call this when you finish your task. Include a summary and details.
+- **mcp__orchard-agent__log_activity**: Log significant actions (file_edit, command, commit, progress).
+- **mcp__orchard-agent__report_progress**: Report progress updates with status and percentage.
+- **mcp__orchard-agent__report_error**: Report errors or blockers that prevent progress.
+- **mcp__orchard-agent__ask_question**: Ask the orchestrator for clarification if needed.
+
+---
+
+## Your Task
+
+`;
 
 export async function printSessionsRoutes(fastify: FastifyInstance) {
   // Create a new print session (runs claude -p)
@@ -31,6 +56,28 @@ export async function printSessionsRoutes(fastify: FastifyInstance) {
 
     const sessionId = randomUUID();
 
+    // Create .mcp.json in worktree for agent MCP tools
+    const mcpConfig = {
+      mcpServers: {
+        'orchard-agent': {
+          command: 'node',
+          args: [join(process.cwd(), 'packages/mcp-agent/dist/index.js')],
+          env: {
+            ORCHARD_API: process.env.ORCHARD_API || 'http://localhost:3001',
+            WORKTREE_ID: worktreeId,
+          },
+        },
+      },
+    };
+    try {
+      writeFileSync(join(worktree.path, '.mcp.json'), JSON.stringify(mcpConfig, null, 2));
+    } catch (err) {
+      console.error(`[PrintSessions] Failed to write .mcp.json:`, err);
+    }
+
+    // Build full prompt with MCP instructions
+    const fullPrompt = MCP_AGENT_PROMPT + task;
+
     // Create session record
     databaseService.createPrintSession(project.path, {
       id: sessionId,
@@ -39,11 +86,14 @@ export async function printSessionsRoutes(fastify: FastifyInstance) {
       task,
     });
 
-    // Escape task for shell
-    const escapedTask = task.replace(/'/g, "'\\''");
+    // Store the prompt header in terminal output so UI can display it
+    databaseService.appendTerminalOutput(project.path, sessionId, `@@PROMPT@@\n${task}\n@@END@@\n`);
 
-    // Spawn claude -p via shell for proper output capture
-    const claude = spawn('sh', ['-c', `claude -p '${escapedTask}' --dangerously-skip-permissions 2>&1`], {
+    // Escape full prompt for shell
+    const escapedTask = fullPrompt.replace(/'/g, "'\\''");
+
+    // Spawn claude -p with stream-json output format to capture tool results
+    const claude = spawn('sh', ['-c', `claude -p '${escapedTask}' --dangerously-skip-permissions --verbose --output-format stream-json 2>&1`], {
       cwd: worktree.path,
       env: {
         ...process.env,
@@ -56,18 +106,115 @@ export async function printSessionsRoutes(fastify: FastifyInstance) {
 
     console.log(`[PrintSessions] Started claude -p for session ${sessionId}, pid: ${claude.pid}`);
 
-    // Stream stdout to SQLite
+    // Buffer for incomplete JSON lines
+    let lineBuffer = '';
+
+    // Track current tool for associating results
+    let currentTool: { name: string; id: string } | null = null;
+
+    // Parse stream-json format and extract relevant output
+    // Output format uses markers: @@TOOL:name@@, @@CMD:command@@, @@FILE:path@@, @@OUTPUT@@, @@END@@, @@TEXT@@
+    const parseStreamJson = (text: string) => {
+      lineBuffer += text;
+      const lines = lineBuffer.split('\n');
+      // Keep the last incomplete line in the buffer
+      lineBuffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const event = JSON.parse(line);
+
+          // Handle different event types
+          if (event.type === 'assistant' && event.message?.content) {
+            // Assistant text response
+            for (const block of event.message.content) {
+              if (block.type === 'text' && block.text?.trim()) {
+                // Claude's thinking/response text
+                databaseService.appendTerminalOutput(project.path, sessionId, `@@TEXT@@\n${block.text}\n@@END@@\n`);
+              } else if (block.type === 'tool_use') {
+                // Track current tool for result association
+                currentTool = { name: block.name || 'unknown', id: block.id || '' };
+                const input = block.input || {};
+
+                if (block.name === 'Bash' && input.command) {
+                  databaseService.appendTerminalOutput(project.path, sessionId,
+                    `@@TOOL:Bash@@\n@@CMD:${input.command}@@\n`
+                  );
+                } else if (block.name === 'Write') {
+                  databaseService.appendTerminalOutput(project.path, sessionId,
+                    `@@TOOL:Write@@\n@@FILE:${input.file_path || ''}@@\n`
+                  );
+                } else if (block.name === 'Edit') {
+                  databaseService.appendTerminalOutput(project.path, sessionId,
+                    `@@TOOL:Edit@@\n@@FILE:${input.file_path || ''}@@\n`
+                  );
+                } else if (block.name === 'Read') {
+                  databaseService.appendTerminalOutput(project.path, sessionId,
+                    `@@TOOL:Read@@\n@@FILE:${input.file_path || ''}@@\n`
+                  );
+                } else if (block.name === 'Glob' || block.name === 'Grep') {
+                  databaseService.appendTerminalOutput(project.path, sessionId,
+                    `@@TOOL:${block.name}@@\n@@CMD:${input.pattern || ''}@@\n`
+                  );
+                } else {
+                  // Other tools
+                  databaseService.appendTerminalOutput(project.path, sessionId,
+                    `@@TOOL:${block.name}@@\n`
+                  );
+                }
+              }
+            }
+          } else if (event.type === 'result') {
+            // Tool result
+            let resultText = '';
+            if (typeof event.result === 'string') {
+              resultText = event.result;
+            } else if (event.result?.stdout) {
+              resultText = event.result.stdout;
+              if (event.result.stderr) {
+                resultText += `\n@@STDERR@@\n${event.result.stderr}`;
+              }
+            } else if (event.result?.output) {
+              resultText = event.result.output;
+            } else if (event.result?.content) {
+              // For Read tool results
+              resultText = typeof event.result.content === 'string'
+                ? event.result.content.slice(0, 500) + (event.result.content.length > 500 ? '\n... (truncated)' : '')
+                : JSON.stringify(event.result.content).slice(0, 500);
+            }
+
+            if (resultText) {
+              databaseService.appendTerminalOutput(project.path, sessionId,
+                `@@OUTPUT@@\n${resultText}\n@@END@@\n`
+              );
+            }
+            currentTool = null;
+          } else if (event.type === 'content_block_delta' && event.delta?.text) {
+            // Streaming text delta (for long responses)
+            databaseService.appendTerminalOutput(project.path, sessionId, event.delta.text);
+          }
+        } catch {
+          // Not valid JSON or parsing error - could be raw output
+          if (line.trim()) {
+            console.log(`[PrintSessions] Non-JSON line: ${line.substring(0, 50)}`);
+          }
+        }
+      }
+    };
+
+    // Stream stdout (stream-json events)
     claude.stdout?.on('data', (data: Buffer) => {
       const text = data.toString();
       console.log(`[PrintSessions] stdout (${sessionId}): ${text.substring(0, 100)}`);
-      databaseService.appendTerminalOutput(project.path, sessionId, text);
+      parseStreamJson(text);
     });
 
-    // Stream stderr to SQLite
+    // Stream stderr to SQLite (errors)
     claude.stderr?.on('data', (data: Buffer) => {
       const text = data.toString();
       console.log(`[PrintSessions] stderr (${sessionId}): ${text.substring(0, 100)}`);
-      databaseService.appendTerminalOutput(project.path, sessionId, text);
+      databaseService.appendTerminalOutput(project.path, sessionId, `[stderr] ${text}`);
     });
 
     // Handle completion

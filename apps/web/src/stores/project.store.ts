@@ -51,6 +51,7 @@ interface ProjectState {
   addWorktree: (worktree: Worktree) => void;
   updateWorktree: (worktreeId: string, updates: Partial<Worktree>) => void;
   removeWorktree: (worktreeId: string) => void;
+  fetchWorktrees: (projectId: string) => Promise<void>;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
 }
@@ -116,6 +117,17 @@ export const useProjectStore = create<ProjectState>()(
         worktrees: state.worktrees.filter(w => w.id !== worktreeId),
         activeWorktreeId: state.activeWorktreeId === worktreeId ? null : state.activeWorktreeId,
       })),
+      fetchWorktrees: async (projectId) => {
+        try {
+          const res = await fetch(`/api/worktrees?projectId=${projectId}`);
+          if (res.ok) {
+            const worktrees = await res.json();
+            set({ worktrees });
+          }
+        } catch (err) {
+          console.error('Failed to fetch worktrees:', err);
+        }
+      },
       setLoading: (isLoading) => set({ isLoading }),
       setError: (error) => set({ error }),
     }),

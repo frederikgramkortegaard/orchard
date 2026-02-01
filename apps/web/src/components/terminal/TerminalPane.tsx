@@ -143,9 +143,6 @@ export function TerminalPane({ worktreeId }: TerminalPaneProps) {
           +
         </button>
 
-        {!isConnected && (
-          <span className="ml-auto text-xs text-red-400">Disconnected</span>
-        )}
       </div>
 
       {/* Terminal area */}

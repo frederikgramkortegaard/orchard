@@ -213,37 +213,169 @@ export async function fetchWorktreesWithConflicts(projectId: string): Promise<Wo
   }));
 }
 
-// Git history types
-export interface GitHistoryCommit {
+// Git History types
+export interface GitCommitInfo {
   hash: string;
   hashShort: string;
   message: string;
   author: string;
+  authorEmail: string;
   date: string;
-  branch?: string;
+  parents: string[];
+  refs: string[];
+}
+
+export interface GitGraphNode {
+  commit: GitCommitInfo;
+  column: number;
+  isMerge: boolean;
+  branchColor: number;
 }
 
 export interface GitHistoryResult {
-  commits: GitHistoryCommit[];
-  branches?: string[];
+  worktreeId: string;
+  currentBranch: string;
+  commits: GitGraphNode[];
+  branches: { name: string; head: string; isCurrent: boolean }[];
 }
 
-// Get project-wide git history (all branches)
-export async function fetchProjectHistory(projectId: string, limit = 100): Promise<GitHistoryResult> {
-  const res = await fetch(`${API_BASE}/projects/${projectId}/history?limit=${limit}`);
+export interface CommitFilesResult {
+  worktreeId: string;
+  commitHash: string;
+  files: {
+    path: string;
+    status: 'added' | 'modified' | 'deleted' | 'renamed';
+  }[];
+}
+
+export interface CommitDetailResult {
+  worktreeId: string;
+  commit: GitCommitInfo;
+  files: {
+    path: string;
+    status: 'added' | 'modified' | 'deleted' | 'renamed';
+    additions: number;
+    deletions: number;
+  }[];
+  diff: string;
+}
+
+export interface CommitTreeEntry {
+  mode: string;
+  type: 'blob' | 'tree';
+  hash: string;
+  size: number | null;
+  name: string;
+  path: string;
+}
+
+export interface CommitTreeResult {
+  worktreeId: string;
+  commitHash: string;
+  path: string;
+  entries: CommitTreeEntry[];
+}
+
+export interface CommitFileContentResult {
+  worktreeId: string;
+  commitHash: string;
+  path: string;
+  content: string;
+}
+
+export interface CommitCompareResult {
+  worktreeId: string;
+  base: string;
+  target: string;
+  diff: string;
+}
+
+// Fetch git history with graph information
+export async function fetchGitHistory(
+  worktreeId: string,
+  limit = 100,
+  skip = 0
+): Promise<GitHistoryResult> {
+  const params = new URLSearchParams({
+    limit: limit.toString(),
+    skip: skip.toString(),
+  });
+  const res = await fetch(`${API_BASE}/worktrees/${worktreeId}/history?${params}`);
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || 'Failed to fetch project history');
+    throw new Error(err.error || 'Failed to fetch git history');
   }
   return res.json();
 }
 
-// Get git history for a specific worktree
-export async function fetchWorktreeHistory(worktreeId: string, limit = 100): Promise<GitHistoryResult> {
-  const res = await fetch(`${API_BASE}/worktrees/${worktreeId}/history?limit=${limit}`);
+// Fetch files changed in a specific commit
+export async function fetchCommitFiles(
+  worktreeId: string,
+  commitHash: string
+): Promise<CommitFilesResult> {
+  const res = await fetch(`${API_BASE}/worktrees/${worktreeId}/commits/${commitHash}/files`);
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.error || 'Failed to fetch worktree history');
+    throw new Error(err.error || 'Failed to fetch commit files');
+  }
+  return res.json();
+}
+
+// Fetch detailed commit information including diff
+export async function fetchCommitDetail(
+  worktreeId: string,
+  commitHash: string
+): Promise<CommitDetailResult> {
+  const res = await fetch(`${API_BASE}/worktrees/${worktreeId}/commits/${commitHash}`);
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to fetch commit details');
+  }
+  return res.json();
+}
+
+// Compare two commits
+export async function fetchCommitCompare(
+  worktreeId: string,
+  base: string,
+  target: string
+): Promise<CommitCompareResult> {
+  const params = new URLSearchParams({ base, target });
+  const res = await fetch(`${API_BASE}/worktrees/${worktreeId}/compare?${params}`);
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to compare commits');
+  }
+  return res.json();
+}
+
+// Fetch file tree at a specific commit
+export async function fetchCommitTree(
+  worktreeId: string,
+  commitHash: string,
+  path = ''
+): Promise<CommitTreeResult> {
+  const params = new URLSearchParams();
+  if (path) params.append('path', path);
+  const res = await fetch(`${API_BASE}/worktrees/${worktreeId}/commits/${commitHash}/tree?${params}`);
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to fetch commit tree');
+  }
+  return res.json();
+}
+
+// Fetch file content at a specific commit
+export async function fetchCommitFileContent(
+  worktreeId: string,
+  commitHash: string,
+  path: string
+): Promise<CommitFileContentResult> {
+  const params = new URLSearchParams({ path });
+  const res = await fetch(`${API_BASE}/worktrees/${worktreeId}/commits/${commitHash}/file?${params}`);
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to fetch file content');
   }
   return res.json();
 }

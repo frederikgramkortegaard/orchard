@@ -27,28 +27,28 @@ function StatusIndicator({ status, from }: { status?: MessageStatus; from: 'user
   if (from === 'user') {
     switch (status) {
       case 'resolved':
-        return <CheckCheck size={14} className="text-green-400" title="Resolved" />;
+        return <span title="Resolved"><CheckCheck size={14} className="text-green-400" /></span>;
       case 'working':
-        return <Loader2 size={14} className="text-yellow-400 animate-spin" title="Being worked on" />;
+        return <span title="Being worked on"><Loader2 size={14} className="text-yellow-400 animate-spin" /></span>;
       case 'read':
-        return <Check size={14} className="text-blue-300" title="Read" />;
+        return <span title="Read"><Check size={14} className="text-blue-300" /></span>;
       case 'unread':
       default:
-        return <Circle size={8} className="text-blue-400 fill-current" title="Unread" />;
+        return <span title="Unread"><Circle size={8} className="text-blue-400 fill-current" /></span>;
     }
   }
 
   // For orchestrator messages, show status on the left side
   switch (status) {
     case 'resolved':
-      return <CheckCheck size={14} className="text-green-400" title="Resolved" />;
+      return <span title="Resolved"><CheckCheck size={14} className="text-green-400" /></span>;
     case 'working':
-      return <Clock size={14} className="text-yellow-400" title="Being worked on" />;
+      return <span title="Being worked on"><Clock size={14} className="text-yellow-400" /></span>;
     case 'read':
-      return <Check size={14} className="text-zinc-400" title="Read" />;
+      return <span title="Read"><Check size={14} className="text-zinc-400" /></span>;
     case 'unread':
     default:
-      return <Circle size={8} className="text-blue-400 fill-current" title="Unread" />;
+      return <span title="Unread"><Circle size={8} className="text-blue-400 fill-current" /></span>;
   }
 }
 

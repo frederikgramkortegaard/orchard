@@ -227,7 +227,7 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
               return (
               <div
                 key={worktree.id}
-                onClick={() => setActiveWorktree(worktree.id)}
+                onClick={() => setActiveWorktree(activeWorktreeId === worktree.id ? null : worktree.id)}
                 onContextMenu={(e) => handleContextMenu(e, worktree)}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left group cursor-pointer transition-all ${
                   activeWorktreeId === worktree.id
@@ -319,23 +319,31 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
   return (
     <aside className="h-full bg-zinc-100 dark:bg-zinc-800 border-r border-zinc-300 dark:border-zinc-700 flex flex-col overflow-hidden">
       {activeProjectId && activeProject ? (
-        <Group orientation="vertical" className="h-full">
-          {/* Terminal panel - top */}
-          <Panel defaultSize={60} minSize={5}>
-            <SplitTerminalPane
-              worktreeId={worktreeId}
-              worktreePath={worktreePath}
-              projectPath={projectPath}
-            />
-          </Panel>
+        worktreeId ? (
+          // Show terminal + worktrees when a worktree is selected
+          <Group orientation="vertical" className="h-full">
+            {/* Terminal panel - top */}
+            <Panel defaultSize={60} minSize={5}>
+              <SplitTerminalPane
+                worktreeId={worktreeId}
+                worktreePath={worktreePath}
+                projectPath={projectPath}
+              />
+            </Panel>
 
-          <Separator className="h-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-row-resize" />
+            <Separator className="h-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-row-resize" />
 
-          {/* Worktrees section - bottom */}
-          <Panel defaultSize={40} minSize={5}>
+            {/* Worktrees section - bottom */}
+            <Panel defaultSize={40} minSize={5}>
+              {worktreesContent}
+            </Panel>
+          </Group>
+        ) : (
+          // Only show worktrees when no worktree is selected
+          <div className="flex-1 overflow-hidden">
             {worktreesContent}
-          </Panel>
-        </Group>
+          </div>
+        )
       ) : (
         <div className="flex-1 overflow-hidden">
           {worktreesContent}

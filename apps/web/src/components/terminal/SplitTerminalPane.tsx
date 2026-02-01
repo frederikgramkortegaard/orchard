@@ -1,10 +1,343 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
-import { Plus, X, SplitSquareHorizontal, Clock, Circle, Loader2, MessageCircleQuestion, Play, Check, StopCircle } from 'lucide-react';
+import { Plus, X, SplitSquareHorizontal, Clock, Circle, Loader2, MessageCircleQuestion, Play, Check, StopCircle, ArrowDown } from 'lucide-react';
 import { useTerminalStore, type TerminalActivityStatus } from '../../stores/terminal.store';
 import { TerminalInstance } from './TerminalInstance';
 import { useWebSocket } from '../../contexts/WebSocketContext';
 import { useToast } from '../../contexts/ToastContext';
+import { useProjectStore } from '../../stores/project.store';
+
+// Print session types
+interface PrintSession {
+  id: string;
+  worktreeId: string;
+  projectId: string;
+  task: string;
+  status: 'running' | 'completed' | 'failed';
+  exitCode?: number;
+  startedAt: string;
+  completedAt?: string;
+}
+
+// Tool icons/colors mapping
+const toolStyles: Record<string, { icon: string; color: string; bg: string }> = {
+  Bash: { icon: '⚡', color: 'text-yellow-400', bg: 'bg-yellow-500/10' },
+  Write: { icon: '✏️', color: 'text-green-400', bg: 'bg-green-500/10' },
+  Edit: { icon: '📝', color: 'text-blue-400', bg: 'bg-blue-500/10' },
+  Read: { icon: '📖', color: 'text-purple-400', bg: 'bg-purple-500/10' },
+  Glob: { icon: '🔍', color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
+  Grep: { icon: '🔎', color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
+  default: { icon: '🔧', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
+};
+
+// Parse and render structured output with markers
+function ParsedOutput({ output }: { output: string }) {
+  // Parse output into structured blocks
+  const blocks: Array<{
+    type: 'tool' | 'text' | 'output' | 'stderr' | 'raw' | 'prompt';
+    tool?: string;
+    command?: string;
+    file?: string;
+    content: string;
+  }> = [];
+
+  let currentBlock: typeof blocks[0] | null = null;
+  const lines = output.split('\n');
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Prompt marker: @@PROMPT@@ - shows the task given to the agent
+    if (line === '@@PROMPT@@') {
+      if (currentBlock) blocks.push(currentBlock);
+      currentBlock = { type: 'prompt', content: '' };
+      continue;
+    }
+
+    // Tool marker: @@TOOL:Name@@
+    const toolMatch = line.match(/^@@TOOL:(\w+)@@$/);
+    if (toolMatch) {
+      if (currentBlock) blocks.push(currentBlock);
+      currentBlock = { type: 'tool', tool: toolMatch[1], content: '' };
+      continue;
+    }
+
+    // Command marker: @@CMD:command@@
+    const cmdMatch = line.match(/^@@CMD:(.*)@@$/);
+    if (cmdMatch && currentBlock?.type === 'tool') {
+      currentBlock.command = cmdMatch[1];
+      continue;
+    }
+
+    // File marker: @@FILE:path@@
+    const fileMatch = line.match(/^@@FILE:(.*)@@$/);
+    if (fileMatch && currentBlock?.type === 'tool') {
+      currentBlock.file = fileMatch[1];
+      continue;
+    }
+
+    // Text block: @@TEXT@@
+    if (line === '@@TEXT@@') {
+      if (currentBlock) blocks.push(currentBlock);
+      currentBlock = { type: 'text', content: '' };
+      continue;
+    }
+
+    // Output block: @@OUTPUT@@
+    if (line === '@@OUTPUT@@') {
+      if (currentBlock) blocks.push(currentBlock);
+      currentBlock = { type: 'output', content: '' };
+      continue;
+    }
+
+    // Stderr marker: @@STDERR@@
+    if (line === '@@STDERR@@') {
+      if (currentBlock) blocks.push(currentBlock);
+      currentBlock = { type: 'stderr', content: '' };
+      continue;
+    }
+
+    // End marker: @@END@@
+    if (line === '@@END@@') {
+      if (currentBlock) blocks.push(currentBlock);
+      currentBlock = null;
+      continue;
+    }
+
+    // Accumulate content in current block or create raw block
+    if (currentBlock) {
+      currentBlock.content += (currentBlock.content ? '\n' : '') + line;
+    } else if (line.trim()) {
+      // Raw line outside any block
+      blocks.push({ type: 'raw', content: line });
+    }
+  }
+
+  if (currentBlock) blocks.push(currentBlock);
+
+  return (
+    <div className="space-y-3">
+      {blocks.map((block, i) => {
+        // Task prompt - shown at the top like a chat message
+        if (block.type === 'prompt') {
+          return (
+            <div key={i} className="rounded-lg bg-blue-950/30 border border-blue-800/50 p-4">
+              <div className="flex items-center gap-2 mb-2 text-blue-400 text-xs font-medium">
+                <span>📋</span>
+                <span>Task</span>
+              </div>
+              <div className="text-zinc-200 text-sm whitespace-pre-wrap leading-relaxed">
+                {block.content}
+              </div>
+            </div>
+          );
+        }
+
+        if (block.type === 'tool') {
+          const style = toolStyles[block.tool || ''] || toolStyles.default;
+          return (
+            <div key={i} className={`rounded-md overflow-hidden border border-zinc-800 ${style.bg}`}>
+              <div className={`flex items-center gap-2 px-3 py-1.5 ${style.color} border-b border-zinc-800`}>
+                <span>{style.icon}</span>
+                <span className="font-semibold">{block.tool}</span>
+                {block.file && (
+                  <span className="text-zinc-400 text-xs truncate">{block.file}</span>
+                )}
+              </div>
+              {block.command && (
+                <div className="px-3 py-2 font-mono text-sm">
+                  <span className="text-green-400">$</span>
+                  <span className="text-zinc-200 ml-2">{block.command}</span>
+                </div>
+              )}
+            </div>
+          );
+        }
+
+        if (block.type === 'text') {
+          return (
+            <div key={i} className="text-zinc-300 leading-relaxed whitespace-pre-wrap">
+              {block.content}
+            </div>
+          );
+        }
+
+        if (block.type === 'output') {
+          const outputLines = (block.content || '(no output)').split('\n');
+          return (
+            <div key={i} className="bg-zinc-900/50 rounded overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full font-mono text-xs">
+                  <tbody>
+                    {outputLines.map((line, lineNum) => (
+                      <tr key={lineNum} className="hover:bg-zinc-800/50">
+                        <td className="text-zinc-600 text-right pr-3 pl-2 py-0.5 select-none border-r border-zinc-800 w-10">
+                          {lineNum + 1}
+                        </td>
+                        <td className="text-zinc-400 pl-3 pr-2 py-0.5 whitespace-pre">
+                          {line || ' '}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        }
+
+        if (block.type === 'stderr') {
+          return (
+            <div key={i} className="bg-red-950/30 border border-red-900/50 rounded px-3 py-2 font-mono text-xs text-red-400 whitespace-pre-wrap">
+              {block.content}
+            </div>
+          );
+        }
+
+        // Raw content - apply basic highlighting
+        return (
+          <div key={i} className="text-zinc-400 font-mono text-sm">
+            {block.content}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Read-only print session viewer component
+function PrintSessionViewer({ session, projectId }: { session: PrintSession; projectId: string }) {
+  const [output, setOutput] = useState('');
+  const [lastId, setLastId] = useState(0);
+  const [showScrollButton, setShowScrollButton] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isAtBottomRef = useRef(true);
+
+  // Track scroll position
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = el;
+      const atBottom = scrollHeight - scrollTop - clientHeight < 50;
+      isAtBottomRef.current = atBottom;
+      setShowScrollButton(!atBottom && scrollHeight > clientHeight);
+    };
+
+    el.addEventListener('scroll', handleScroll);
+    return () => el.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToBottom = () => {
+    if (containerRef.current) {
+      containerRef.current.scrollTo({
+        top: containerRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  // Poll for output
+  useEffect(() => {
+    const fetchOutput = async () => {
+      try {
+        const res = await fetch(`/api/print-sessions/${session.id}/output?projectId=${projectId}&afterId=${lastId}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.chunks && data.chunks.length > 0) {
+            const newOutput = data.chunks.map((c: { chunk: string }) => c.chunk).join('');
+            setOutput(prev => prev + newOutput);
+            setLastId(data.lastId);
+          }
+        }
+      } catch {
+        // Ignore polling errors
+      }
+    };
+
+    fetchOutput();
+    const interval = setInterval(fetchOutput, 500);
+    return () => clearInterval(interval);
+  }, [session.id, projectId, lastId]);
+
+  // Auto-scroll to bottom when new output arrives (if user is at bottom)
+  useEffect(() => {
+    if (containerRef.current && isAtBottomRef.current) {
+      // Use requestAnimationFrame to ensure DOM has updated
+      requestAnimationFrame(() => {
+        if (containerRef.current) {
+          containerRef.current.scrollTop = containerRef.current.scrollHeight;
+        }
+      });
+    }
+  }, [output]);
+
+  return (
+    <div className="absolute inset-0 flex flex-col bg-zinc-950 text-zinc-100">
+      {/* Header */}
+      <div className="flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-zinc-900 border-b border-zinc-800">
+        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+          session.status === 'running' ? 'bg-green-500 animate-pulse' :
+          session.status === 'completed' ? 'bg-emerald-500' : 'bg-red-500'
+        }`} />
+        <span className={`text-xs font-medium ${
+          session.status === 'running' ? 'text-green-400' :
+          session.status === 'completed' ? 'text-emerald-400' : 'text-red-400'
+        }`}>
+          {session.status === 'running' ? 'Running' : session.status === 'completed' ? 'Completed' : 'Failed'}
+        </span>
+        <span className="text-xs text-zinc-500">•</span>
+        <span className="text-xs text-zinc-400 truncate flex-1" title={session.task}>
+          {session.task}
+        </span>
+        {session.exitCode !== undefined && (
+          <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${
+            session.exitCode === 0
+              ? 'bg-emerald-500/20 text-emerald-400'
+              : 'bg-red-500/20 text-red-400'
+          }`}>
+            exit {session.exitCode}
+          </span>
+        )}
+      </div>
+
+      {/* Scrollable output */}
+      <div className="flex-1 relative">
+        <div
+          ref={containerRef}
+          className="absolute inset-0 overflow-y-auto overflow-x-hidden"
+        >
+          <div className="p-4 text-sm">
+            {output ? (
+              <ParsedOutput output={output} />
+            ) : (
+              <div className="text-zinc-500 italic">
+                {session.status === 'running' ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 size={14} className="animate-spin" />
+                    Waiting for output...
+                  </span>
+                ) : 'No output'}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Scroll to bottom button */}
+        {showScrollButton && (
+          <button
+            onClick={scrollToBottom}
+            className="absolute bottom-4 right-4 p-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-full shadow-lg transition-all"
+            title="Scroll to bottom"
+          >
+            <ArrowDown size={16} className="text-zinc-300" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // Status indicator component
 function StatusIndicator({ status }: { status?: TerminalActivityStatus }) {
@@ -46,16 +379,19 @@ interface SplitTerminalPaneProps {
 
 interface TerminalPanel {
   id: string;
-  sessionId: string | null;
+  sessionId: string | null;  // Terminal session ID
+  printSessionId: string | null;  // Print session ID
 }
 
 export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: SplitTerminalPaneProps) {
   const { send, subscribe, isConnected, connectionId } = useWebSocket();
   const { sessions, addSession, removeSession, setSessionRateLimited, clearSessionRateLimit } = useTerminalStore();
   const { addToast } = useToast();
-  const [panels, setPanels] = useState<TerminalPanel[]>([{ id: 'left', sessionId: null }]);
+  const { activeProjectId } = useProjectStore();
+  const [panels, setPanels] = useState<TerminalPanel[]>([{ id: 'left', sessionId: null, printSessionId: null }]);
   const [activePanelId, setActivePanelId] = useState('left');
   const [isCreating, setIsCreating] = useState(false);
+  const [printSessions, setPrintSessions] = useState<PrintSession[]>([]);
 
   // Subscribe to rate limit events
   useEffect(() => {
@@ -82,15 +418,15 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
   // NOTE: Only the orchestrator creates sessions - UI just views them
   useEffect(() => {
     // Reset panels when switching worktrees
-    setPanels([{ id: 'left', sessionId: null }]);
+    setPanels([{ id: 'left', sessionId: null, printSessionId: null }]);
     setActivePanelId('left');
+    setPrintSessions([]);
 
-    if (!worktreeId) return;
+    if (!worktreeId || !activeProjectId) return;
 
     const fetchExistingSessions = async () => {
       try {
-        // Fetch existing sessions for this worktree (don't create new ones)
-        // Also pass worktreePath to match sessions by cwd if worktreeId doesn't match (handles orphaned sessions with old IDs)
+        // Fetch existing terminal sessions for this worktree
         const url = new URL(`/api/terminals/worktree/${encodeURIComponent(worktreeId)}`, window.location.origin);
         if (worktreePath) {
           url.searchParams.set('path', worktreePath);
@@ -105,22 +441,42 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
               cwd: session.cwd,
               createdAt: session.createdAt,
               isConnected: true,
-              isClaudeSession: true, // Existing sessions are likely Claude sessions (conservative default)
+              isClaudeSession: true,
             });
           });
+        }
+      } catch {
+        // Session fetch failed
+      }
+    };
 
-          // Auto-select first session if available
-          if (existingSessions.length > 0) {
-            setPanels([{ id: 'left', sessionId: existingSessions[0].id }]);
+    const fetchPrintSessions = async () => {
+      try {
+        const res = await fetch(`/api/print-sessions?projectId=${activeProjectId}&worktreeId=${worktreeId}`);
+        if (res.ok) {
+          const sessions: PrintSession[] = await res.json();
+          setPrintSessions(sessions);
+
+          // Auto-select most recent print session if no terminal sessions
+          if (sessions.length > 0) {
+            const mostRecent = sessions.sort((a, b) =>
+              new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
+            )[0];
+            setPanels([{ id: 'left', sessionId: null, printSessionId: mostRecent.id }]);
           }
         }
-      } catch (err) {
-        // Session fetch failed - user can manually refresh
+      } catch {
+        // Print session fetch failed
       }
     };
 
     fetchExistingSessions();
-  }, [worktreeId, worktreePath]); // Depend on worktreeId and worktreePath for path-based fallback matching
+    fetchPrintSessions();
+
+    // Poll for print session updates
+    const interval = setInterval(fetchPrintSessions, 3000);
+    return () => clearInterval(interval);
+  }, [worktreeId, worktreePath, activeProjectId, addSession]);
 
   // Filter to only show terminals for current worktree, exclude orchestrator terminals
   const filteredSessions = worktreeId
@@ -167,9 +523,9 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
           name: terminalName,
         });
 
-        // Assign to panel
+        // Assign to panel (clear printSessionId since we're using a terminal)
         setPanels((prev) =>
-          prev.map((p) => (p.id === panelId ? { ...p, sessionId: session.id } : p))
+          prev.map((p) => (p.id === panelId ? { ...p, sessionId: session.id, printSessionId: null } : p))
         );
 
         addToast('success', `Terminal "${terminalName}" created`);
@@ -190,7 +546,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
 
       // Clear from panels
       setPanels((prev) =>
-        prev.map((p) => (p.sessionId === sessionId ? { ...p, sessionId: null } : p))
+        prev.map((p) => (p.sessionId === sessionId ? { ...p, sessionId: null, printSessionId: null } : p))
       );
     } catch {
       // Session close failed silently - UI state is already updated
@@ -199,7 +555,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
 
   const splitPane = useCallback(() => {
     if (panels.length >= 2) return;
-    setPanels((prev) => [...prev, { id: 'right', sessionId: null }]);
+    setPanels((prev) => [...prev, { id: 'right', sessionId: null, printSessionId: null }]);
   }, [panels.length]);
 
   const unsplitPane = useCallback((panelId: string) => {
@@ -214,9 +570,17 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
     setActivePanelId(panels.find((p) => p.id !== panelId)?.id || 'left');
   }, [panels, closeTerminal]);
 
-  const assignSessionToPanel = useCallback((panelId: string, sessionId: string) => {
+  // Assign either a terminal session or print session to a panel
+  const assignToPanel = useCallback((panelId: string, type: 'terminal' | 'print', id: string) => {
     setPanels((prev) =>
-      prev.map((p) => (p.id === panelId ? { ...p, sessionId } : p))
+      prev.map((p) => {
+        if (p.id !== panelId) return p;
+        if (type === 'terminal') {
+          return { ...p, sessionId: id, printSessionId: null };
+        } else {
+          return { ...p, sessionId: null, printSessionId: id };
+        }
+      })
     );
   }, []);
 
@@ -226,10 +590,14 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
   }, [send]);
 
   const renderPanel = (panel: TerminalPanel) => {
-    const session = panel.sessionId ? sessions.get(panel.sessionId) : null;
-    const availableSessions = filteredSessions.filter(
+    const terminalSession = panel.sessionId ? sessions.get(panel.sessionId) : null;
+    const printSession = panel.printSessionId ? printSessions.find(p => p.id === panel.printSessionId) : null;
+    const availableTerminalSessions = filteredSessions.filter(
       (s) => !panels.some((p) => p.sessionId === s.id) || s.id === panel.sessionId
     );
+
+    // Current selection value for the dropdown
+    const currentValue = panel.sessionId ? `terminal:${panel.sessionId}` : panel.printSessionId ? `print:${panel.printSessionId}` : '';
 
     return (
       <div
@@ -240,35 +608,60 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
         onClick={() => setActivePanelId(panel.id)}
       >
         {/* Panel header */}
-        <div className={`flex items-center gap-1 px-2 py-1 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700 ${session?.rateLimit?.isLimited ? 'border-b-amber-500' : ''}`}>
-          {session?.rateLimit?.isLimited && (
+        <div className={`flex items-center gap-1 px-2 py-1 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700 ${terminalSession?.rateLimit?.isLimited ? 'border-b-amber-500' : ''}`}>
+          {terminalSession?.rateLimit?.isLimited && (
             <Clock size={14} className="text-amber-500 animate-pulse" />
           )}
-          {/* Session selector */}
+          {/* Session selector - shows both print sessions and terminal sessions */}
           <select
-            value={panel.sessionId || ''}
+            value={currentValue}
             onChange={(e) => {
-              if (e.target.value) {
-                assignSessionToPanel(panel.id, e.target.value);
+              const val = e.target.value;
+              if (val.startsWith('terminal:')) {
+                assignToPanel(panel.id, 'terminal', val.replace('terminal:', ''));
+              } else if (val.startsWith('print:')) {
+                assignToPanel(panel.id, 'print', val.replace('print:', ''));
               }
             }}
             className="flex-1 bg-white dark:bg-zinc-900 text-sm px-2 py-0.5 rounded border border-zinc-300 dark:border-zinc-700 focus:outline-none focus:border-blue-500"
           >
             <option value="">Select terminal...</option>
-            {availableSessions.map((s) => {
-              // Use session name if available, otherwise fall back to cwd or id
-              const name = s.name || s.cwd.split('/').pop() || s.id.slice(0, 8);
-              const suffix = s.rateLimit?.isLimited ? ' (paused)' : s.isClaudeSession ? ' (claude)' : '';
-              return (
-                <option key={s.id} value={s.id}>
-                  {name}{suffix}
-                </option>
-              );
-            })}
+            {printSessions.length > 0 && (
+              <optgroup label="Agent Sessions">
+                {printSessions.map((ps) => {
+                  const status = ps.status === 'running' ? '▶' : ps.status === 'completed' ? '✓' : '✗';
+                  const taskPreview = ps.task.slice(0, 30) + (ps.task.length > 30 ? '...' : '');
+                  return (
+                    <option key={ps.id} value={`print:${ps.id}`}>
+                      {status} {taskPreview}
+                    </option>
+                  );
+                })}
+              </optgroup>
+            )}
+            {availableTerminalSessions.length > 0 && (
+              <optgroup label="Interactive Terminals">
+                {availableTerminalSessions.map((s) => {
+                  const name = s.name || s.cwd.split('/').pop() || s.id.slice(0, 8);
+                  const suffix = s.rateLimit?.isLimited ? ' (paused)' : s.isClaudeSession ? ' (claude)' : '';
+                  return (
+                    <option key={s.id} value={`terminal:${s.id}`}>
+                      {name}{suffix}
+                    </option>
+                  );
+                })}
+              </optgroup>
+            )}
           </select>
 
           {/* Status indicator */}
-          {session && <StatusIndicator status={session.activityStatus} />}
+          {terminalSession && <StatusIndicator status={terminalSession.activityStatus} />}
+          {printSession && (
+            <span className={`w-2 h-2 rounded-full ${
+              printSession.status === 'running' ? 'bg-green-500 animate-pulse' :
+              printSession.status === 'completed' ? 'bg-blue-500' : 'bg-red-500'
+            }`} />
+          )}
 
           <button
             onClick={() => createTerminal(panel.id)}
@@ -297,12 +690,12 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
             </button>
           )}
 
-          {session && (
+          {terminalSession && (
             <>
               {/* Quick action buttons */}
               <div className="flex items-center gap-0.5 mx-1 px-1 border-l border-r border-zinc-300 dark:border-zinc-600">
                 <button
-                  onClick={() => sendTerminalInput(session.id, '\r')}
+                  onClick={() => sendTerminalInput(terminalSession.id, '\r')}
                   disabled={!isConnected}
                   className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded disabled:opacity-50"
                   title="Continue (send Enter)"
@@ -310,7 +703,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
                   <Play size={14} />
                 </button>
                 <button
-                  onClick={() => sendTerminalInput(session.id, 'y')}
+                  onClick={() => sendTerminalInput(terminalSession.id, 'y')}
                   disabled={!isConnected}
                   className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded disabled:opacity-50"
                   title="Approve (send 'y')"
@@ -318,7 +711,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
                   <Check size={14} />
                 </button>
                 <button
-                  onClick={() => sendTerminalInput(session.id, '\x03')}
+                  onClick={() => sendTerminalInput(terminalSession.id, '\x03')}
                   disabled={!isConnected}
                   className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded disabled:opacity-50"
                   title="Stop (send Ctrl+C)"
@@ -328,7 +721,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
               </div>
 
               <button
-                onClick={() => closeTerminal(session.id)}
+                onClick={() => closeTerminal(terminalSession.id)}
                 className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded"
                 title="Close terminal"
               >
@@ -338,16 +731,18 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
           )}
         </div>
 
-        {/* Terminal content */}
+        {/* Terminal/Print Session content */}
         <div className="flex-1 relative">
-          {session ? (
+          {printSession && activeProjectId ? (
+            <PrintSessionViewer session={printSession} projectId={activeProjectId} />
+          ) : terminalSession ? (
             <TerminalInstance
-              sessionId={session.id}
+              sessionId={terminalSession.id}
               send={send}
               subscribe={subscribe}
               isActive={activePanelId === panel.id}
-              readOnly={session.isClaudeSession !== false}
-              rateLimit={session.rateLimit}
+              readOnly={terminalSession.isClaudeSession !== false}
+              rateLimit={terminalSession.rateLimit}
               connectionId={connectionId}
             />
           ) : (
@@ -366,17 +761,9 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
     );
   };
 
-  // Show disconnected banner but still allow viewing sessions
-  const disconnectedBanner = !isConnected && (
-    <div className="px-2 py-1 bg-red-500/10 border-b border-red-500/20 text-red-500 text-sm text-center">
-      WebSocket disconnected - reconnecting...
-    </div>
-  );
-
   if (panels.length === 1) {
     return (
       <div className="h-full bg-zinc-50 dark:bg-zinc-900 flex flex-col">
-        {disconnectedBanner}
         <div className="flex-1">{renderPanel(panels[0])}</div>
       </div>
     );
@@ -384,7 +771,6 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
 
   return (
     <div className="h-full bg-zinc-50 dark:bg-zinc-900 flex flex-col">
-      {disconnectedBanner}
       <Group orientation="horizontal" className="flex-1">
       <Panel defaultSize={50} minSize={5}>
         {renderPanel(panels[0])}

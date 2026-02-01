@@ -170,40 +170,63 @@ export async function agentRoutes(fastify: FastifyInstance) {
     };
   });
 
-  // Log agent activity (for the activity feed)
+  // Log activity (for the activity feed) - works for both agents and orchestrator
   fastify.post<{
     Body: {
-      worktreeId: string;
-      activityType: 'file_edit' | 'command' | 'commit' | 'question' | 'task_complete' | 'error' | 'progress';
+      worktreeId?: string;
+      projectId?: string;
+      activityType: 'file_edit' | 'command' | 'commit' | 'question' | 'task_complete' | 'error' | 'progress' | 'orchestrator';
       summary: string;
       details?: Record<string, unknown>;
     };
   }>('/agent/activity', async (request, reply) => {
-    const { worktreeId, activityType, summary, details = {} } = request.body;
+    const { worktreeId, projectId: directProjectId, activityType, summary, details = {} } = request.body;
 
-    if (!worktreeId || !activityType || !summary) {
-      return reply.status(400).send({ error: 'worktreeId, activityType, and summary are required' });
+    if (!activityType || !summary) {
+      return reply.status(400).send({ error: 'activityType and summary are required' });
     }
 
-    const worktree = worktreeService.getWorktree(worktreeId);
-    if (!worktree) {
-      return reply.status(404).send({ error: 'Worktree not found' });
+    // Either worktreeId or projectId must be provided
+    if (!worktreeId && !directProjectId) {
+      return reply.status(400).send({ error: 'Either worktreeId or projectId is required' });
     }
 
-    const project = projectService.getProject(worktree.projectId);
+    let project;
+    let worktree;
+    let resolvedProjectId: string;
+
+    if (worktreeId) {
+      // Agent context - look up project via worktree
+      worktree = worktreeService.getWorktree(worktreeId);
+      if (!worktree) {
+        return reply.status(404).send({ error: 'Worktree not found' });
+      }
+      project = projectService.getProject(worktree.projectId);
+      resolvedProjectId = worktree.projectId;
+    } else {
+      // Orchestrator context - use projectId directly
+      project = projectService.getProject(directProjectId!);
+      resolvedProjectId = directProjectId!;
+    }
+
     if (!project) {
       return reply.status(404).send({ error: 'Project not found' });
     }
 
-    // Map activity type to log type
+    // Map activity type to log type and category
     const logType = activityType === 'error' ? 'error' : 'action';
+    const category = worktreeId ? 'agent' : 'orchestrator';
 
     // Log the activity
-    const logId = databaseService.addActivityLog(project.path, worktree.projectId, {
+    const logId = databaseService.addActivityLog(project.path, resolvedProjectId, {
       type: logType,
-      category: 'agent',
+      category,
       summary,
-      details: { ...details, activityType, worktreeId, branch: worktree.branch },
+      details: {
+        ...details,
+        activityType,
+        ...(worktreeId && { worktreeId, branch: worktree?.branch }),
+      },
     });
 
     return {
