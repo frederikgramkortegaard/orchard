@@ -2012,11 +2012,16 @@ class OrchestratorLoopService extends EventEmitter {
     // Use cached worktrees, only do full refresh every 60 seconds
     const now = Date.now();
     let worktrees = worktreeService.getWorktreesForProject(projectId);
+    const cachedCount = worktrees.length;
+    const timeSinceRefresh = now - this.lastFullRefresh;
 
-    if (worktrees.length === 0 || (now - this.lastFullRefresh) > this.FULL_REFRESH_INTERVAL_MS) {
+    if (worktrees.length === 0 || timeSinceRefresh > this.FULL_REFRESH_INTERVAL_MS) {
       // Need full refresh (empty cache or stale)
+      await this.logToTextFile(`  Cache miss: ${cachedCount} cached, ${timeSinceRefresh}ms since refresh`);
       worktrees = await worktreeService.loadWorktreesForProject(projectId);
       this.lastFullRefresh = now;
+    } else {
+      await this.logToTextFile(`  Cache hit: ${cachedCount} worktrees from cache`);
     }
     const sessions = sessionPersistenceService.getSessionsForProject(projectId);
     const sessionByWorktree = new Map(sessions.map(s => [s.worktreeId, s]));
