@@ -22,6 +22,7 @@ import { listSessions } from './tools/list-sessions.js';
 import { startSession } from './tools/start-session.js';
 import { stopSession } from './tools/stop-session.js';
 import { restartSession } from './tools/restart-session.js';
+import { runTask } from './tools/run-task.js';
 
 // Orchard server base URL (configurable via env)
 const ORCHARD_API = process.env.ORCHARD_API || 'http://localhost:3001';
@@ -300,6 +301,32 @@ const tools: Tool[] = [
       required: ['worktreeId', 'projectId'],
     },
   },
+  {
+    name: 'run_task',
+    description: 'Run a one-shot task using claude -p (print mode). More efficient than interactive sessions for quick tasks.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        worktreeId: {
+          type: 'string',
+          description: 'The worktree ID to run the task in',
+        },
+        projectId: {
+          type: 'string',
+          description: 'Project ID',
+        },
+        task: {
+          type: 'string',
+          description: 'The task/prompt to execute',
+        },
+        timeout: {
+          type: 'number',
+          description: 'Timeout in milliseconds (default: 120000)',
+        },
+      },
+      required: ['worktreeId', 'projectId', 'task'],
+    },
+  },
 ];
 
 // Tool handlers
@@ -319,6 +346,7 @@ const toolHandlers: Record<string, (args: Record<string, unknown>) => Promise<st
   start_session: async (args) => startSession(ORCHARD_API, args as { worktreeId: string; projectId: string }),
   stop_session: async (args) => stopSession(ORCHARD_API, args as { sessionId: string; projectId: string }),
   restart_session: async (args) => restartSession(ORCHARD_API, args as { worktreeId: string; projectId: string; task?: string }),
+  run_task: async (args) => runTask(ORCHARD_API, args as { worktreeId: string; projectId: string; task: string; timeout?: number }),
 };
 
 // Create and configure server
