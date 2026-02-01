@@ -1,6 +1,32 @@
 import type { FastifyInstance } from 'fastify';
 import { daemonClient } from '../pty/daemon-client.js';
 
+/**
+ * Check daemon connection and circuit breaker status.
+ * Returns an error response object if unavailable, or null if OK.
+ */
+function checkDaemonAvailability(): { status: number; error: string; circuitState?: string } | null {
+  const circuitState = daemonClient.getCircuitState();
+
+  if (circuitState === 'open') {
+    return {
+      status: 503,
+      error: 'Terminal daemon circuit breaker is open - service temporarily unavailable',
+      circuitState,
+    };
+  }
+
+  if (!daemonClient.isConnected()) {
+    return {
+      status: 503,
+      error: 'Terminal daemon not available',
+      circuitState,
+    };
+  }
+
+  return null;
+}
+
 export async function terminalsRoutes(fastify: FastifyInstance) {
   // Create terminal session
   fastify.post<{
@@ -12,8 +38,12 @@ export async function terminalsRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'worktreeId, projectPath, and cwd are required' });
     }
 
-    if (!daemonClient.isConnected()) {
-      return reply.status(503).send({ error: 'Terminal daemon not available' });
+    const unavailable = checkDaemonAvailability();
+    if (unavailable) {
+      return reply.status(unavailable.status).send({
+        error: unavailable.error,
+        circuitState: unavailable.circuitState,
+      });
     }
 
     try {
@@ -28,14 +58,25 @@ export async function terminalsRoutes(fastify: FastifyInstance) {
         createdAt: session?.createdAt || new Date().toISOString(),
       };
     } catch (err: any) {
+      // Provide more context on circuit breaker related errors
+      if (err.message.includes('circuit breaker')) {
+        return reply.status(503).send({
+          error: err.message,
+          circuitState: daemonClient.getCircuitState(),
+        });
+      }
       return reply.status(500).send({ error: err.message });
     }
   });
 
   // List terminal sessions (optionally filtered by worktreeId)
   fastify.get<{ Querystring: { worktreeId?: string } }>('/terminals', async (request, reply) => {
-    if (!daemonClient.isConnected()) {
-      return reply.status(503).send({ error: 'Terminal daemon not available' });
+    const unavailable = checkDaemonAvailability();
+    if (unavailable) {
+      return reply.status(unavailable.status).send({
+        error: unavailable.error,
+        circuitState: unavailable.circuitState,
+      });
     }
 
     try {
@@ -48,34 +89,68 @@ export async function terminalsRoutes(fastify: FastifyInstance) {
 
       return sessions;
     } catch (err: any) {
+      if (err.message.includes('circuit breaker')) {
+        return reply.status(503).send({
+          error: err.message,
+          circuitState: daemonClient.getCircuitState(),
+        });
+      }
       return reply.status(500).send({ error: err.message });
     }
   });
 
   // Get terminal session
   fastify.get<{ Params: { id: string } }>('/terminals/:id', async (request, reply) => {
-    if (!daemonClient.isConnected()) {
-      return reply.status(503).send({ error: 'Terminal daemon not available' });
+    const unavailable = checkDaemonAvailability();
+    if (unavailable) {
+      return reply.status(unavailable.status).send({
+        error: unavailable.error,
+        circuitState: unavailable.circuitState,
+      });
     }
 
-    const session = await daemonClient.getSession(request.params.id);
-    if (!session) {
-      return reply.status(404).send({ error: 'Session not found' });
+    try {
+      const session = await daemonClient.getSession(request.params.id);
+      if (!session) {
+        return reply.status(404).send({ error: 'Session not found' });
+      }
+      return session;
+    } catch (err: any) {
+      if (err.message.includes('circuit breaker')) {
+        return reply.status(503).send({
+          error: err.message,
+          circuitState: daemonClient.getCircuitState(),
+        });
+      }
+      return reply.status(500).send({ error: err.message });
     }
-    return session;
   });
 
   // Delete terminal session
   fastify.delete<{ Params: { id: string } }>('/terminals/:id', async (request, reply) => {
-    if (!daemonClient.isConnected()) {
-      return reply.status(503).send({ error: 'Terminal daemon not available' });
+    const unavailable = checkDaemonAvailability();
+    if (unavailable) {
+      return reply.status(unavailable.status).send({
+        error: unavailable.error,
+        circuitState: unavailable.circuitState,
+      });
     }
 
-    const success = await daemonClient.destroySession(request.params.id);
-    if (!success) {
-      return reply.status(404).send({ error: 'Session not found' });
+    try {
+      const success = await daemonClient.destroySession(request.params.id);
+      if (!success) {
+        return reply.status(404).send({ error: 'Session not found' });
+      }
+      return { success: true };
+    } catch (err: any) {
+      if (err.message.includes('circuit breaker')) {
+        return reply.status(503).send({
+          error: err.message,
+          circuitState: daemonClient.getCircuitState(),
+        });
+      }
+      return reply.status(500).send({ error: err.message });
     }
-    return { success: true };
   });
 
   // Send input to terminal session (for orchestrator to communicate with worktree agents)
@@ -85,32 +160,50 @@ export async function terminalsRoutes(fastify: FastifyInstance) {
   }>('/terminals/:id/input', async (request, reply) => {
     const { input, sendEnter = true } = request.body;
 
-    if (!daemonClient.isConnected()) {
-      return reply.status(503).send({ error: 'Terminal daemon not available' });
+    const unavailable = checkDaemonAvailability();
+    if (unavailable) {
+      return reply.status(unavailable.status).send({
+        error: unavailable.error,
+        circuitState: unavailable.circuitState,
+      });
     }
 
-    const session = await daemonClient.getSession(request.params.id);
-    if (!session) {
-      return reply.status(404).send({ error: 'Session not found' });
+    try {
+      const session = await daemonClient.getSession(request.params.id);
+      if (!session) {
+        return reply.status(404).send({ error: 'Session not found' });
+      }
+
+      // Write the input to the terminal
+      let data = input;
+      if (sendEnter) {
+        data += '\r'; // Add carriage return to simulate Enter key
+      }
+
+      daemonClient.writeToSession(request.params.id, data);
+
+      return { success: true, sessionId: request.params.id };
+    } catch (err: any) {
+      if (err.message.includes('circuit breaker')) {
+        return reply.status(503).send({
+          error: err.message,
+          circuitState: daemonClient.getCircuitState(),
+        });
+      }
+      return reply.status(500).send({ error: err.message });
     }
-
-    // Write the input to the terminal
-    let data = input;
-    if (sendEnter) {
-      data += '\r'; // Add carriage return to simulate Enter key
-    }
-
-    daemonClient.writeToSession(request.params.id, data);
-
-    return { success: true, sessionId: request.params.id };
   });
 
   // Get terminals by worktree ID (with optional path fallback for orphaned sessions)
   fastify.get<{ Params: { worktreeId: string }; Querystring: { path?: string } }>(
     '/terminals/worktree/:worktreeId',
     async (request, reply) => {
-      if (!daemonClient.isConnected()) {
-        return reply.status(503).send({ error: 'Terminal daemon not available' });
+      const unavailable = checkDaemonAvailability();
+      if (unavailable) {
+        return reply.status(unavailable.status).send({
+          error: unavailable.error,
+          circuitState: unavailable.circuitState,
+        });
       }
 
       try {
@@ -119,15 +212,23 @@ export async function terminalsRoutes(fastify: FastifyInstance) {
         const sessions = await daemonClient.getSessionsForWorktree(worktreeId, path);
         return sessions;
       } catch (err: any) {
+        if (err.message.includes('circuit breaker')) {
+          return reply.status(503).send({
+            error: err.message,
+            circuitState: daemonClient.getCircuitState(),
+          });
+        }
         return reply.status(500).send({ error: err.message });
       }
     }
   );
 
-  // Health check for daemon connection
+  // Health check for daemon connection with circuit breaker status
   fastify.get('/terminals/health', async () => {
+    const circuitStats = daemonClient.getCircuitStats();
     return {
       daemonConnected: daemonClient.isConnected(),
+      circuitBreaker: circuitStats,
     };
   });
 }

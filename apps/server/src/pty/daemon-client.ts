@@ -1,8 +1,25 @@
 import WebSocket from 'ws';
 import { EventEmitter } from 'events';
+import {
+  retryWithBackoff,
+  CircuitBreaker,
+  calculateBackoffDelay,
+  sleep,
+  type CircuitState,
+} from '../utils/retry.js';
 
 const DAEMON_URL = 'ws://localhost:3002';
-const RECONNECT_INTERVAL = 2000;
+
+// Reconnection settings with exponential backoff
+const RECONNECT_BASE_DELAY_MS = 1000;
+const RECONNECT_MAX_DELAY_MS = 30000;
+const RECONNECT_BACKOFF_MULTIPLIER = 2;
+
+// Request retry settings
+const REQUEST_MAX_ATTEMPTS = 3;
+const REQUEST_BASE_DELAY_MS = 500;
+const REQUEST_MAX_DELAY_MS = 5000;
+const REQUEST_TIMEOUT_MS = 10000;
 
 export interface DaemonSession {
   id: string;
@@ -19,17 +36,54 @@ class DaemonClient extends EventEmitter {
   private ws: WebSocket | null = null;
   private connected = false;
   private reconnecting = false;
+  private reconnectAttempt = 0;
   private messageHandlers = new Map<string, Set<MessageHandler>>();
   private pendingRequests = new Map<string, { resolve: Function; reject: Function }>();
   private clientSubscribers = new Map<string, Set<WebSocket>>(); // sessionId -> client websockets
+
+  // Circuit breaker for daemon connection health
+  private connectionCircuitBreaker = new CircuitBreaker({
+    failureThreshold: 5,
+    resetTimeoutMs: 30000,
+    successThreshold: 2,
+  });
 
   constructor() {
     super();
     this.connect();
   }
 
+  /**
+   * Get the current circuit breaker state
+   */
+  getCircuitState(): CircuitState {
+    return this.connectionCircuitBreaker.getState();
+  }
+
+  /**
+   * Get circuit breaker statistics for health monitoring
+   */
+  getCircuitStats(): {
+    state: CircuitState;
+    failureCount: number;
+    reconnectAttempt: number;
+  } {
+    return {
+      state: this.connectionCircuitBreaker.getState(),
+      failureCount: this.connectionCircuitBreaker.getFailureCount(),
+      reconnectAttempt: this.reconnectAttempt,
+    };
+  }
+
   private connect() {
     if (this.reconnecting) return;
+
+    // Check circuit breaker - if open, don't attempt connection
+    if (this.connectionCircuitBreaker.isOpen()) {
+      console.log('Circuit breaker is open, skipping connection attempt');
+      this.scheduleReconnect();
+      return;
+    }
 
     try {
       this.ws = new WebSocket(DAEMON_URL);
@@ -38,6 +92,8 @@ class DaemonClient extends EventEmitter {
         console.log('Connected to terminal daemon');
         this.connected = true;
         this.reconnecting = false;
+        this.reconnectAttempt = 0; // Reset backoff on successful connection
+        this.connectionCircuitBreaker.recordSuccess();
         this.emit('connected');
 
         // Re-subscribe to all sessions that have active client subscribers
@@ -57,6 +113,7 @@ class DaemonClient extends EventEmitter {
         console.log('Disconnected from terminal daemon');
         this.connected = false;
         this.ws = null;
+        this.connectionCircuitBreaker.recordFailure();
         this.emit('disconnected');
         this.scheduleReconnect();
       });
@@ -64,9 +121,11 @@ class DaemonClient extends EventEmitter {
       this.ws.on('error', (err) => {
         console.error('Daemon connection error:', err.message);
         this.connected = false;
+        this.connectionCircuitBreaker.recordFailure();
       });
     } catch (err) {
       console.error('Failed to connect to daemon:', err);
+      this.connectionCircuitBreaker.recordFailure();
       this.scheduleReconnect();
     }
   }
@@ -74,11 +133,25 @@ class DaemonClient extends EventEmitter {
   private scheduleReconnect() {
     if (this.reconnecting) return;
     this.reconnecting = true;
-    console.log(`Reconnecting to daemon in ${RECONNECT_INTERVAL}ms...`);
+
+    // Calculate backoff delay with exponential increase
+    const delayMs = calculateBackoffDelay(
+      this.reconnectAttempt,
+      RECONNECT_BASE_DELAY_MS,
+      RECONNECT_MAX_DELAY_MS,
+      RECONNECT_BACKOFF_MULTIPLIER
+    );
+    this.reconnectAttempt++;
+
+    const circuitState = this.connectionCircuitBreaker.getState();
+    console.log(
+      `Reconnecting to daemon in ${delayMs}ms (attempt ${this.reconnectAttempt}, circuit: ${circuitState})...`
+    );
+
     setTimeout(() => {
       this.reconnecting = false;
       this.connect();
-    }, RECONNECT_INTERVAL);
+    }, delayMs);
   }
 
   private handleMessage(msg: any) {
@@ -189,10 +262,19 @@ class DaemonClient extends EventEmitter {
     }
   }
 
-  private async request(msg: any): Promise<any> {
+  /**
+   * Internal request without retry - used by retryable operations
+   */
+  private async requestOnce(msg: any): Promise<any> {
     return new Promise((resolve, reject) => {
       if (!this.ws || !this.connected) {
         reject(new Error('Not connected to daemon'));
+        return;
+      }
+
+      // Check circuit breaker before making request
+      if (this.connectionCircuitBreaker.isOpen()) {
+        reject(new Error('Circuit breaker is open - daemon connection unhealthy'));
         return;
       }
 
@@ -200,16 +282,50 @@ class DaemonClient extends EventEmitter {
       msg.requestId = requestId;
       this.pendingRequests.set(requestId, { resolve, reject });
 
-      // Timeout after 10 seconds
+      // Timeout after configured duration
       setTimeout(() => {
         if (this.pendingRequests.has(requestId)) {
           this.pendingRequests.delete(requestId);
+          this.connectionCircuitBreaker.recordFailure();
           reject(new Error('Request timeout'));
         }
-      }, 10000);
+      }, REQUEST_TIMEOUT_MS);
 
       this.send(msg);
     });
+  }
+
+  /**
+   * Make a request to the daemon with automatic retry and exponential backoff
+   */
+  private async request(msg: any): Promise<any> {
+    // Determine if an error is retryable
+    const isRetryable = (error: Error): boolean => {
+      const message = error.message.toLowerCase();
+      // Don't retry on circuit breaker open or permanent errors
+      if (message.includes('circuit breaker')) return false;
+      // Retry on timeout or connection issues
+      return (
+        message.includes('timeout') ||
+        message.includes('not connected') ||
+        message.includes('connection')
+      );
+    };
+
+    return retryWithBackoff(
+      () => this.requestOnce({ ...msg }), // Clone msg to avoid requestId conflicts
+      {
+        maxAttempts: REQUEST_MAX_ATTEMPTS,
+        baseDelayMs: REQUEST_BASE_DELAY_MS,
+        maxDelayMs: REQUEST_MAX_DELAY_MS,
+        isRetryable,
+        onRetry: (attempt, delayMs, error) => {
+          console.log(
+            `Retrying daemon request (attempt ${attempt}/${REQUEST_MAX_ATTEMPTS}) after ${delayMs}ms: ${error.message}`
+          );
+        },
+      }
+    );
   }
 
   isConnected(): boolean {
