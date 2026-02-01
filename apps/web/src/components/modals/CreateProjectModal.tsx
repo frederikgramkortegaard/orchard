@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, GitBranch, Folder, FolderOpen, Clock } from 'lucide-react';
 import { FolderBrowser } from './FolderBrowser';
+import { LoadingSpinner } from '../LoadingSpinner';
 import * as api from '../../api/projects';
 import type { Project } from '../../stores/project.store';
 
@@ -222,9 +223,16 @@ export function CreateProjectModal({ isOpen, onClose, onSubmit, onOpenExisting }
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded disabled:opacity-50"
+              className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              {isSubmitting ? 'Creating...' : 'Open Project'}
+              {isSubmitting ? (
+                <>
+                  <LoadingSpinner size="sm" />
+                  Creating...
+                </>
+              ) : (
+                'Open Project'
+              )}
             </button>
           </div>
         </form>

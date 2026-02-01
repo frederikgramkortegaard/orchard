@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Folder, FolderGit, ChevronRight, Home, ArrowUp } from 'lucide-react';
+import { LoadingSpinner } from '../LoadingSpinner';
 
 interface DirectoryEntry {
   name: string;
@@ -119,9 +120,7 @@ export function FolderBrowser({ onSelect, onCancel, initialPath, selectGitReposO
       {/* Directory listing */}
       <div className="flex-1 overflow-y-auto p-2">
         {isLoading ? (
-          <div className="flex items-center justify-center h-full text-zinc-500">
-            Loading...
-          </div>
+          <LoadingSpinner variant="centered" label="Loading..." />
         ) : error ? (
           <div className="flex items-center justify-center h-full text-red-400">
             {error}

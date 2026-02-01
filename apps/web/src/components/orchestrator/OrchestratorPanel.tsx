@@ -5,6 +5,7 @@ import { useChatStore, type MessageStatus } from '../../stores/chat.store';
 import { AudioRecorder } from '../audio/AudioRecorder';
 import { AudioPlayback } from '../audio/AudioPlayback';
 import { useAudioStore } from '../../stores/audio.store';
+import { LoadingSpinner } from '../LoadingSpinner';
 
 interface OrchestratorPanelProps {
   projectId: string;
@@ -332,8 +333,17 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
             className="text-xs text-amber-200 hover:text-amber-100 flex items-center gap-1.5 disabled:opacity-50"
             title="Mark all pending messages as processed"
           >
-            <XCircle size={14} />
-            {isClearing ? 'Clearing...' : `${pendingCount} pending message${pendingCount > 1 ? 's' : ''} - tap to clear`}
+            {isClearing ? (
+              <>
+                <LoadingSpinner size="sm" />
+                Clearing...
+              </>
+            ) : (
+              <>
+                <XCircle size={14} />
+                {pendingCount} pending message{pendingCount > 1 ? 's' : ''} - tap to clear
+              </>
+            )}
           </button>
         </div>
       )}

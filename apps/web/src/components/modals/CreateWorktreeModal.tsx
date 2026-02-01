@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { fetchBranches } from '../../api/projects';
+import { LoadingSpinner } from '../LoadingSpinner';
 
 interface CreateWorktreeModalProps {
   isOpen: boolean;
@@ -148,9 +149,16 @@ export function CreateWorktreeModal({ isOpen, projectId, onClose, onSubmit }: Cr
             <button
               type="submit"
               disabled={isSubmitting || !branch}
-              className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded disabled:opacity-50"
+              className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              {isSubmitting ? 'Creating...' : 'Create Worktree'}
+              {isSubmitting ? (
+                <>
+                  <LoadingSpinner size="sm" />
+                  Creating...
+                </>
+              ) : (
+                'Create Worktree'
+              )}
             </button>
           </div>
         </form>
