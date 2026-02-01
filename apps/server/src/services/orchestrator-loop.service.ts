@@ -1210,29 +1210,23 @@ class OrchestratorLoopService extends EventEmitter {
 
       // Execute tool calls and track if any real action was taken
       let tookRealAction = false;
+      let calledNoAction = false;
       const toolResults: string[] = [];
-      let needsContinuation = false;
 
       if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
         for (const toolCall of assistantMessage.tool_calls) {
           const toolName = toolCall.function.name;
           const isNoAction = toolName === 'no_action';
-          const isFinalAction = toolName === 'send_message' || toolName === 'create_worktree' || isNoAction;
 
-          if (!isNoAction) {
+          if (isNoAction) {
+            calledNoAction = true;
+          } else {
             tookRealAction = true;
-          }
-
-          // Info-gathering tools need continuation
-          if (['get_user_messages', 'get_agent_output', 'list_worktrees', 'check_status', 'get_file_tree', 'read_file', 'list_files'].includes(toolName)) {
-            needsContinuation = true;
           }
 
           const result = await this.executeToolCall(toolCall, correlationId);
           toolResults.push(`${toolCall.function.name}: ${result}`);
-
-          // Log tool result to text file
-          await this.logToTextFile(`  Tool result: ${result}`);
+          debugLogService.debug('orchestrator', `Tool result: ${toolName}`, { result: result.slice(0, 200), correlationId });
         }
 
         // Add tool results to conversation history so LLM can see success/failure
@@ -1243,11 +1237,12 @@ class OrchestratorLoopService extends EventEmitter {
             content: `Tool execution results:\n${toolResults.join('\n')}${hasErrors ? '\n\nPlease inform the user about the error and try to fix it if possible.' : ''}`,
           });
 
-          // If LLM called info-gathering tools, continue the conversation
-          if (needsContinuation && !hasErrors) {
-            await this.logToTextFile(`  Continuing conversation after info-gathering...`);
-            // Recursive call to let LLM act on the info it gathered (max 3 turns)
-            const continuedAction = await this.continueLLMConversation(correlationId, 3);
+          // Continue the conversation until LLM calls no_action or makes no tool calls
+          // This allows the LLM to take multiple actions in response to user messages
+          if (!calledNoAction) {
+            debugLogService.debug('orchestrator', 'Continuing conversation...', { correlationId });
+            // High safety limit (20 turns) to prevent infinite loops
+            const continuedAction = await this.continueLLMConversation(correlationId, 20);
             tookRealAction = tookRealAction || continuedAction;
           }
         }
@@ -1343,39 +1338,47 @@ class OrchestratorLoopService extends EventEmitter {
       this.conversationHistory.push(assistantMessage);
 
       let tookAction = false;
-      let needsMoreTurns = false;
+      let calledNoAction = false;
 
-      if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
-        const toolResults: string[] = [];
+      // If no tool calls, LLM is done
+      if (!assistantMessage.tool_calls || assistantMessage.tool_calls.length === 0) {
+        debugLogService.debug('orchestrator', 'Continuation complete: no tool calls', { correlationId });
+        return false;
+      }
 
-        for (const toolCall of assistantMessage.tool_calls) {
-          const toolName = toolCall.function.name;
-          const isNoAction = toolName === 'no_action';
+      const toolResults: string[] = [];
 
-          if (!isNoAction) tookAction = true;
+      for (const toolCall of assistantMessage.tool_calls) {
+        const toolName = toolCall.function.name;
+        const isNoAction = toolName === 'no_action';
 
-          // Check if still gathering info
-          if (['get_user_messages', 'get_agent_output', 'list_worktrees', 'check_status', 'get_file_tree', 'read_file', 'list_files'].includes(toolName)) {
-            needsMoreTurns = true;
-          }
-
-          const result = await this.executeToolCall(toolCall, correlationId);
-          toolResults.push(`${toolCall.function.name}: ${result}`);
-          debugLogService.debug('orchestrator', `Continuation tool result: ${toolName}`, { result, correlationId });
+        if (isNoAction) {
+          calledNoAction = true;
+        } else {
+          tookAction = true;
         }
 
-        if (toolResults.length > 0) {
-          this.conversationHistory.push({
-            role: 'user',
-            content: `Tool results:\n${toolResults.join('\n')}`,
-          });
+        const result = await this.executeToolCall(toolCall, correlationId);
+        toolResults.push(`${toolCall.function.name}: ${result}`);
+        debugLogService.debug('orchestrator', `Continuation tool: ${toolName}`, { result: result.slice(0, 200), correlationId });
+      }
 
-          // Continue if still gathering info
-          if (needsMoreTurns) {
-            const continued = await this.continueLLMConversation(correlationId, maxTurns - 1);
-            return tookAction || continued;
-          }
-        }
+      // If LLM called no_action, it's signaling it's done
+      if (calledNoAction) {
+        debugLogService.debug('orchestrator', 'Continuation complete: no_action called', { correlationId });
+        return tookAction;
+      }
+
+      // Add tool results and continue
+      if (toolResults.length > 0) {
+        this.conversationHistory.push({
+          role: 'user',
+          content: `Tool results:\n${toolResults.join('\n')}`,
+        });
+
+        // Continue until LLM decides it's done (calls no_action or makes no tool calls)
+        const continued = await this.continueLLMConversation(correlationId, maxTurns - 1);
+        return tookAction || continued;
       }
 
       return tookAction;
