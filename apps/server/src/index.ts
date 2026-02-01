@@ -8,6 +8,7 @@ import { orchestratorRoutes } from './routes/orchestrator.js';
 import { filesRoutes } from './routes/files.js';
 import { messagesRoutes } from './routes/messages.js';
 import { agentRoutes } from './routes/agent.js';
+import { diffRoutes } from './routes/diff.js';
 import { handleTerminalWebSocket } from './websocket/terminal.handler.js';
 import { projectService } from './services/project.service.js';
 import { messageQueueService } from './services/message-queue.service.js';
@@ -41,6 +42,7 @@ fastify.register(orchestratorRoutes);
 fastify.register(filesRoutes);
 fastify.register(messagesRoutes);
 fastify.register(agentRoutes);
+fastify.register(diffRoutes);
 
 // WebSocket endpoint
 fastify.register(async function (fastify) {

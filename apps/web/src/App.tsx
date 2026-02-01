@@ -8,6 +8,7 @@ import { ProjectTabBar } from './components/layout/ProjectTabBar';
 import { Sidebar } from './components/sidebar/Sidebar';
 import { CreateProjectModal } from './components/modals/CreateProjectModal';
 import { CreateWorktreeModal } from './components/modals/CreateWorktreeModal';
+import { DiffViewerModal } from './components/diff';
 import { OrchestratorPanel } from './components/orchestrator/OrchestratorPanel';
 import { OrchestratorLoopControl } from './components/OrchestratorLoopControl';
 import { ActivityLog } from './components/orchestrator/ActivityLog';
@@ -20,6 +21,7 @@ function App() {
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [showWorktreeModal, setShowWorktreeModal] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
+  const [diffViewerState, setDiffViewerState] = useState<{ worktreeId: string; branch: string } | null>(null);
   const {
     projects,
     activeProjectId,
@@ -100,6 +102,10 @@ function App() {
     removeProject(projectId);
   }, [removeProject]);
 
+  const handleViewDiff = useCallback((worktreeId: string, branch: string) => {
+    setDiffViewerState({ worktreeId, branch });
+  }, []);
+
   const activeWorktree = worktrees.find((w) => w.id === activeWorktreeId);
   const activeProject = projects.find((p) => p.id === activeProjectId);
 
@@ -149,6 +155,7 @@ function App() {
               onCreateWorktree={() => setShowWorktreeModal(true)}
               onDeleteWorktree={handleDeleteWorktree}
               onArchiveWorktree={handleArchiveWorktree}
+              onViewDiff={handleViewDiff}
               worktreeId={activeWorktreeId || undefined}
               worktreePath={activeWorktree?.path}
               projectPath={activeProject?.path}
@@ -211,6 +218,15 @@ function App() {
           projectId={activeProjectId}
           onClose={() => setShowWorktreeModal(false)}
           onSubmit={handleCreateWorktree}
+        />
+      )}
+
+      {diffViewerState && (
+        <DiffViewerModal
+          isOpen={!!diffViewerState}
+          worktreeId={diffViewerState.worktreeId}
+          worktreeBranch={diffViewerState.branch}
+          onClose={() => setDiffViewerState(null)}
         />
       )}
     </div>

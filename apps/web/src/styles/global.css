@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "diff2html/bundles/css/diff2html.min.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -16,4 +17,153 @@
 
 .animate-slide-in {
   animation: slide-in 0.3s ease-out;
+}
+
+/* Diff2html dark theme customizations */
+.dark .diff-viewer-content {
+  --d2h-dark-color: #f8f8f2;
+  --d2h-dark-empty: #3f3f46;
+  --d2h-dark-info: #27272a;
+  --d2h-dark-file-header: #18181b;
+}
+
+.dark .d2h-wrapper {
+  background-color: #18181b;
+  color: #f4f4f5;
+}
+
+.dark .d2h-file-header {
+  background-color: #27272a;
+  border-bottom-color: #3f3f46;
+}
+
+.dark .d2h-file-name-wrapper {
+  background-color: #27272a;
+}
+
+.dark .d2h-file-name {
+  color: #e4e4e7;
+}
+
+.dark .d2h-tag {
+  background-color: #3f3f46;
+  color: #a1a1aa;
+}
+
+.dark .d2h-file-stats {
+  color: #a1a1aa;
+}
+
+.dark .d2h-files-diff {
+  background-color: #18181b;
+}
+
+.dark .d2h-code-side-linenumber,
+.dark .d2h-code-linenumber {
+  background-color: #27272a;
+  border-color: #3f3f46;
+  color: #71717a;
+}
+
+.dark .d2h-code-line {
+  background-color: #18181b;
+  color: #f4f4f5;
+}
+
+.dark .d2h-code-line-ctn {
+  background-color: transparent;
+  color: #f4f4f5;
+}
+
+.dark .d2h-code-line-prefix {
+  color: #a1a1aa;
+}
+
+/* Diff line backgrounds for dark theme */
+.dark .d2h-del {
+  background-color: rgba(220, 38, 38, 0.2);
+}
+
+.dark .d2h-del .d2h-code-line-ctn {
+  background-color: rgba(220, 38, 38, 0.15);
+}
+
+.dark .d2h-ins {
+  background-color: rgba(34, 197, 94, 0.2);
+}
+
+.dark .d2h-ins .d2h-code-line-ctn {
+  background-color: rgba(34, 197, 94, 0.15);
+}
+
+.dark .d2h-info {
+  background-color: rgba(59, 130, 246, 0.2);
+}
+
+.dark .d2h-info .d2h-code-line-ctn {
+  background-color: rgba(59, 130, 246, 0.15);
+}
+
+/* Word-level diff highlights */
+.dark .d2h-change {
+  background-color: rgba(251, 191, 36, 0.3);
+}
+
+.dark del.d2h-change {
+  background-color: rgba(220, 38, 38, 0.4);
+}
+
+.dark ins.d2h-change {
+  background-color: rgba(34, 197, 94, 0.4);
+}
+
+/* Empty cell */
+.dark .d2h-emptyplaceholder {
+  background-color: #27272a;
+}
+
+/* File list styling */
+.dark .d2h-file-list-wrapper {
+  background-color: #18181b;
+  border-color: #3f3f46;
+}
+
+.dark .d2h-file-list {
+  background-color: #18181b;
+}
+
+.dark .d2h-file-list-header {
+  background-color: #27272a;
+  border-color: #3f3f46;
+}
+
+.dark .d2h-file-list-line {
+  border-color: #3f3f46;
+}
+
+.dark .d2h-file-list-line:hover {
+  background-color: #27272a;
+}
+
+/* Scrollbar styling for diff viewer */
+.diff-viewer-content::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.diff-viewer-content::-webkit-scrollbar-track {
+  background: #f4f4f5;
+}
+
+.diff-viewer-content::-webkit-scrollbar-thumb {
+  background: #a1a1aa;
+  border-radius: 4px;
+}
+
+.dark .diff-viewer-content::-webkit-scrollbar-track {
+  background: #27272a;
+}
+
+.dark .diff-viewer-content::-webkit-scrollbar-thumb {
+  background: #52525b;
 }
