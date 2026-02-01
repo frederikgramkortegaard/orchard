@@ -507,4 +507,237 @@ export async function printSessionsRoutes(fastify: FastifyInstance) {
       message: killedProcess ? 'Session killed' : 'Session was not running',
     };
   });
+
+  // Resume an interrupted session (continues the most recent conversation)
+  fastify.post<{
+    Body: {
+      worktreeId: string;
+    };
+  }>('/print-sessions/resume', async (request, reply) => {
+    const { worktreeId } = request.body;
+
+    if (!worktreeId) {
+      return reply.status(400).send({ error: 'worktreeId required' });
+    }
+
+    const worktree = worktreeService.getWorktree(worktreeId);
+    if (!worktree) {
+      return reply.status(404).send({ error: 'Worktree not found' });
+    }
+
+    // Check if worktree already has a running task
+    const existing = hasRunningTask(worktreeId);
+    if (existing.running) {
+      return reply.status(409).send({
+        error: 'Worktree already has a running task',
+        sessionId: existing.sessionId,
+        startedAt: existing.startedAt?.toISOString(),
+      });
+    }
+
+    const project = projectService.getProject(worktree.projectId);
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    // Find the most recent interrupted session for this worktree
+    const sessions = databaseService.getPrintSessionsForWorktree(project.path, worktreeId);
+    const interruptedSession = sessions.find(s => s.exitCode === -1);
+
+    if (!interruptedSession) {
+      return reply.status(404).send({ error: 'No interrupted session found for this worktree' });
+    }
+
+    const sessionId = randomUUID();
+
+    // Create .mcp.json in worktree for agent MCP tools
+    const mcpConfig = {
+      mcpServers: {
+        'orchard-agent': {
+          command: 'node',
+          args: [join(project.path, 'packages/mcp-agent/dist/index.js')],
+          env: {
+            ORCHARD_API: process.env.ORCHARD_API || 'http://localhost:3001',
+            WORKTREE_ID: worktreeId,
+          },
+        },
+      },
+    };
+    try {
+      writeFileSync(join(worktree.path, '.mcp.json'), JSON.stringify(mcpConfig, null, 2));
+    } catch (err) {
+      console.error(`[PrintSessions] Failed to write .mcp.json:`, err);
+    }
+
+    // Auto-unarchive the worktree if it was archived
+    if (worktree.archived) {
+      console.log(`[PrintSessions] Unarchiving worktree ${worktreeId} for resumed task`);
+      worktreeService.markWorktreeActive(worktreeId);
+    }
+
+    // Mark the old interrupted session as handled
+    databaseService.markInterruptedSessionHandled(project.path, interruptedSession.id);
+
+    // Create new session record
+    databaseService.createPrintSession(project.path, {
+      id: sessionId,
+      worktreeId,
+      projectId: worktree.projectId,
+      task: `[Resumed] ${interruptedSession.task}`,
+    });
+
+    // Store resume info at the start of output
+    databaseService.appendTerminalOutput(project.path, sessionId,
+      `Resuming interrupted session: ${interruptedSession.id}\nOriginal task: ${interruptedSession.task}\n\n`
+    );
+
+    // Spawn claude --continue to resume the most recent conversation
+    const claude = spawn('sh', ['-c', `claude --continue --dangerously-skip-permissions --verbose --output-format stream-json 2>&1`], {
+      cwd: worktree.path,
+      env: {
+        ...process.env,
+        WORKTREE_ID: worktreeId,
+        TERM: 'dumb',
+        NO_COLOR: '1',
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    console.log(`[PrintSessions] Resumed session ${sessionId} (from ${interruptedSession.id}), pid: ${claude.pid}`);
+
+    // Register this task as running
+    registerRunningTask(worktreeId, sessionId, claude);
+
+    // Buffer for incomplete JSON lines
+    let lineBuffer = '';
+
+    // Track current tool for associating results
+    let currentTool: { name: string; id: string } | null = null;
+
+    // Parse stream-json format (same as new session)
+    const parseStreamJson = (text: string) => {
+      lineBuffer += text;
+      const lines = lineBuffer.split('\n');
+      lineBuffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const event = JSON.parse(line);
+
+          if (event.type === 'assistant' && event.message?.content) {
+            for (const block of event.message.content) {
+              if (block.type === 'text' && block.text?.trim()) {
+                databaseService.appendTerminalOutput(project.path, sessionId, `${block.text}\n`);
+              } else if (block.type === 'tool_use') {
+                currentTool = { name: block.name || 'unknown', id: block.id || '' };
+                const input = block.input || {};
+
+                if (block.name === 'Bash' && input.command) {
+                  databaseService.appendTerminalOutput(project.path, sessionId, `[Bash] $ ${input.command}\n`);
+                } else if (block.name === 'Write') {
+                  databaseService.appendTerminalOutput(project.path, sessionId, `[Write] ${input.file_path || ''}\n`);
+                } else if (block.name === 'Edit') {
+                  databaseService.appendTerminalOutput(project.path, sessionId, `[Edit] ${input.file_path || ''}\n`);
+                } else if (block.name === 'Read') {
+                  databaseService.appendTerminalOutput(project.path, sessionId, `[Read] ${input.file_path || ''}\n`);
+                } else if (block.name === 'Glob' || block.name === 'Grep') {
+                  databaseService.appendTerminalOutput(project.path, sessionId, `[${block.name}] ${input.pattern || ''}\n`);
+                } else if (block.name === 'WebSearch') {
+                  databaseService.appendTerminalOutput(project.path, sessionId, `[WebSearch] ${input.query || ''}\n`);
+                } else if (block.name === 'WebFetch') {
+                  databaseService.appendTerminalOutput(project.path, sessionId, `[WebFetch] ${input.url || ''}\n`);
+                } else if (block.name === 'Task') {
+                  databaseService.appendTerminalOutput(project.path, sessionId, `[Task] ${input.description || input.prompt?.slice(0, 100) || ''}\n`);
+                } else {
+                  databaseService.appendTerminalOutput(project.path, sessionId, `[${block.name}]\n`);
+                }
+              }
+            }
+          } else if (event.type === 'result') {
+            let resultText = '';
+            if (typeof event.result === 'string') {
+              resultText = event.result;
+            } else if (event.result?.stdout) {
+              resultText = event.result.stdout;
+              if (event.result.stderr) {
+                resultText += `\n[stderr] ${event.result.stderr}`;
+              }
+            } else if (event.result?.output) {
+              resultText = event.result.output;
+            } else if (event.result?.content) {
+              resultText = typeof event.result.content === 'string'
+                ? event.result.content.slice(0, 500) + (event.result.content.length > 500 ? '\n... (truncated)' : '')
+                : JSON.stringify(event.result.content).slice(0, 500);
+            }
+
+            if (resultText) {
+              databaseService.appendTerminalOutput(project.path, sessionId, `${resultText}\n`);
+            }
+            currentTool = null;
+          } else if (event.type === 'content_block_delta' && event.delta?.text) {
+            databaseService.appendTerminalOutput(project.path, sessionId, event.delta.text);
+          }
+        } catch {
+          if (line.trim()) {
+            console.log(`[PrintSessions] Non-JSON line: ${line.substring(0, 50)}`);
+          }
+        }
+      }
+    };
+
+    // Stream stdout
+    claude.stdout?.on('data', (data: Buffer) => {
+      const text = data.toString();
+      console.log(`[PrintSessions] stdout (${sessionId}): ${text.substring(0, 100)}`);
+      parseStreamJson(text);
+    });
+
+    // Stream stderr
+    claude.stderr?.on('data', (data: Buffer) => {
+      const text = data.toString();
+      console.log(`[PrintSessions] stderr (${sessionId}): ${text.substring(0, 100)}`);
+      databaseService.appendTerminalOutput(project.path, sessionId, `[stderr] ${text}`);
+    });
+
+    // Handle completion
+    claude.on('close', async (code) => {
+      console.log(`[PrintSessions] Resumed session ${sessionId} closed with code ${code}`);
+      databaseService.completePrintSession(project.path, sessionId, code ?? 1);
+      clearRunningTask(worktreeId);
+
+      if (code === 0) {
+        try {
+          const hasCommits = await hasCommitsSinceStart(worktree.path, worktree.projectId);
+          if (hasCommits) {
+            console.log(`[PrintSessions] Adding ${worktreeId} to merge queue (has commits)`);
+            databaseService.addToMergeQueue(project.path, {
+              worktreeId,
+              branch: worktree.branch,
+              summary: '',
+              hasCommits: true,
+            });
+          }
+        } catch (err) {
+          console.error(`[PrintSessions] Error checking commits for ${worktreeId}:`, err);
+        }
+      }
+    });
+
+    claude.on('error', (err) => {
+      console.error(`[PrintSessions] Error for resumed session ${sessionId}:`, err);
+      databaseService.appendTerminalOutput(project.path, sessionId, `\nError: ${err.message}\n`);
+      databaseService.completePrintSession(project.path, sessionId, 1);
+      clearRunningTask(worktreeId);
+    });
+
+    return {
+      id: sessionId,
+      worktreeId,
+      projectId: worktree.projectId,
+      task: `[Resumed] ${interruptedSession.task}`,
+      status: 'running',
+      resumedFrom: interruptedSession.id,
+    };
+  });
 }

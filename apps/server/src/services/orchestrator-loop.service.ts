@@ -2647,6 +2647,13 @@ class OrchestratorLoopService extends EventEmitter {
         worktreeId: s.worktreeId,
         task: s.task.slice(0, 100), // Truncate for context
       }));
+
+      // Check for orphaned sessions (running on archived worktrees) and mark them as failed
+      const orphaned = databaseService.getOrphanedRunningSessions(project.path);
+      for (const session of orphaned) {
+        console.log(`[OrchestratorLoop] Marking orphaned session ${session.id} as failed (worktree archived while running)`);
+        databaseService.markSessionOrphaned(project.path, session.id);
+      }
     }
 
     return {

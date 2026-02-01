@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
-import { Plus, X, SplitSquareHorizontal, Clock, Circle, Loader2, MessageCircleQuestion, Play, Check, StopCircle, ArrowDown } from 'lucide-react';
+import { Plus, X, SplitSquareHorizontal, Clock, Circle, Loader2, MessageCircleQuestion, Play, Check, StopCircle, ArrowDown, RotateCcw } from 'lucide-react';
 import { useTerminalStore, type TerminalActivityStatus } from '../../stores/terminal.store';
 import { TerminalInstance } from './TerminalInstance';
 import { useWebSocket } from '../../contexts/WebSocketContext';
@@ -38,7 +38,12 @@ function ParsedOutput({ output }: { output: string }) {
 }
 
 // Read-only print session viewer component
-function PrintSessionViewer({ session, projectId, worktreeBranch }: { session: PrintSession; projectId: string; worktreeBranch?: string }) {
+function PrintSessionViewer({ session, projectId, worktreeBranch, onResume }: {
+  session: PrintSession;
+  projectId: string;
+  worktreeBranch?: string;
+  onResume?: (worktreeId: string) => void;
+}) {
   const [output, setOutput] = useState('');
   const [lastId, setLastId] = useState(0);
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -137,6 +142,16 @@ function PrintSessionViewer({ session, projectId, worktreeBranch }: { session: P
           }`}>
             exit {session.exitCode}
           </span>
+        )}
+        {session.exitCode === -1 && onResume && (
+          <button
+            onClick={() => onResume(session.worktreeId)}
+            className="flex items-center gap-1 px-2 py-0.5 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded"
+            title="Resume interrupted session"
+          >
+            <RotateCcw size={12} />
+            Resume
+          </button>
         )}
       </div>
 
@@ -430,13 +445,32 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
     ? printSessions.sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())[0]
     : null;
 
+  // Resume an interrupted session
+  const handleResume = useCallback(async (resumeWorktreeId: string) => {
+    try {
+      const res = await fetch(`/api/print-sessions/resume`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ worktreeId: resumeWorktreeId }),
+      });
+      if (res.ok) {
+        addToast('success', 'Resuming session...');
+      } else {
+        const err = await res.json();
+        addToast('error', err.error || 'Failed to resume session');
+      }
+    } catch {
+      addToast('error', 'Failed to resume session');
+    }
+  }, [addToast]);
+
   // Simple render - just show the most recent print session
   const renderContent = () => {
     if (mostRecentPrintSession && activeProjectId) {
       // Look up the branch name for the worktree
       const sessionWorktree = worktrees.find(w => w.id === mostRecentPrintSession.worktreeId);
       const branchName = sessionWorktree?.branch;
-      return <PrintSessionViewer session={mostRecentPrintSession} projectId={activeProjectId} worktreeBranch={branchName} />;
+      return <PrintSessionViewer session={mostRecentPrintSession} projectId={activeProjectId} worktreeBranch={branchName} onResume={handleResume} />;
     }
 
     return (
