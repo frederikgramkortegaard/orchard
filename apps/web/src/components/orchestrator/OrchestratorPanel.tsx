@@ -326,11 +326,11 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
 
       {/* Clear pending button */}
       {pendingCount > 0 && (
-        <div className="flex justify-center px-3 py-2 bg-amber-900/50 border-t border-amber-800/50">
+        <div className="flex justify-center px-3 py-2 bg-zinc-800/50 border-t border-zinc-700/50">
           <button
             onClick={handleClearPending}
             disabled={isClearing}
-            className="text-xs text-amber-200 hover:text-amber-100 flex items-center gap-1.5 disabled:opacity-50"
+            className="text-xs text-zinc-300 hover:text-zinc-100 flex items-center gap-1.5 disabled:opacity-50"
             title="Mark all pending messages as processed"
           >
             {isClearing ? (
