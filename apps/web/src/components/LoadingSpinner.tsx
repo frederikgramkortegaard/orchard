@@ -35,7 +35,7 @@ export function LoadingSpinner({
   const spinnerElement = (
     <Loader2
       size={sizeMap[size]}
-      className="animate-spin text-zinc-500 dark:text-zinc-400"
+      className="animate-spin text-green-600 dark:text-green-500"
     />
   );
 
