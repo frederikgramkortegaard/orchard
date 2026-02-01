@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import { join } from 'path';
 import { mkdirSync, existsSync } from 'fs';
+import { homedir } from 'os';
 import { EventEmitter } from 'events';
 
 export interface ActivityLog {
@@ -89,9 +90,117 @@ export interface MergeQueueEntry {
   merged: boolean;
 }
 
+export interface RegisteredProject {
+  id: string;
+  path: string;
+  name: string;
+  createdAt: string;
+  openedAt: string;
+}
+
 class DatabaseService extends EventEmitter {
   private databases: Map<string, Database.Database> = new Map();
+  private registryDb: Database.Database | null = null;
   private initialized = false;
+
+  /**
+   * Get the global registry database (~/.orchard/registry.db)
+   * This stores the list of all known projects for persistence across restarts
+   */
+  private getRegistryDatabase(): Database.Database {
+    if (this.registryDb) return this.registryDb;
+
+    const orchardHome = join(homedir(), '.orchard');
+    if (!existsSync(orchardHome)) {
+      mkdirSync(orchardHome, { recursive: true });
+    }
+
+    const registryPath = join(orchardHome, 'registry.db');
+    this.registryDb = new Database(registryPath);
+
+    // Enable WAL mode
+    this.registryDb.pragma('journal_mode = WAL');
+
+    // Initialize registry schema
+    this.registryDb.exec(`
+      CREATE TABLE IF NOT EXISTS projects (
+        id TEXT PRIMARY KEY,
+        path TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        opened_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_projects_path ON projects(path);
+    `);
+
+    console.log(`[DatabaseService] Opened registry database: ${registryPath}`);
+    return this.registryDb;
+  }
+
+  // ============ Project Registry ============
+
+  /**
+   * Add a project to the global registry
+   */
+  addProjectToRegistry(project: {
+    id: string;
+    path: string;
+    name: string;
+    createdAt: string;
+  }): void {
+    const db = this.getRegistryDatabase();
+    const stmt = db.prepare(`
+      INSERT INTO projects (id, path, name, created_at, opened_at)
+      VALUES (?, ?, ?, ?, datetime('now'))
+      ON CONFLICT (path) DO UPDATE SET
+        id = excluded.id,
+        name = excluded.name,
+        opened_at = datetime('now')
+    `);
+    stmt.run(project.id, project.path, project.name, project.createdAt);
+    console.log(`[DatabaseService] Added project to registry: ${project.name} (${project.path})`);
+  }
+
+  /**
+   * Remove a project from the global registry
+   */
+  removeProjectFromRegistry(path: string): boolean {
+    const db = this.getRegistryDatabase();
+    const stmt = db.prepare('DELETE FROM projects WHERE path = ?');
+    const result = stmt.run(path);
+    if (result.changes > 0) {
+      console.log(`[DatabaseService] Removed project from registry: ${path}`);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Get all registered projects
+   */
+  getRegisteredProjects(): RegisteredProject[] {
+    const db = this.getRegistryDatabase();
+    const stmt = db.prepare(`
+      SELECT id, path, name, created_at as createdAt, opened_at as openedAt
+      FROM projects
+      ORDER BY opened_at DESC
+    `);
+    return stmt.all() as RegisteredProject[];
+  }
+
+  /**
+   * Update the opened_at timestamp for a project
+   */
+  touchProjectInRegistry(path: string): boolean {
+    const db = this.getRegistryDatabase();
+    const stmt = db.prepare(`
+      UPDATE projects SET opened_at = datetime('now')
+      WHERE path = ?
+    `);
+    const result = stmt.run(path);
+    return result.changes > 0;
+  }
 
   /**
    * Get or create a database for a project
@@ -1234,6 +1343,12 @@ class DatabaseService extends EventEmitter {
       console.log(`[DatabaseService] Closed database: ${path}`);
     }
     this.databases.clear();
+
+    if (this.registryDb) {
+      this.registryDb.close();
+      console.log('[DatabaseService] Closed registry database');
+      this.registryDb = null;
+    }
   }
 }
 
