@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Plus, GitBranch, Folder, Trash2, CheckCircle, Archive, Clock, GitCompare, Loader2, Search, X } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Plus, GitBranch, Folder, Trash2, CheckCircle, Archive, Clock, GitCompare, Loader2, Search, X, Copy } from 'lucide-react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import { useProjectStore, type Worktree } from '../../stores/project.store';
 import { useTerminalStore } from '../../stores/terminal.store';
@@ -17,10 +17,50 @@ interface SidebarProps {
   projectPath?: string;
 }
 
+interface ContextMenu {
+  x: number;
+  y: number;
+  worktree: Worktree;
+}
+
 export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onArchiveWorktree, onViewDiff, worktreeId, worktreePath, projectPath }: SidebarProps) {
   const { projects, activeProjectId, worktrees, activeWorktreeId, setActiveWorktree } = useProjectStore();
   const { sessions } = useTerminalStore();
   const [searchQuery, setSearchQuery] = useState('');
+  const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
+
+  // Close context menu when clicking outside
+  const closeContextMenu = useCallback(() => {
+    setContextMenu(null);
+  }, []);
+
+  useEffect(() => {
+    if (contextMenu) {
+      const handleClick = () => closeContextMenu();
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') closeContextMenu();
+      };
+      document.addEventListener('click', handleClick);
+      document.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.removeEventListener('click', handleClick);
+        document.removeEventListener('keydown', handleKeyDown);
+      };
+    }
+  }, [contextMenu, closeContextMenu]);
+
+  const handleContextMenu = (e: React.MouseEvent, worktree: Worktree) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ x: e.clientX, y: e.clientY, worktree });
+  };
+
+  const handleCopyBranchName = () => {
+    if (contextMenu) {
+      navigator.clipboard.writeText(contextMenu.worktree.branch);
+      closeContextMenu();
+    }
+  };
 
   const activeProject = projects.find(p => p.id === activeProjectId);
 
@@ -163,6 +203,7 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
               <div
                 key={worktree.id}
                 onClick={() => setActiveWorktree(worktree.id)}
+                onContextMenu={(e) => handleContextMenu(e, worktree)}
                 className={`w-full flex items-center gap-2 px-3 py-2 rounded text-left group cursor-pointer ${
                   activeWorktreeId === worktree.id ? 'bg-zinc-300 dark:bg-zinc-600' : 'hover:bg-zinc-200/50 dark:hover:bg-zinc-700/50'
                 } ${worktree.archived ? 'opacity-40' : worktree.merged ? 'opacity-60' : ''} ${rateLimited ? 'ring-1 ring-amber-500/50' : ''}`}
@@ -257,6 +298,62 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
       ) : (
         <div className="flex-1 overflow-hidden">
           {worktreesContent}
+        </div>
+      )}
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <div
+          className="fixed z-50 min-w-[160px] py-1 bg-zinc-800 border border-zinc-700 rounded-md shadow-lg"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {!contextMenu.worktree.archived && (
+            <button
+              onClick={() => {
+                onViewDiff(contextMenu.worktree.id, contextMenu.worktree.branch);
+                closeContextMenu();
+              }}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700 text-left"
+            >
+              <GitCompare size={14} />
+              View Diff
+            </button>
+          )}
+          <button
+            onClick={handleCopyBranchName}
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700 text-left"
+          >
+            <Copy size={14} />
+            Copy Branch Name
+          </button>
+          {!contextMenu.worktree.isMain && !contextMenu.worktree.archived && (
+            <>
+              <div className="my-1 border-t border-zinc-700" />
+              <button
+                onClick={() => {
+                  onArchiveWorktree(contextMenu.worktree.id);
+                  closeContextMenu();
+                }}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-amber-400 hover:bg-zinc-700 text-left"
+              >
+                <Archive size={14} />
+                Archive
+              </button>
+            </>
+          )}
+          {!contextMenu.worktree.isMain && (
+            <button
+              onClick={() => {
+                onDeleteWorktree(contextMenu.worktree.id);
+                closeContextMenu();
+              }}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-red-400 hover:bg-zinc-700 text-left"
+            >
+              <Trash2 size={14} />
+              Delete
+            </button>
+          )}
         </div>
       )}
     </aside>
