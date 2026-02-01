@@ -1290,6 +1290,18 @@ class OrchestratorLoopService extends EventEmitter {
       ...this.conversationHistory,
     ];
 
+    // Log the continuation request to SQLite
+    debugLogService.logAIRequest({
+      tickNumber: this.tickNumber,
+      model: this.config.model,
+      provider: this.config.provider,
+      messages: fullMessages.map(m => ({
+        role: m.role,
+        content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+      })),
+      correlationId: `${correlationId}-continue`,
+    });
+
     try {
       const response = await this.openai.chat.completions.create({
         model: this.config.model,
@@ -1299,12 +1311,34 @@ class OrchestratorLoopService extends EventEmitter {
       });
 
       const assistantMessage = response.choices[0]?.message;
-      if (!assistantMessage) return false;
+      if (!assistantMessage) {
+        debugLogService.warn('orchestrator', 'Continuation: No response from LLM', { correlationId });
+        return false;
+      }
 
-      // Log response
-      const toolNames = assistantMessage.tool_calls?.map(tc => tc.function.name).join(', ') || 'none';
-      await this.logToTextFile(`  [Continue] Response: ${assistantMessage.content?.slice(0, 100) || '(no text)'}`);
-      await this.logToTextFile(`  [Continue] Tools: ${toolNames}`);
+      // Log the continuation response to SQLite
+      debugLogService.logAIResponse({
+        tickNumber: this.tickNumber,
+        model: this.config.model,
+        provider: this.config.provider,
+        content: assistantMessage.content || undefined,
+        toolCalls: assistantMessage.tool_calls?.map(tc => ({
+          name: tc.function.name,
+          arguments: tc.function.arguments,
+        })),
+        usage: response.usage ? {
+          prompt_tokens: response.usage.prompt_tokens,
+          completion_tokens: response.usage.completion_tokens,
+          total_tokens: response.usage.total_tokens,
+        } : undefined,
+        finishReason: response.choices[0]?.finish_reason || undefined,
+        correlationId: `${correlationId}-continue`,
+      });
+
+      debugLogService.debug('orchestrator', `Continuation response: ${assistantMessage.content?.slice(0, 100) || '(no text)'}`, {
+        tools: assistantMessage.tool_calls?.map(tc => tc.function.name) || [],
+        correlationId,
+      });
 
       this.conversationHistory.push(assistantMessage);
 
@@ -1327,7 +1361,7 @@ class OrchestratorLoopService extends EventEmitter {
 
           const result = await this.executeToolCall(toolCall, correlationId);
           toolResults.push(`${toolCall.function.name}: ${result}`);
-          await this.logToTextFile(`  [Continue] Tool result: ${result}`);
+          debugLogService.debug('orchestrator', `Continuation tool result: ${toolName}`, { result, correlationId });
         }
 
         if (toolResults.length > 0) {
@@ -1346,7 +1380,7 @@ class OrchestratorLoopService extends EventEmitter {
 
       return tookAction;
     } catch (error: any) {
-      await this.logToTextFile(`  [Continue] ERROR: ${error.message}`);
+      debugLogService.error('orchestrator', `Continuation error: ${error.message}`, { error: error.stack, correlationId });
       return false;
     }
   }
@@ -1477,8 +1511,7 @@ class OrchestratorLoopService extends EventEmitter {
           });
           return `SUCCESS: No action taken - ${args.reason}`;
         case 'get_user_messages':
-          await this.toolGetUserMessages(args.limit || 10, correlationId);
-          return `SUCCESS: Retrieved user messages`;
+          return await this.toolGetUserMessages(args.limit || 10, correlationId);
         case 'get_agent_output':
           await this.toolGetAgentOutput(args.worktreeId, args.lines || 50, correlationId);
           return `SUCCESS: Retrieved agent output`;
@@ -1713,8 +1746,9 @@ class OrchestratorLoopService extends EventEmitter {
   /**
    * Tool: Get recent user messages from chat
    * Note: Messages are marked as processed by executeTick after the LLM responds
+   * Returns the messages directly so the LLM can act on them
    */
-  private async toolGetUserMessages(limit: number, correlationId: string): Promise<void> {
+  private async toolGetUserMessages(limit: number, correlationId: string): Promise<string> {
     const projectId = this.projectId;
     if (!projectId) throw new Error('No project context');
 
@@ -1743,17 +1777,14 @@ class OrchestratorLoopService extends EventEmitter {
       correlationId,
     });
 
-    // Add to conversation history so LLM can see the messages
+    // Return the messages directly so LLM can see and act on them
     if (pendingMessages.length > 0) {
-      this.conversationHistory.push({
-        role: 'user',
-        content: `New messages from user:\n${pendingMessages.map(m => `[${m.from}]: ${m.text}`).join('\n')}`,
-      });
+      const formattedMessages = pendingMessages
+        .map(m => `[${m.timestamp}] ${m.text}`)
+        .join('\n');
+      return `User messages (${pendingMessages.length}):\n${formattedMessages}\n\nPlease respond to the user using send_message.`;
     } else {
-      this.conversationHistory.push({
-        role: 'user',
-        content: 'No new messages from the user.',
-      });
+      return 'No new messages from the user.';
     }
   }
 
