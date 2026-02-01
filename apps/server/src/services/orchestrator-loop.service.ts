@@ -1890,16 +1890,16 @@ class OrchestratorLoopService extends EventEmitter {
 
       await this.logToTextFile(`Merged ${worktree.branch} successfully`);
 
-      // Mark as merged in the queue
-      databaseService.markMergeQueueEntryMerged(project.path, worktreeId);
+      // Remove from merge queue
+      databaseService.removeFromMergeQueue(project.path, worktreeId);
 
-      // Mark worktree as merged
-      await worktreeService.markAsMerged(worktreeId);
+      // Archive the worktree after successful merge
+      await worktreeService.archiveWorktree(worktreeId);
 
       await activityLoggerService.log({
         type: 'action',
         category: 'worktree',
-        summary: `Merged ${entry.branch} from queue`,
+        summary: `Merged and archived ${entry.branch}`,
         details: { worktreeId, branch: entry.branch, summary: entry.summary },
         correlationId,
       });

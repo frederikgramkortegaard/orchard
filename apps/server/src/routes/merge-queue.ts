@@ -181,7 +181,7 @@ export async function mergeQueueRoutes(fastify: FastifyInstance) {
     };
   });
 
-  // Mark a merge queue entry as merged
+  // Mark a merge queue entry as merged and archive the worktree
   fastify.post<{
     Params: { projectId: string; worktreeId: string };
   }>('/merge-queue/:projectId/:worktreeId/merge', async (request, reply) => {
@@ -192,12 +192,16 @@ export async function mergeQueueRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Project not found' });
     }
 
-    const success = databaseService.markMergeQueueEntryMerged(project.path, worktreeId);
+    // Remove from merge queue
+    const success = databaseService.removeFromMergeQueue(project.path, worktreeId);
     if (!success) {
       return reply.status(404).send({ error: 'Merge queue entry not found' });
     }
 
-    return { success: true, message: 'Marked as merged' };
+    // Archive the worktree after merge
+    await worktreeService.archiveWorktree(worktreeId);
+
+    return { success: true, message: 'Merged and archived' };
   });
 
   // Remove an entry from the merge queue
