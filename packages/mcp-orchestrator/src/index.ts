@@ -25,6 +25,7 @@ import { restartSession } from './tools/restart-session.js';
 import { runTask } from './tools/run-task.js';
 import { updateMessageStatus } from './tools/update-message-status.js';
 import { logActivity } from './tools/log-activity.js';
+import { listProjects } from './tools/list-projects.js';
 
 // Orchard server base URL (configurable via env)
 const ORCHARD_API = process.env.ORCHARD_API || 'http://localhost:3001';
@@ -50,6 +51,15 @@ async function logToolActivity(
 
 // Tool definitions
 const tools: Tool[] = [
+  {
+    name: 'list_projects',
+    description: 'List all projects registered in Orchard',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      required: [],
+    },
+  },
   {
     name: 'list_agents',
     description: 'List all coding agents (worktrees) and their status',
@@ -402,6 +412,8 @@ const tools: Tool[] = [
 
 // Tool handlers with automatic activity logging
 const toolHandlers: Record<string, (args: Record<string, unknown>) => Promise<string>> = {
+  list_projects: async () => listProjects(ORCHARD_API),
+
   list_agents: async (args) => listAgents(ORCHARD_API, args as { projectId: string; filter?: string }),
 
   create_agent: async (args) => {
