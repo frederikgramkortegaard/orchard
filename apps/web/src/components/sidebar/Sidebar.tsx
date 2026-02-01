@@ -1,4 +1,5 @@
-import { Plus, GitBranch, Folder, Trash2, CheckCircle, Archive, Clock, GitCompare, Loader2 } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, GitBranch, Folder, Trash2, CheckCircle, Archive, Clock, GitCompare, Loader2, Search, X } from 'lucide-react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import { useProjectStore, type Worktree } from '../../stores/project.store';
 import { useTerminalStore } from '../../stores/terminal.store';
@@ -19,6 +20,7 @@ interface SidebarProps {
 export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onArchiveWorktree, onViewDiff, worktreeId, worktreePath, projectPath }: SidebarProps) {
   const { projects, activeProjectId, worktrees, activeWorktreeId, setActiveWorktree } = useProjectStore();
   const { sessions } = useTerminalStore();
+  const [searchQuery, setSearchQuery] = useState('');
 
   const activeProject = projects.find(p => p.id === activeProjectId);
 
@@ -60,6 +62,11 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
     return bCreatedAt - aCreatedAt;
   });
 
+  // Filter worktrees by search query
+  const filteredWorktrees = sortedWorktrees.filter(worktree =>
+    worktree.branch.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   // Check if a worktree has any rate-limited sessions
   const isWorktreeRateLimited = (worktreeId: string) => {
     return Array.from(sessions.values()).some(
@@ -95,6 +102,31 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
         </button>
       </div>
 
+      {/* Search input */}
+      {activeProjectId && worktrees.length > 0 && (
+        <div className="px-2 py-2 border-b border-zinc-300 dark:border-zinc-700 flex-shrink-0">
+          <div className="relative">
+            <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-zinc-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Escape' && setSearchQuery('')}
+              placeholder="Filter branches..."
+              className="w-full pl-7 pr-7 py-1 text-sm bg-zinc-200 dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 rounded text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 rounded"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Worktrees list */}
       <div className="flex-1 overflow-y-auto p-2">
         {!activeProjectId ? (
@@ -119,9 +151,13 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
               Create a worktree
             </button>
           </div>
+        ) : filteredWorktrees.length === 0 ? (
+          <div className="text-center py-4 text-zinc-500">
+            <p className="text-sm">No matching branches</p>
+          </div>
         ) : (
           <div className="space-y-0.5">
-            {sortedWorktrees.map((worktree) => {
+            {filteredWorktrees.map((worktree) => {
               const rateLimited = isWorktreeRateLimited(worktree.id);
               return (
               <div
