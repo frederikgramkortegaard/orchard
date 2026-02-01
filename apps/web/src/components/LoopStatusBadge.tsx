@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Play, Square, Loader2, ChevronDown } from 'lucide-react';
+import { useSettingsStore } from '../stores/settings.store';
 
 interface LoopStatus {
   state: 'STOPPED' | 'STARTING' | 'RUNNING' | 'PAUSED' | 'DEGRADED' | 'STOPPING';
@@ -22,6 +23,21 @@ export function LoopStatusBadge({ projectId }: LoopStatusBadgeProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [models, setModels] = useState<OllamaModel[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
+  const language = useSettingsStore((s) => s.language);
+  const languageSynced = useRef(false);
+
+  // Sync language setting to server on mount and when changed
+  useEffect(() => {
+    if (!languageSynced.current) {
+      languageSynced.current = true;
+      // Sync stored language to server on first mount
+      fetch('/api/orchestrator/loop/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ language }),
+      }).catch(() => {});
+    }
+  }, [language]);
 
   const fetchStatus = useCallback(async () => {
     try {

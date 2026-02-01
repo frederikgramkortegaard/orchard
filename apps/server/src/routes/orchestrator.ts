@@ -394,16 +394,17 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Update loop configuration (e.g., model selection)
+  // Update loop configuration (e.g., model selection, language)
   fastify.post<{
-    Body: { model?: string; tickIntervalMs?: number; enabled?: boolean };
+    Body: { model?: string; tickIntervalMs?: number; enabled?: boolean; language?: string };
   }>('/orchestrator/loop/config', async (request) => {
-    const { model, tickIntervalMs, enabled } = request.body;
+    const { model, tickIntervalMs, enabled, language } = request.body;
 
     const updates: Record<string, any> = {};
     if (model !== undefined) updates.model = model;
     if (tickIntervalMs !== undefined) updates.tickIntervalMs = tickIntervalMs;
     if (enabled !== undefined) updates.enabled = enabled;
+    if (language !== undefined) updates.language = language;
 
     if (Object.keys(updates).length > 0) {
       orchestratorLoopService.updateConfig(updates);

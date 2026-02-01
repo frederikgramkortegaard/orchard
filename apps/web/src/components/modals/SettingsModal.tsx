@@ -3,6 +3,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import {
   useSettingsStore,
   TIMEZONE_OPTIONS,
+  LANGUAGE_OPTIONS,
   getEffectiveTimezone,
   type ThemePreference,
   type TimeFormat,
@@ -23,6 +24,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     compactMode,
     showTimestamps,
     autoReadMessages,
+    language,
     setTimezone,
     setTimeFormat,
     setEnableNotifications,
@@ -30,6 +32,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setCompactMode,
     setShowTimestamps,
     setAutoReadMessages,
+    setLanguage,
     resetToDefaults,
   } = useSettingsStore();
 
@@ -235,6 +238,32 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 checked={autoReadMessages}
                 onChange={setAutoReadMessages}
               />
+            </div>
+          </section>
+
+          {/* Language Section */}
+          <section>
+            <h3 className="text-sm font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-3">
+              Language
+            </h3>
+
+            {/* Response Language */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium">Orchestrator Language</label>
+              <select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 rounded focus:outline-none focus:border-blue-500"
+              >
+                {LANGUAGE_OPTIONS.map((lang) => (
+                  <option key={lang.value} value={lang.value}>
+                    {lang.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                The orchestrator will respond in this language
+              </p>
             </div>
           </section>
         </div>

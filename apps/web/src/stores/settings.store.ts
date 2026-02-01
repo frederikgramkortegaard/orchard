@@ -23,6 +23,9 @@ export interface SettingsState {
   // Audio
   autoReadMessages: boolean;
 
+  // Language
+  language: string;
+
   // Actions
   setThemePreference: (preference: ThemePreference) => void;
   setTimezone: (timezone: string) => void;
@@ -32,6 +35,7 @@ export interface SettingsState {
   setCompactMode: (enabled: boolean) => void;
   setShowTimestamps: (enabled: boolean) => void;
   setAutoReadMessages: (enabled: boolean) => void;
+  setLanguage: (language: string) => void;
   resetToDefaults: () => void;
 }
 
@@ -44,6 +48,7 @@ const defaultSettings = {
   compactMode: false,
   showTimestamps: true,
   autoReadMessages: false,
+  language: 'English',
 };
 
 export const useSettingsStore = create<SettingsState>()(
@@ -59,6 +64,15 @@ export const useSettingsStore = create<SettingsState>()(
       setCompactMode: (compactMode) => set({ compactMode }),
       setShowTimestamps: (showTimestamps) => set({ showTimestamps }),
       setAutoReadMessages: (autoReadMessages) => set({ autoReadMessages }),
+      setLanguage: (language) => {
+        set({ language });
+        // Sync to server
+        fetch('/api/orchestrator/loop/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ language }),
+        }).catch(() => {});
+      },
       resetToDefaults: () => set(defaultSettings),
     }),
     {
@@ -72,6 +86,7 @@ export const useSettingsStore = create<SettingsState>()(
         compactMode: state.compactMode,
         showTimestamps: state.showTimestamps,
         autoReadMessages: state.autoReadMessages,
+        language: state.language,
       }),
     }
   )
@@ -143,4 +158,31 @@ export const TIMEZONE_OPTIONS = [
   { value: 'Asia/Singapore', label: 'Singapore Time' },
   { value: 'Australia/Sydney', label: 'Australian Eastern Time' },
   { value: 'Pacific/Auckland', label: 'New Zealand Time' },
+];
+
+// Language options for orchestrator responses
+export const LANGUAGE_OPTIONS = [
+  { value: 'English', label: 'English' },
+  { value: 'Spanish', label: 'Spanish (Espanol)' },
+  { value: 'French', label: 'French (Francais)' },
+  { value: 'German', label: 'German (Deutsch)' },
+  { value: 'Italian', label: 'Italian (Italiano)' },
+  { value: 'Portuguese', label: 'Portuguese (Portugues)' },
+  { value: 'Dutch', label: 'Dutch (Nederlands)' },
+  { value: 'Russian', label: 'Russian' },
+  { value: 'Chinese', label: 'Chinese' },
+  { value: 'Japanese', label: 'Japanese' },
+  { value: 'Korean', label: 'Korean' },
+  { value: 'Thai', label: 'Thai' },
+  { value: 'Vietnamese', label: 'Vietnamese' },
+  { value: 'Arabic', label: 'Arabic' },
+  { value: 'Hindi', label: 'Hindi' },
+  { value: 'Danish', label: 'Danish (Dansk)' },
+  { value: 'Swedish', label: 'Swedish (Svenska)' },
+  { value: 'Norwegian', label: 'Norwegian (Norsk)' },
+  { value: 'Finnish', label: 'Finnish (Suomi)' },
+  { value: 'Polish', label: 'Polish (Polski)' },
+  { value: 'Turkish', label: 'Turkish (Turkce)' },
+  { value: 'Hebrew', label: 'Hebrew' },
+  { value: 'Indonesian', label: 'Indonesian' },
 ];

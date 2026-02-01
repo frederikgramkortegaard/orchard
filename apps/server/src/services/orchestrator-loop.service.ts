@@ -33,6 +33,7 @@ export interface OrchestratorLoopConfig {
   tickIntervalMs: number;
   maxConsecutiveFailures: number;
   autoRestartDeadSessions: boolean;
+  language: string;
 }
 
 export interface AgentStatus {
@@ -82,6 +83,7 @@ const DEFAULT_CONFIG: OrchestratorLoopConfig = {
   tickIntervalMs: 5000, // 5 seconds max (fallback, normally uses smart timing)
   maxConsecutiveFailures: 3,
   autoRestartDeadSessions: true,
+  language: 'English',
 };
 
 // Smart tick timing constants
@@ -495,7 +497,7 @@ const ORCHESTRATOR_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   },
 ];
 
-const SYSTEM_PROMPT = `Orchard orchestrator. Manage Claude agents in git worktrees, delegate user requests, merge completed work.
+const BASE_SYSTEM_PROMPT = `Orchard orchestrator. Manage Claude agents in git worktrees, delegate user requests, merge completed work.
 
 RULES:
 - no_action when pendingUserMessages=0 AND no completions/questions/errors
@@ -506,6 +508,12 @@ RULES:
 - Interrupted sessions (exit -1): use resume_session
 
 STYLE: Concise. "Starting agent." not "Let me create a worktree to handle your request..."`;
+
+function getSystemPrompt(language: string): string {
+  return `${BASE_SYSTEM_PROMPT}
+
+LANGUAGE: Always respond in ${language}. All messages to the user must be in ${language}.`;
+}
 
 /**
  * Orchestrator Loop Service
@@ -1063,7 +1071,7 @@ class OrchestratorLoopService extends EventEmitter {
 
     // Build the full messages array for the request
     const fullMessages = [
-      { role: 'system' as const, content: SYSTEM_PROMPT },
+      { role: 'system' as const, content: getSystemPrompt(this.config.language) },
       ...this.conversationHistory,
     ];
 
@@ -1255,7 +1263,7 @@ class OrchestratorLoopService extends EventEmitter {
     if (maxTurns <= 0 || !this.openai) return false;
 
     const fullMessages = [
-      { role: 'system' as const, content: SYSTEM_PROMPT },
+      { role: 'system' as const, content: getSystemPrompt(this.config.language) },
       ...this.conversationHistory,
     ];
 
