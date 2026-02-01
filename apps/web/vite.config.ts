@@ -14,6 +14,9 @@ export default defineConfig({
       '/ws': {
         target: 'ws://localhost:3001',
         ws: true,
+        // Disable timeout to prevent proxy from closing idle websocket connections
+        // Without this, the proxy may close the connection before the next heartbeat (30s)
+        timeout: 0,
       },
     },
   },
