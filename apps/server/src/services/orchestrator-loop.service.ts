@@ -43,6 +43,7 @@ export interface AgentStatus {
   lastActivity?: string;
   hasActiveSession: boolean;
   sessionId?: string;
+  currentTask?: string;  // The task the agent is currently working on
 }
 
 export interface MergeQueueItem {
@@ -515,6 +516,8 @@ const BASE_SYSTEM_PROMPT = `Orchard orchestrator. Manage Claude agents in git wo
 
 RULES:
 - no_action when pendingUserMessages=0 AND no completions/questions/errors
+- BEFORE creating new task: CHECK if similar task already running (see Active agents list)
+- DO NOT create duplicate tasks - if user asks for something already being worked on, reply "Already in progress"
 - Always use FULL worktree UUIDs (never truncate)
 - read_file/list_files for quick code lookups (faster than spawning agents)
 - Merge flow: merge_from_queue (auto-handles conflicts, auto-archives on success)
@@ -1425,13 +1428,18 @@ class OrchestratorLoopService extends EventEmitter {
     lines.push('');
     lines.push('Current State:');
 
-    // Active agents
+    // Active agents - show tasks to prevent duplicates
     if (context.activeAgents.length > 0) {
       lines.push(`- Active agents: ${context.activeAgents.length}`);
       for (const agent of context.activeAgents) {
         const sessionStatus = agent.hasActiveSession ? 'active' : 'no session';
-        lines.push(`  - ${agent.branch} (${agent.worktreeId}): ${agent.status}, ${sessionStatus}`);
+        if (agent.currentTask) {
+          lines.push(`  - ${agent.branch}: WORKING ON "${agent.currentTask}"`);
+        } else {
+          lines.push(`  - ${agent.branch} (${agent.worktreeId}): ${agent.status}, ${sessionStatus}`);
+        }
       }
+      lines.push('  ⚠️ DO NOT create duplicate tasks - check if a similar task is already running above');
     } else {
       lines.push('- No active agents');
     }
@@ -2610,12 +2618,20 @@ class OrchestratorLoopService extends EventEmitter {
     const deadSessions = await sessionPersistenceService.getDeadSessions();
     const deadWorktreeIds = deadSessions.map(s => s.worktreeId);
 
+    // Get running print sessions to show current tasks
+    const project = projectService.getProject(projectId);
+    const runningPrintSessions = project?.path
+      ? databaseService.getRunningPrintSessions(project.path)
+      : [];
+    const taskByWorktree = new Map(runningPrintSessions.map(s => [s.worktreeId, s.task]));
+
     // Build agent status list - only include active (non-archived) agents
     const activeAgents: AgentStatus[] = lightWorktrees
       .filter(w => !w.archived)
       .map(w => {
         const session = sessionByWorktree.get(w.id);
         const isDead = deadWorktreeIds.includes(w.id);
+        const currentTask = taskByWorktree.get(w.id);
 
         return {
           worktreeId: w.id,
@@ -2623,6 +2639,7 @@ class OrchestratorLoopService extends EventEmitter {
           status: session ? (isDead ? 'dead' : 'running') : 'idle',
           hasActiveSession: !!session && !isDead,
           sessionId: session?.id,
+          currentTask: currentTask?.slice(0, 100),  // Truncate for context
         };
       });
 
@@ -2640,7 +2657,6 @@ class OrchestratorLoopService extends EventEmitter {
     // Get merge queue and interrupted sessions
     let mergeQueue: MergeQueueItem[] = [];
     let interruptedSessions: InterruptedSession[] = [];
-    const project = projectService.getProject(projectId);
     if (project?.path) {
       const queueEntries = databaseService.getMergeQueue(project.path);
       mergeQueue = queueEntries.map(entry => ({

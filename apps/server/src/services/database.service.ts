@@ -1188,6 +1188,19 @@ class DatabaseService extends EventEmitter {
   }
 
   /**
+   * Get all running print sessions (status='running')
+   */
+  getRunningPrintSessions(projectPath: string): PrintSession[] {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      SELECT id, worktree_id as worktreeId, project_id as projectId, task, status,
+             exit_code as exitCode, started_at as startedAt, completed_at as completedAt
+      FROM print_sessions WHERE status = 'running' ORDER BY started_at DESC
+    `);
+    return stmt.all() as PrintSession[];
+  }
+
+  /**
    * Get interrupted print sessions (exit code -1) that need to be resumed
    * For main worktree sessions (merges), excludes stale ones where a newer session completed
    */
