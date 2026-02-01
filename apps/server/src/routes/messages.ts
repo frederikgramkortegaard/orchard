@@ -271,7 +271,7 @@ export async function messagesRoutes(fastify: FastifyInstance) {
     const numLimit = parseInt(limit, 10) || 50;
     const messages = databaseService.getRecentChatMessages(project.path, project.id, numLimit);
 
-    // Return in backward compatible format
+    // Return in backward compatible format with status
     return messages.map(m => ({
       id: m.id,
       projectId: m.projectId,
@@ -279,7 +279,38 @@ export async function messagesRoutes(fastify: FastifyInstance) {
       timestamp: m.timestamp,
       from: m.from,
       replyTo: m.replyTo,
+      status: m.status,
     }));
+  });
+
+  // Update message status
+  fastify.patch<{
+    Params: { messageId: string };
+    Body: { projectId: string; status: 'unread' | 'read' | 'working' | 'resolved' };
+  }>('/chat/:messageId/status', async (request, reply) => {
+    const { messageId } = request.params;
+    const { projectId, status } = request.body;
+
+    if (!projectId || !status) {
+      return reply.status(400).send({ error: 'projectId and status required' });
+    }
+
+    const validStatuses = ['unread', 'read', 'working', 'resolved'];
+    if (!validStatuses.includes(status)) {
+      return reply.status(400).send({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
+    }
+
+    const project = projectService.getProject(projectId);
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    const updated = databaseService.updateChatMessageStatus(project.path, messageId, status);
+    if (!updated) {
+      return reply.status(404).send({ error: 'Message not found' });
+    }
+
+    return { success: true, messageId, status };
   });
 
   // Send a chat message (from user or orchestrator)

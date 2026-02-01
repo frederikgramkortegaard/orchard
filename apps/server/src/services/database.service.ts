@@ -14,6 +14,8 @@ export interface ActivityLog {
   correlationId?: string;
 }
 
+export type MessageStatus = 'unread' | 'read' | 'working' | 'resolved';
+
 export interface ChatMessage {
   id: string;
   projectId: string;
@@ -22,6 +24,7 @@ export interface ChatMessage {
   text: string;
   replyTo?: string;
   processed: boolean;
+  status: MessageStatus;
 }
 
 export interface AgentMessage {
@@ -106,13 +109,23 @@ class DatabaseService extends EventEmitter {
         text TEXT NOT NULL,
         reply_to TEXT,
         processed INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'unread' CHECK (status IN ('unread', 'read', 'working', 'resolved')),
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
 
       CREATE INDEX IF NOT EXISTS idx_chat_messages_project_id ON chat_messages(project_id);
       CREATE INDEX IF NOT EXISTS idx_chat_messages_timestamp ON chat_messages(timestamp);
       CREATE INDEX IF NOT EXISTS idx_chat_messages_processed ON chat_messages(processed);
+      CREATE INDEX IF NOT EXISTS idx_chat_messages_status ON chat_messages(status);
     `);
+
+    // Migration: Add status column if it doesn't exist (for existing databases)
+    try {
+      db.exec(`ALTER TABLE chat_messages ADD COLUMN status TEXT NOT NULL DEFAULT 'unread' CHECK (status IN ('unread', 'read', 'working', 'resolved'))`);
+      console.log('[DatabaseService] Migrated chat_messages: added status column');
+    } catch {
+      // Column already exists, ignore
+    }
 
     // Agent messages table (orchestrator <-> coding agents)
     db.exec(`
@@ -305,6 +318,7 @@ class DatabaseService extends EventEmitter {
       text: row.text,
       replyTo: row.reply_to,
       processed: !!row.processed,
+      status: (row.status || 'unread') as MessageStatus,
     }));
   }
 
@@ -336,7 +350,30 @@ class DatabaseService extends EventEmitter {
       text: row.text,
       replyTo: row.reply_to,
       processed: !!row.processed,
+      status: (row.status || 'unread') as MessageStatus,
     }));
+  }
+
+  /**
+   * Update the status of a chat message
+   */
+  updateChatMessageStatus(
+    projectPath: string,
+    messageId: string,
+    status: MessageStatus
+  ): boolean {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      UPDATE chat_messages SET status = ?
+      WHERE id = ?
+    `);
+    const result = stmt.run(status, messageId);
+
+    if (result.changes > 0) {
+      this.emit('chat', { type: 'status_update', messageId, status });
+      return true;
+    }
+    return false;
   }
 
   /**
