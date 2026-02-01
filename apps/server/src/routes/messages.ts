@@ -254,21 +254,63 @@ export async function messagesRoutes(fastify: FastifyInstance) {
   });
 
   // Get chat history (main chat endpoint)
+  // If projectId is omitted, returns messages from all open projects
   fastify.get<{
-    Querystring: { projectId: string; limit?: string };
+    Querystring: { projectId?: string; limit?: string; allProjects?: string };
   }>('/chat', async (request, reply) => {
-    const { projectId, limit = '50' } = request.query;
+    const { projectId, limit = '50', allProjects } = request.query;
+    const numLimit = parseInt(limit, 10) || 50;
 
-    if (!projectId) {
-      return reply.status(400).send({ error: 'projectId required' });
+    // If allProjects is true or no projectId specified, return messages from all projects
+    if (allProjects === 'true' || !projectId) {
+      const allProjectsList = projectService.getAllProjects();
+
+      if (allProjectsList.length === 0) {
+        return { projects: [], totalMessages: 0 };
+      }
+
+      const projectMessages: Array<{
+        projectId: string;
+        projectName: string;
+        messages: any[];
+      }> = [];
+
+      let totalMessages = 0;
+
+      for (const project of allProjectsList) {
+        const messages = databaseService.getRecentChatMessages(project.path, project.id, numLimit);
+
+        const formattedMessages = messages.map(m => ({
+          id: m.id,
+          projectId: m.projectId,
+          text: m.text,
+          timestamp: m.timestamp,
+          from: m.from,
+          replyTo: m.replyTo,
+          status: m.status,
+        }));
+
+        projectMessages.push({
+          projectId: project.id,
+          projectName: project.name,
+          messages: formattedMessages,
+        });
+
+        totalMessages += formattedMessages.length;
+      }
+
+      return {
+        projects: projectMessages,
+        totalMessages,
+      };
     }
 
+    // Original single-project behavior
     const project = projectService.getProject(projectId);
     if (!project) {
       return reply.status(404).send({ error: 'Project not found' });
     }
 
-    const numLimit = parseInt(limit, 10) || 50;
     const messages = databaseService.getRecentChatMessages(project.path, project.id, numLimit);
 
     // Return in backward compatible format with status
