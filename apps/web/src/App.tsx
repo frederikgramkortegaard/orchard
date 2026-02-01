@@ -134,7 +134,7 @@ function App() {
   const activeProject = projects.find((p) => p.id === activeProjectId);
 
   return (
-    <div className="h-screen flex flex-col bg-warm-primary text-warm-primary">
+    <div className="h-screen flex flex-col bg-zinc-900 text-zinc-100">
       <ProjectTabBar
         onNewProject={() => setShowProjectModal(true)}
         onProjectSwitch={handleProjectSwitch}
@@ -155,15 +155,15 @@ function App() {
             />
           </Panel>
 
-          <Separator className="w-px bg-warm-tertiary hover:bg-amber-300 dark:hover:bg-zinc-600 cursor-col-resize" />
+          <Separator className="w-px bg-zinc-700 hover:bg-amber-300 dark:hover:bg-zinc-600 cursor-col-resize" />
 
           <Panel defaultSize={60} minSize={5}>
-            <div className="h-full bg-warm-primary">
+            <div className="h-full bg-zinc-900">
               <OrchestratorPanel key={`chat-${activeProjectId}-${projectSwitchKey}`} projectId={activeProjectId} projectPath={activeProject.path} />
             </div>
           </Panel>
 
-          <Separator className="w-px bg-warm-tertiary hover:bg-amber-300 dark:hover:bg-zinc-600 cursor-col-resize" />
+          <Separator className="w-px bg-zinc-700 hover:bg-amber-300 dark:hover:bg-zinc-600 cursor-col-resize" />
           <Panel defaultSize={20} minSize={5}>
             <ActivityPane
               key={`activity-${activeProjectId}-${projectSwitchKey}`}
@@ -174,7 +174,7 @@ function App() {
           </Panel>
         </Group>
       ) : (
-        <div className="flex-1 bg-warm-primary flex items-center justify-center text-warm-muted">
+        <div className="flex-1 bg-zinc-900 flex items-center justify-center text-warm-muted">
           <div className="text-center">
             <p className="text-lg mb-2">Welcome to Orchard</p>
             <p className="text-sm mb-4">Open a project to get started</p>
