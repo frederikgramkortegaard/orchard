@@ -44,6 +44,22 @@ export interface OrchestratorState {
   value: string;
 }
 
+export type SessionStatus = 'active' | 'disconnected' | 'resumed' | 'terminated';
+
+export interface AgentSession {
+  id: string;
+  worktreeId: string;
+  projectId: string;
+  command: string;
+  cwd: string;
+  claudeSessionId?: string;
+  status: SessionStatus;
+  createdAt: string;
+  lastActivityAt: string;
+  resumeCount: number;
+  metadata?: string; // JSON string for additional state
+}
+
 class DatabaseService extends EventEmitter {
   private databases: Map<string, Database.Database> = new Map();
   private initialized = false;
@@ -156,6 +172,27 @@ class DatabaseService extends EventEmitter {
         updated_at TEXT NOT NULL DEFAULT (datetime('now')),
         PRIMARY KEY (project_id, key)
       );
+    `);
+
+    // Agent sessions table (for resume capability)
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS agent_sessions (
+        id TEXT PRIMARY KEY,
+        worktree_id TEXT NOT NULL UNIQUE,
+        project_id TEXT NOT NULL,
+        command TEXT NOT NULL,
+        cwd TEXT NOT NULL,
+        claude_session_id TEXT,
+        status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'disconnected', 'resumed', 'terminated')),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        last_activity_at TEXT NOT NULL DEFAULT (datetime('now')),
+        resume_count INTEGER NOT NULL DEFAULT 0,
+        metadata TEXT DEFAULT '{}'
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_agent_sessions_project_id ON agent_sessions(project_id);
+      CREATE INDEX IF NOT EXISTS idx_agent_sessions_worktree_id ON agent_sessions(worktree_id);
+      CREATE INDEX IF NOT EXISTS idx_agent_sessions_status ON agent_sessions(status);
     `);
 
     console.log('[DatabaseService] Schema initialized');
@@ -546,6 +583,245 @@ class DatabaseService extends EventEmitter {
       DELETE FROM orchestrator_state WHERE project_id = ? AND key = ?
     `);
     stmt.run(projectId, key);
+  }
+
+  // ============ Agent Sessions ============
+
+  /**
+   * Save or update an agent session
+   */
+  saveSession(
+    projectPath: string,
+    session: {
+      id: string;
+      worktreeId: string;
+      projectId: string;
+      command: string;
+      cwd: string;
+      claudeSessionId?: string;
+      status?: SessionStatus;
+      metadata?: Record<string, unknown>;
+    }
+  ): AgentSession {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      INSERT INTO agent_sessions (id, worktree_id, project_id, command, cwd, claude_session_id, status, metadata)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (worktree_id) DO UPDATE SET
+        id = excluded.id,
+        command = excluded.command,
+        cwd = excluded.cwd,
+        claude_session_id = COALESCE(excluded.claude_session_id, agent_sessions.claude_session_id),
+        status = excluded.status,
+        last_activity_at = datetime('now'),
+        metadata = excluded.metadata
+    `);
+
+    stmt.run(
+      session.id,
+      session.worktreeId,
+      session.projectId,
+      session.command,
+      session.cwd,
+      session.claudeSessionId || null,
+      session.status || 'active',
+      JSON.stringify(session.metadata || {})
+    );
+
+    this.emit('session', { type: 'saved', session });
+    return this.getSession(projectPath, session.worktreeId)!;
+  }
+
+  /**
+   * Get a session by worktree ID
+   */
+  getSession(projectPath: string, worktreeId: string): AgentSession | null {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      SELECT * FROM agent_sessions WHERE worktree_id = ?
+    `);
+    const row = stmt.get(worktreeId) as any;
+    if (!row) return null;
+
+    return {
+      id: row.id,
+      worktreeId: row.worktree_id,
+      projectId: row.project_id,
+      command: row.command,
+      cwd: row.cwd,
+      claudeSessionId: row.claude_session_id,
+      status: row.status,
+      createdAt: row.created_at,
+      lastActivityAt: row.last_activity_at,
+      resumeCount: row.resume_count,
+      metadata: row.metadata,
+    };
+  }
+
+  /**
+   * Get all sessions for a project
+   */
+  getSessionsForProject(projectPath: string, projectId: string): AgentSession[] {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      SELECT * FROM agent_sessions WHERE project_id = ? ORDER BY last_activity_at DESC
+    `);
+    const rows = stmt.all(projectId) as any[];
+
+    return rows.map(row => ({
+      id: row.id,
+      worktreeId: row.worktree_id,
+      projectId: row.project_id,
+      command: row.command,
+      cwd: row.cwd,
+      claudeSessionId: row.claude_session_id,
+      status: row.status,
+      createdAt: row.created_at,
+      lastActivityAt: row.last_activity_at,
+      resumeCount: row.resume_count,
+      metadata: row.metadata,
+    }));
+  }
+
+  /**
+   * Get all active/disconnected sessions for a project (for resume)
+   */
+  getResumableSessions(projectPath: string, projectId: string): AgentSession[] {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      SELECT * FROM agent_sessions
+      WHERE project_id = ? AND status IN ('active', 'disconnected')
+      ORDER BY last_activity_at DESC
+    `);
+    const rows = stmt.all(projectId) as any[];
+
+    return rows.map(row => ({
+      id: row.id,
+      worktreeId: row.worktree_id,
+      projectId: row.project_id,
+      command: row.command,
+      cwd: row.cwd,
+      claudeSessionId: row.claude_session_id,
+      status: row.status,
+      createdAt: row.created_at,
+      lastActivityAt: row.last_activity_at,
+      resumeCount: row.resume_count,
+      metadata: row.metadata,
+    }));
+  }
+
+  /**
+   * Update session status
+   */
+  updateSessionStatus(projectPath: string, worktreeId: string, status: SessionStatus): boolean {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      UPDATE agent_sessions SET status = ?, last_activity_at = datetime('now')
+      WHERE worktree_id = ?
+    `);
+    const result = stmt.run(status, worktreeId);
+
+    if (result.changes > 0) {
+      this.emit('session', { type: 'status_update', worktreeId, status });
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Update Claude session ID (for resume capability)
+   */
+  updateClaudeSessionId(projectPath: string, worktreeId: string, claudeSessionId: string): boolean {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      UPDATE agent_sessions SET claude_session_id = ?, last_activity_at = datetime('now')
+      WHERE worktree_id = ?
+    `);
+    const result = stmt.run(claudeSessionId, worktreeId);
+
+    if (result.changes > 0) {
+      this.emit('session', { type: 'claude_session_update', worktreeId, claudeSessionId });
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Update last activity timestamp
+   */
+  touchSession(projectPath: string, worktreeId: string): boolean {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      UPDATE agent_sessions SET last_activity_at = datetime('now')
+      WHERE worktree_id = ?
+    `);
+    const result = stmt.run(worktreeId);
+    return result.changes > 0;
+  }
+
+  /**
+   * Increment resume count and mark as resumed
+   */
+  markSessionResumed(projectPath: string, worktreeId: string, newSessionId: string): boolean {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      UPDATE agent_sessions SET
+        id = ?,
+        status = 'resumed',
+        resume_count = resume_count + 1,
+        last_activity_at = datetime('now')
+      WHERE worktree_id = ?
+    `);
+    const result = stmt.run(newSessionId, worktreeId);
+
+    if (result.changes > 0) {
+      this.emit('session', { type: 'resumed', worktreeId, newSessionId });
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Delete a session
+   */
+  deleteSession(projectPath: string, worktreeId: string): boolean {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      DELETE FROM agent_sessions WHERE worktree_id = ?
+    `);
+    const result = stmt.run(worktreeId);
+
+    if (result.changes > 0) {
+      this.emit('session', { type: 'deleted', worktreeId });
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Mark all active sessions as disconnected (on daemon disconnect)
+   */
+  markAllSessionsDisconnected(projectPath: string, projectId: string): number {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      UPDATE agent_sessions SET status = 'disconnected', last_activity_at = datetime('now')
+      WHERE project_id = ? AND status = 'active'
+    `);
+    const result = stmt.run(projectId);
+    return result.changes;
+  }
+
+  /**
+   * Clean up old terminated sessions
+   */
+  cleanupOldSessions(projectPath: string, projectId: string, olderThanDays: number = 7): number {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      DELETE FROM agent_sessions
+      WHERE project_id = ? AND status = 'terminated' AND last_activity_at < datetime('now', ?)
+    `);
+    const result = stmt.run(projectId, `-${olderThanDays} days`);
+    return result.changes;
   }
 
   // ============ Migration ============
