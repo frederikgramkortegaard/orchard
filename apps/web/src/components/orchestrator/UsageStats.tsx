@@ -199,24 +199,7 @@ export function UsageStats({ projectId }: UsageStatsProps) {
   const maxActivityValue = data?.recentActivity.reduce((max, entry) => Math.max(max, entry.count), 0) || 0;
 
   return (
-    <div className="h-full flex flex-col bg-zinc-100 dark:bg-zinc-900 rounded-2xl overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-zinc-200 dark:bg-zinc-800">
-        <div className="flex items-center gap-2 text-zinc-700 dark:text-zinc-300">
-          <BarChart3 size={16} />
-          <span className="text-sm font-semibold">AI Usage</span>
-        </div>
-        <button
-          onClick={fetchStats}
-          disabled={isLoading}
-          className="p-1.5 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-300 dark:hover:bg-zinc-700 rounded-full transition-colors disabled:opacity-50"
-          title="Refresh"
-        >
-          <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
-        </button>
-      </div>
-
-      {/* Content */}
+    <div className="h-full flex flex-col bg-zinc-900 overflow-hidden">
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
         {error ? (
           <div className="text-red-500 dark:text-red-400 text-center py-8 text-sm">

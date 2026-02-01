@@ -1,5 +1,6 @@
-import { Plus, X, Folder, Settings, Bug } from 'lucide-react';
+import { Plus, X, Folder, Settings, Bug, Sun, Moon } from 'lucide-react';
 import { useProjectStore, Project } from '../../stores/project.store';
+import { useTheme } from '../../contexts/ThemeContext';
 import * as api from '../../api/projects';
 import {
   DndContext,
@@ -77,6 +78,7 @@ function SortableTab({ project, isActive, onProjectClick, onCloseTab }: Sortable
 
 export function ProjectTabBar({ onNewProject, onProjectSwitch, onOpenSettings, onOpenDebug }: ProjectTabBarProps) {
   const { projects, activeProjectId, setActiveProject, closeProject, reorderProjects } = useProjectStore();
+  const { theme, toggleTheme } = useTheme();
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -147,6 +149,14 @@ export function ProjectTabBar({ onNewProject, onProjectSwitch, onOpenSettings, o
       </button>
 
       <div className="flex-1" />
+
+      <button
+        onClick={toggleTheme}
+        className="p-1.5 rounded-md text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 transition-colors"
+        title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+      >
+        {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+      </button>
 
       {onOpenDebug && (
         <button
