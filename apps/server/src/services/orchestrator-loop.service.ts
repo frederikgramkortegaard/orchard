@@ -79,7 +79,7 @@ const DEFAULT_CONFIG: OrchestratorLoopConfig = {
   provider: 'ollama',
   baseUrl: 'http://localhost:11434/v1',
   model: 'llama3.1:8b',
-  tickIntervalMs: 30000, // 30 seconds (used as max wait time for no_action)
+  tickIntervalMs: 5000, // 5 seconds max (fallback, normally uses smart timing)
   maxConsecutiveFailures: 3,
   autoRestartDeadSessions: true,
 };
