@@ -25,6 +25,8 @@ import { runTask } from './tools/run-task.js';
 import { updateMessageStatus } from './tools/update-message-status.js';
 import { logActivity } from './tools/log-activity.js';
 import { listProjects } from './tools/list-projects.js';
+import { getMergeQueue } from './tools/get-merge-queue.js';
+import { mergeFromQueue } from './tools/merge-from-queue.js';
 
 // Orchard server base URL (configurable via env)
 const ORCHARD_API = process.env.ORCHARD_API || 'http://localhost:3001';
@@ -412,6 +414,34 @@ const tools: Tool[] = [
       required: ['projectId', 'activityType', 'summary'],
     },
   },
+  {
+    name: 'get_merge_queue',
+    description: 'Get the merge queue for a project, showing worktrees waiting to be merged',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: {
+          type: 'string',
+          description: 'Project ID to get merge queue for',
+        },
+      },
+      required: ['projectId'],
+    },
+  },
+  {
+    name: 'merge_from_queue',
+    description: 'Merge the next worktree from the merge queue',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        worktreeId: {
+          type: 'string',
+          description: 'The worktree ID to merge from the queue',
+        },
+      },
+      required: ['worktreeId'],
+    },
+  },
 ];
 
 // Tool handlers with automatic activity logging
@@ -539,6 +569,34 @@ const toolHandlers: Record<string, (args: Record<string, unknown>) => Promise<st
 
   update_message_status: async (args) => updateMessageStatus(ORCHARD_API, args as { messageId: string; status: 'unread' | 'read' | 'working' | 'resolved' }),
   log_activity: async (args) => logActivity(ORCHARD_API, args as { projectId: string; activityType: 'file_edit' | 'command' | 'commit' | 'task_complete' | 'error' | 'progress' | 'orchestrator'; summary: string; details?: Record<string, unknown> }),
+
+  get_merge_queue: async (args) => {
+    const { projectId } = args as { projectId: string };
+    const res = await fetch(`${ORCHARD_API}/merge-queue?projectId=${encodeURIComponent(projectId)}`);
+    if (!res.ok) {
+      throw new Error(`Failed to get merge queue: ${res.status} ${res.statusText}`);
+    }
+    const data = await res.json();
+    return JSON.stringify(data, null, 2);
+  },
+
+  merge_from_queue: async (args) => {
+    const { worktreeId } = args as { worktreeId: string };
+    const res = await fetch(`${ORCHARD_API}/merge-queue/${encodeURIComponent(worktreeId)}/merge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) {
+      const error = await res.text();
+      throw new Error(`Failed to merge from queue: ${res.status} ${res.statusText} - ${error}`);
+    }
+    const data = await res.json();
+    // Log activity
+    if (data.projectId) {
+      await logToolActivity(data.projectId, 'orchestrator', `Merged from queue: ${data.branch || worktreeId}`, { worktreeId });
+    }
+    return JSON.stringify(data, null, 2);
+  },
 };
 
 // Create and configure server
