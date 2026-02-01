@@ -101,3 +101,73 @@ export async function archiveWorktree(worktreeId: string): Promise<void> {
     throw new Error(err.error || 'Failed to archive worktree');
   }
 }
+
+// Diff types
+export type DiffType = 'working' | 'staged' | 'branch' | 'commit';
+
+export interface DiffResult {
+  worktreeId: string;
+  branch: string;
+  type: DiffType;
+  base: string | null;
+  target: string | null;
+  diff: string;
+}
+
+export interface Commit {
+  hash: string;
+  hashShort: string;
+  message: string;
+  author: string;
+  date: string;
+}
+
+export interface CommitsResult {
+  worktreeId: string;
+  commits: Commit[];
+}
+
+export interface BranchesResult {
+  worktreeId: string;
+  currentBranch: string;
+  branches: string[];
+}
+
+// Get diff for a worktree
+export async function fetchDiff(
+  worktreeId: string,
+  type: DiffType = 'working',
+  base?: string,
+  target?: string
+): Promise<DiffResult> {
+  const params = new URLSearchParams({ type });
+  if (base) params.append('base', base);
+  if (target) params.append('target', target);
+
+  const res = await fetch(`${API_BASE}/worktrees/${worktreeId}/diff?${params}`);
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to fetch diff');
+  }
+  return res.json();
+}
+
+// Get commits for a worktree
+export async function fetchCommits(worktreeId: string, limit = 50): Promise<CommitsResult> {
+  const res = await fetch(`${API_BASE}/worktrees/${worktreeId}/commits?limit=${limit}`);
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to fetch commits');
+  }
+  return res.json();
+}
+
+// Get branches for a worktree
+export async function fetchWorktreeBranches(worktreeId: string): Promise<BranchesResult> {
+  const res = await fetch(`${API_BASE}/worktrees/${worktreeId}/branches`);
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to fetch branches');
+  }
+  return res.json();
+}

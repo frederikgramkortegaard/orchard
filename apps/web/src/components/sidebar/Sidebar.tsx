@@ -1,4 +1,4 @@
-import { Plus, GitBranch, Folder, Trash2, CheckCircle, Archive, Clock } from 'lucide-react';
+import { Plus, GitBranch, Folder, Trash2, CheckCircle, Archive, Clock, GitCompare } from 'lucide-react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import { useProjectStore, type Worktree } from '../../stores/project.store';
 import { useTerminalStore } from '../../stores/terminal.store';
@@ -9,12 +9,13 @@ interface SidebarProps {
   onCreateWorktree: () => void;
   onDeleteWorktree: (worktreeId: string) => void;
   onArchiveWorktree: (worktreeId: string) => void;
+  onViewDiff: (worktreeId: string, branch: string) => void;
   worktreeId?: string;
   worktreePath?: string;
   projectPath?: string;
 }
 
-export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onArchiveWorktree, worktreeId, worktreePath, projectPath }: SidebarProps) {
+export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onArchiveWorktree, onViewDiff, worktreeId, worktreePath, projectPath }: SidebarProps) {
   const { projects, activeProjectId, worktrees, activeWorktreeId, setActiveWorktree } = useProjectStore();
   const { sessions } = useTerminalStore();
 
@@ -146,6 +147,18 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
                   {rateLimited && <span className="text-amber-500 ml-1">(paused)</span>}
                 </span>
                 {!worktree.archived && !worktree.merged && !rateLimited && getStatusIndicator(worktree)}
+                {!worktree.archived && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onViewDiff(worktree.id, worktree.branch);
+                    }}
+                    className="opacity-0 group-hover:opacity-100 p-0.5 text-zinc-500 dark:text-zinc-400 hover:text-blue-500 dark:hover:text-blue-400"
+                    title="View diff"
+                  >
+                    <GitCompare size={12} />
+                  </button>
+                )}
                 {!worktree.isMain && !worktree.archived && (
                   <button
                     onClick={(e) => {
