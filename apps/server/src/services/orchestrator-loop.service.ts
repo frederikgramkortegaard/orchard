@@ -59,10 +59,17 @@ export interface InterruptedSession {
   task: string;
 }
 
+export interface PendingMessage {
+  id: string;
+  text: string;
+  timestamp: string;
+}
+
 export interface TickContext {
   timestamp: Date;
   tickNumber: number;
   pendingUserMessages: number;
+  pendingMessageContent: PendingMessage[];
   activeAgents: AgentStatus[];
   deadSessions: string[];
   interruptedSessions: InterruptedSession[];
@@ -909,11 +916,12 @@ class OrchestratorLoopService extends EventEmitter {
       // Tick immediately after action, but respect minimum interval
       waitTime = Math.max(minWait, ACTION_WAIT_MS);
     } else if (this.lastActionWasNoAction) {
-      // Wait 10 seconds after no_action
+      // Wait after no_action (idle state)
       waitTime = Math.max(minWait, NO_ACTION_WAIT_MS);
     } else {
-      // Default: use configured interval
-      waitTime = Math.max(minWait, this.config.tickIntervalMs);
+      // Action was taken but not marked immediate - use short wait
+      // (This handles startup and edge cases)
+      waitTime = Math.max(minWait, ACTION_WAIT_MS);
     }
 
     this.nextTickAt = new Date(Date.now() + waitTime);
@@ -1036,6 +1044,7 @@ class OrchestratorLoopService extends EventEmitter {
         timestamp: new Date(),
         tickNumber: this.tickNumber,
         pendingUserMessages: 0,
+        pendingMessageContent: [],
         activeAgents: [],
         deadSessions: [],
         interruptedSessions: [],
@@ -1401,12 +1410,16 @@ class OrchestratorLoopService extends EventEmitter {
       `[TICK #${context.tickNumber} | ${context.timestamp.toISOString()}]`,
     ];
 
-    // Pending user messages - show prominently at the top
-    if (context.pendingUserMessages > 0) {
+    // Pending user messages - show prominently at the top WITH content
+    if (context.pendingUserMessages > 0 && context.pendingMessageContent.length > 0) {
       lines.push('');
       lines.push(`⚠️ NEW USER MESSAGE(S): ${context.pendingUserMessages} pending`);
-      lines.push('→ Call get_user_messages to read and respond to the NEW message(s)');
-      lines.push('→ This may be a NEW question unrelated to previous topics');
+      lines.push('');
+      for (const msg of context.pendingMessageContent) {
+        lines.push(`USER: "${msg.text}"`);
+      }
+      lines.push('');
+      lines.push('→ Respond to the user with send_message OR create_agent for coding tasks');
     }
 
     lines.push('');
@@ -2660,6 +2673,11 @@ class OrchestratorLoopService extends EventEmitter {
       timestamp: new Date(),
       tickNumber: this.tickNumber,
       pendingUserMessages: pendingMessages.length,
+      pendingMessageContent: pendingMessages.map(m => ({
+        id: m.id,
+        text: m.text,
+        timestamp: m.timestamp,
+      })),
       activeAgents,
       deadSessions: deadWorktreeIds,
       interruptedSessions,
