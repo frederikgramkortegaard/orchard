@@ -115,4 +115,26 @@ export async function mergeQueueRoutes(fastify: FastifyInstance) {
 
     return { success: true, message: 'Removed from merge queue' };
   });
+
+  // Pop the first entry from the merge queue (get and remove atomically)
+  fastify.post<{
+    Params: { projectId: string };
+  }>('/merge-queue/:projectId/pop', async (request, reply) => {
+    const { projectId } = request.params;
+
+    const project = projectService.getProject(projectId);
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    const entry = databaseService.popFromMergeQueue(project.path);
+    if (!entry) {
+      return reply.status(404).send({ error: 'Merge queue is empty' });
+    }
+
+    return {
+      success: true,
+      entry,
+    };
+  });
 }

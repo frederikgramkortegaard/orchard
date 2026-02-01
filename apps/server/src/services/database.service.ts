@@ -1187,6 +1187,45 @@ class DatabaseService extends EventEmitter {
   }
 
   /**
+   * Pop the first (oldest) entry from the merge queue
+   * Returns the entry and removes it atomically
+   */
+  popFromMergeQueue(projectPath: string): MergeQueueEntry | null {
+    const db = this.getDatabase(projectPath);
+
+    // Get the oldest unmerged entry
+    const selectStmt = db.prepare(`
+      SELECT worktree_id as worktreeId, branch, completed_at as completedAt,
+             summary, has_commits as hasCommits, merged
+      FROM merge_queue
+      WHERE merged = 0
+      ORDER BY completed_at ASC
+      LIMIT 1
+    `);
+    const row = selectStmt.get() as any;
+
+    if (!row) return null;
+
+    // Delete the entry
+    const deleteStmt = db.prepare(`
+      DELETE FROM merge_queue WHERE worktree_id = ?
+    `);
+    deleteStmt.run(row.worktreeId);
+
+    const entry: MergeQueueEntry = {
+      worktreeId: row.worktreeId,
+      branch: row.branch,
+      completedAt: row.completedAt,
+      summary: row.summary,
+      hasCommits: !!row.hasCommits,
+      merged: !!row.merged,
+    };
+
+    this.emit('merge_queue', { type: 'popped', entry });
+    return entry;
+  }
+
+  /**
    * Close all database connections
    */
   close(): void {

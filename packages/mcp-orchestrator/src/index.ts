@@ -27,7 +27,7 @@ import { logActivity } from './tools/log-activity.js';
 import { listProjects } from './tools/list-projects.js';
 import { getMergeQueue } from './tools/get-merge-queue.js';
 import { mergeFromQueue } from './tools/merge-from-queue.js';
-import { removeFromQueue } from './tools/remove-from-queue.js';
+import { popFromMergeQueue } from './tools/pop-from-merge-queue.js';
 
 // Orchard server base URL (configurable via env)
 const ORCHARD_API = process.env.ORCHARD_API || 'http://localhost:3001';
@@ -444,17 +444,17 @@ const tools: Tool[] = [
     },
   },
   {
-    name: 'remove_from_merge_queue',
-    description: 'Remove a worktree from the merge queue without merging',
+    name: 'pop_from_merge_queue',
+    description: 'Pop the first (oldest) item from the merge queue. Returns the item details (worktreeId, branch, summary) and removes it from the queue.',
     inputSchema: {
       type: 'object',
       properties: {
-        worktreeId: {
+        projectId: {
           type: 'string',
-          description: 'The worktree ID to remove from the merge queue',
+          description: 'Project ID to pop from the merge queue',
         },
       },
-      required: ['worktreeId'],
+      required: ['projectId'],
     },
   },
 ];
@@ -601,23 +601,10 @@ const toolHandlers: Record<string, (args: Record<string, unknown>) => Promise<st
     return result;
   },
 
-  remove_from_merge_queue: async (args) => {
-    const { worktreeId } = args as { worktreeId: string };
-    // Get worktree info for activity logging before removing
-    let projectId: string | undefined;
-    let branch: string | undefined;
-    try {
-      const res = await fetch(`${ORCHARD_API}/worktrees/${worktreeId}`);
-      if (res.ok) {
-        const wt = await res.json();
-        projectId = wt.projectId;
-        branch = wt.branch;
-      }
-    } catch { /* ignore */ }
-    const result = await removeFromQueue(ORCHARD_API, { worktreeId });
-    if (projectId) {
-      await logToolActivity(projectId, 'orchestrator', `Removed from queue: ${branch || worktreeId}`, { worktreeId });
-    }
+  pop_from_merge_queue: async (args) => {
+    const { projectId } = args as { projectId: string };
+    const result = await popFromMergeQueue(ORCHARD_API, { projectId });
+    await logToolActivity(projectId, 'orchestrator', `Popped item from merge queue`, {});
     return result;
   },
 };
