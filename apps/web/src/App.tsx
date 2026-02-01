@@ -12,6 +12,7 @@ import { DiffViewerModal } from './components/diff';
 import { OrchestratorPanel } from './components/orchestrator/OrchestratorPanel';
 import { OrchestratorLoopControl } from './components/OrchestratorLoopControl';
 import { ActivityLog } from './components/orchestrator/ActivityLog';
+import { OrchestratorStatus } from './components/orchestrator/OrchestratorStatus';
 import { Dashboard } from './components/dashboard/Dashboard';
 import * as api from './api/projects';
 
@@ -128,6 +129,7 @@ function App() {
               {activeWorktree && ` / ${activeWorktree.branch}`}
             </span>
           )}
+          {activeProjectId && <OrchestratorStatus projectId={activeProjectId} />}
         </div>
         <div className="flex items-center gap-4">
           <span className="text-sm text-zinc-500 dark:text-zinc-400">
