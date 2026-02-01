@@ -86,8 +86,8 @@ export function LoopStatusBadge({ projectId }: LoopStatusBadgeProps) {
     RUNNING: 'bg-green-500',
     DEGRADED: 'bg-amber-500',
     PAUSED: 'bg-yellow-500',
-    STARTING: 'bg-red-500 animate-pulse',
-    STOPPING: 'bg-red-500 animate-pulse',
+    STARTING: 'bg-green-500 animate-pulse',
+    STOPPING: 'bg-green-500 animate-pulse',
     STOPPED: 'bg-zinc-400',
   }[status?.state || 'STOPPED'];
 

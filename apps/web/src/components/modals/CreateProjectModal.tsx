@@ -144,7 +144,7 @@ export function CreateProjectModal({ isOpen, onClose, onSubmit, onOpenExisting }
                   value={repoUrl}
                   onChange={(e) => setRepoUrl(e.target.value)}
                   placeholder="https://github.com/user/repo.git"
-                  className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded focus:outline-none focus:border-red-500"
+                  className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded focus:outline-none focus:border-green-500"
                   required
                 />
               </div>
@@ -155,7 +155,7 @@ export function CreateProjectModal({ isOpen, onClose, onSubmit, onOpenExisting }
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Auto-detected from repo"
-                  className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded focus:outline-none focus:border-red-500"
+                  className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded focus:outline-none focus:border-green-500"
                 />
               </div>
             </>
@@ -179,7 +179,7 @@ export function CreateProjectModal({ isOpen, onClose, onSubmit, onOpenExisting }
                     value={localPath}
                     onChange={(e) => setLocalPath(e.target.value)}
                     placeholder="/path/to/existing/repo"
-                    className="flex-1 px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded focus:outline-none focus:border-red-500"
+                    className="flex-1 px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded focus:outline-none focus:border-green-500"
                     required
                   />
                   <button
@@ -199,7 +199,7 @@ export function CreateProjectModal({ isOpen, onClose, onSubmit, onOpenExisting }
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Auto-detected from folder name"
-                  className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded focus:outline-none focus:border-red-500"
+                  className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded focus:outline-none focus:border-green-500"
                 />
               </div>
             </>
@@ -222,7 +222,7 @@ export function CreateProjectModal({ isOpen, onClose, onSubmit, onOpenExisting }
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded disabled:opacity-50"
+              className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded disabled:opacity-50"
             >
               {isSubmitting ? 'Creating...' : 'Open Project'}
             </button>
