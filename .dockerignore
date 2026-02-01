@@ -1,0 +1,80 @@
+# ==========================================================================
+# Orchard Docker Ignore File
+# Excludes files from Docker build context for efficient builds
+# ==========================================================================
+
+# Dependencies - rebuilt in container
+node_modules/
+**/node_modules/
+
+# Build outputs - rebuilt in container
+dist/
+**/dist/
+build/
+**/build/
+.next/
+.nuxt/
+
+# Development files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Test and coverage
+coverage/
+.nyc_output/
+*.test.ts
+*.spec.ts
+__tests__/
+__mocks__/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Docker files (not needed in context after initial copy)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Documentation (not needed for runtime)
+*.md
+!README.md
+docs/
+
+# Environment files (should be passed via docker-compose)
+.env
+.env.*
+!.env.example
+
+# Local data directories
+.orchard/
+workspace/
+.worktrees/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+Jenkinsfile
+
+# Misc
+*.tgz
+*.tar.gz
+*.zip
+Thumbs.db
+.cache/
+tmp/
+temp/
