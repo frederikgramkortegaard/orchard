@@ -25,7 +25,9 @@ export function CreateProjectModal({ isOpen, onClose, onSubmit, onOpenExisting }
   // Load available projects when modal opens
   useEffect(() => {
     if (isOpen) {
-      api.fetchAvailableProjects().then(setAvailableProjects).catch(console.error);
+      api.fetchAvailableProjects().then(setAvailableProjects).catch(() => {
+        // Failed to load available projects - user can still use other modes
+      });
     }
   }, [isOpen]);
 
@@ -134,17 +136,29 @@ export function CreateProjectModal({ isOpen, onClose, onSubmit, onOpenExisting }
               )}
             </div>
           ) : mode === 'url' ? (
-            <div>
-              <label className="block text-sm text-zinc-500 dark:text-zinc-400 mb-1">Repository URL</label>
-              <input
-                type="text"
-                value={repoUrl}
-                onChange={(e) => setRepoUrl(e.target.value)}
-                placeholder="https://github.com/user/repo.git"
-                className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded focus:outline-none focus:border-blue-500"
-                required
-              />
-            </div>
+            <>
+              <div>
+                <label className="block text-sm text-zinc-500 dark:text-zinc-400 mb-1">Repository URL</label>
+                <input
+                  type="text"
+                  value={repoUrl}
+                  onChange={(e) => setRepoUrl(e.target.value)}
+                  placeholder="https://github.com/user/repo.git"
+                  className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded focus:outline-none focus:border-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-zinc-500 dark:text-zinc-400 mb-1">Project Name (optional)</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Auto-detected from repo"
+                  className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded focus:outline-none focus:border-blue-500"
+                />
+              </div>
+            </>
           ) : showBrowser ? (
             <FolderBrowser
               onSelect={(path) => {
@@ -156,39 +170,40 @@ export function CreateProjectModal({ isOpen, onClose, onSubmit, onOpenExisting }
               selectGitReposOnly={true}
             />
           ) : (
-            <div>
-              <label className="block text-sm text-zinc-500 dark:text-zinc-400 mb-1">Local Repository Path</label>
-              <div className="flex gap-2">
+            <>
+              <div>
+                <label className="block text-sm text-zinc-500 dark:text-zinc-400 mb-1">Local Repository Path</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={localPath}
+                    onChange={(e) => setLocalPath(e.target.value)}
+                    placeholder="/path/to/existing/repo"
+                    className="flex-1 px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded focus:outline-none focus:border-blue-500"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowBrowser(true)}
+                    className="px-3 py-2 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 rounded"
+                    title="Browse folders"
+                  >
+                    <FolderOpen size={18} />
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm text-zinc-500 dark:text-zinc-400 mb-1">Project Name (optional)</label>
                 <input
                   type="text"
-                  value={localPath}
-                  onChange={(e) => setLocalPath(e.target.value)}
-                  placeholder="/path/to/existing/repo"
-                  className="flex-1 px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded focus:outline-none focus:border-blue-500"
-                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Auto-detected from folder name"
+                  className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded focus:outline-none focus:border-blue-500"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowBrowser(true)}
-                  className="px-3 py-2 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 rounded"
-                  title="Browse folders"
-                >
-                  <FolderOpen size={18} />
-                </button>
               </div>
-            </div>
+            </>
           )}
-
-          <div>
-            <label className="block text-sm text-zinc-500 dark:text-zinc-400 mb-1">Project Name (optional)</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Auto-detected from repo"
-              className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded focus:outline-none focus:border-blue-500"
-            />
-          </div>
 
           {error && (
             <div className="px-3 py-2 bg-red-100 dark:bg-red-900/50 border border-red-300 dark:border-red-700 rounded text-red-700 dark:text-red-200 text-sm">
