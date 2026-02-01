@@ -6,7 +6,7 @@
     "model": "llama3.1:8b",
     "tickIntervalMs": 30000
   },
-  "id": "5d1dbc06-b8bf-4823-97a4-b703442d3427",
+  "id": "e57f6e9b-b099-4a0f-932f-06056f73da05",
   "name": "orchard",
   "createdAt": "2026-02-01T12:49:12.850Z",
   "inPlace": true

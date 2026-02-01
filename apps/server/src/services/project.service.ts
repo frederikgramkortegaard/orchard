@@ -2,8 +2,18 @@ import { simpleGit } from 'simple-git';
 import { mkdir, readFile, writeFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join, basename } from 'path';
-import { randomUUID } from 'crypto';
+import { createHash } from 'crypto';
 import { databaseService } from './database.service';
+
+/**
+ * Generate a deterministic project ID from the path.
+ * Uses a hash to create a stable UUID-like ID.
+ */
+function generateProjectId(projectPath: string): string {
+  const hash = createHash('sha256').update(projectPath).digest('hex');
+  // Format as UUID: 8-4-4-4-12
+  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-${hash.slice(12, 16)}-${hash.slice(16, 20)}-${hash.slice(20, 32)}`;
+}
 
 export interface Project {
   id: string;
@@ -112,7 +122,7 @@ class ProjectService {
     // Create .orchard config in the repo
     await mkdir(orchardConfigPath, { recursive: true });
 
-    const projectId = randomUUID();
+    const projectId = generateProjectId(localPath);
     const config: ProjectConfig = {
       id: projectId,
       name: projectName,
@@ -177,7 +187,7 @@ class ProjectService {
         const projectName = basename(projectPath);
         config = {
           ...config,
-          id: config.id || randomUUID(),
+          id: config.id || generateProjectId(projectPath),
           name: config.name || projectName,
           createdAt: config.createdAt || new Date().toISOString(),
           inPlace: true,
