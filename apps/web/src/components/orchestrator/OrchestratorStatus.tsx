@@ -51,7 +51,7 @@ function determineActivity(
   if (!loopStatus || loopStatus.state === 'STOPPED') {
     return {
       icon: <Pause size={12} />,
-      text: 'Paused',
+      text: '💤 Paused 💖',
       color: 'text-zinc-500 dark:text-zinc-400',
       bgColor: 'bg-zinc-100 dark:bg-zinc-800',
     };
@@ -61,7 +61,7 @@ function determineActivity(
   if (loopStatus.state === 'STARTING' || loopStatus.state === 'STOPPING') {
     return {
       icon: <Loader2 size={12} className="animate-spin" />,
-      text: loopStatus.state === 'STARTING' ? 'Starting...' : 'Stopping...',
+      text: loopStatus.state === 'STARTING' ? '✨ Starting... 💖' : '✨ Stopping... 💖',
       color: 'text-blue-500 dark:text-blue-400',
       bgColor: 'bg-blue-50 dark:bg-blue-900/20',
       pulse: true,
@@ -72,7 +72,7 @@ function determineActivity(
   if (loopStatus.state === 'DEGRADED') {
     return {
       icon: <AlertCircle size={12} />,
-      text: `Degraded (${loopStatus.consecutiveFailures} failures)`,
+      text: `💔 Degraded (${loopStatus.consecutiveFailures} failures) 💔`,
       color: 'text-amber-500 dark:text-amber-400',
       bgColor: 'bg-amber-50 dark:bg-amber-900/20',
     };
@@ -82,7 +82,7 @@ function determineActivity(
   if (loopStatus.state === 'PAUSED') {
     return {
       icon: <Pause size={12} />,
-      text: 'Paused',
+      text: '💤 Paused 💖',
       color: 'text-zinc-500 dark:text-zinc-400',
       bgColor: 'bg-zinc-100 dark:bg-zinc-800',
     };
@@ -92,7 +92,7 @@ function determineActivity(
   if (pendingCount > 0) {
     return {
       icon: <MessageSquare size={12} />,
-      text: `Processing ${pendingCount} message${pendingCount > 1 ? 's' : ''}`,
+      text: `✨ Processing ${pendingCount} message${pendingCount > 1 ? 's' : ''} 💖`,
       color: 'text-blue-500 dark:text-blue-400',
       bgColor: 'bg-blue-50 dark:bg-blue-900/20',
       pulse: true,
@@ -105,7 +105,7 @@ function determineActivity(
     if (mergeAction) {
       return {
         icon: <GitMerge size={12} />,
-        text: `Ready to merge ${mergeAction.branch}`,
+        text: `✨ Ready to merge ${mergeAction.branch} 💖`,
         color: 'text-purple-500 dark:text-purple-400',
         bgColor: 'bg-purple-50 dark:bg-purple-900/20',
       };
@@ -116,7 +116,7 @@ function determineActivity(
     if (activeCount > 0) {
       return {
         icon: <Eye size={12} />,
-        text: `Monitoring ${activeCount} agent${activeCount > 1 ? 's' : ''}`,
+        text: `✨ Monitoring ${activeCount} agent${activeCount > 1 ? 's' : ''} 💖`,
         color: 'text-green-500 dark:text-green-400',
         bgColor: 'bg-green-50 dark:bg-green-900/20',
       };
@@ -126,7 +126,7 @@ function determineActivity(
     if (health.summary?.worktreesWithChanges > 0) {
       return {
         icon: <CheckCircle size={12} />,
-        text: `${health.summary.worktreesWithChanges} worktree${health.summary.worktreesWithChanges > 1 ? 's' : ''} with changes`,
+        text: `✨ ${health.summary.worktreesWithChanges} worktree${health.summary.worktreesWithChanges > 1 ? 's' : ''} with changes 💖`,
         color: 'text-cyan-500 dark:text-cyan-400',
         bgColor: 'bg-cyan-50 dark:bg-cyan-900/20',
       };
@@ -136,7 +136,7 @@ function determineActivity(
   // Idle
   return {
     icon: <Coffee size={12} />,
-    text: 'Idle',
+    text: '☕ Idle 💖',
     color: 'text-zinc-400 dark:text-zinc-500',
     bgColor: 'bg-zinc-50 dark:bg-zinc-800/50',
   };
