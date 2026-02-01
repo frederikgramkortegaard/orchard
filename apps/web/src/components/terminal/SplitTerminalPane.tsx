@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
-import { Plus, X, SplitSquareHorizontal, Clock, Circle, Loader2, MessageCircleQuestion, Play, Check, StopCircle, ArrowDown } from 'lucide-react';
+import { Plus, X, SplitSquareHorizontal, Clock, Circle, Loader2, MessageCircleQuestion, Play, Check, StopCircle, ArrowDown, Terminal, FileEdit, FilePen, FileText, Search, SearchCode, Wrench, ClipboardList } from 'lucide-react';
 import { useTerminalStore, type TerminalActivityStatus } from '../../stores/terminal.store';
 import { TerminalInstance } from './TerminalInstance';
 import { useWebSocket } from '../../contexts/WebSocketContext';
@@ -19,15 +19,15 @@ interface PrintSession {
   completedAt?: string;
 }
 
-// Tool icons/colors mapping
-const toolStyles: Record<string, { icon: string; color: string; bg: string }> = {
-  Bash: { icon: '⚡', color: 'text-yellow-400', bg: 'bg-yellow-500/10' },
-  Write: { icon: '✏️', color: 'text-green-400', bg: 'bg-green-500/10' },
-  Edit: { icon: '📝', color: 'text-blue-400', bg: 'bg-blue-500/10' },
-  Read: { icon: '📖', color: 'text-purple-400', bg: 'bg-purple-500/10' },
-  Glob: { icon: '🔍', color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
-  Grep: { icon: '🔎', color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
-  default: { icon: '🔧', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
+// Tool icons/colors mapping - using Lucide icons instead of emojis
+const toolStyles: Record<string, { icon: React.ComponentType<{ size?: number; className?: string }>; color: string; bg: string }> = {
+  Bash: { icon: Terminal, color: 'text-yellow-400', bg: 'bg-yellow-500/10' },
+  Write: { icon: FileEdit, color: 'text-green-400', bg: 'bg-green-500/10' },
+  Edit: { icon: FilePen, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+  Read: { icon: FileText, color: 'text-purple-400', bg: 'bg-purple-500/10' },
+  Glob: { icon: Search, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
+  Grep: { icon: SearchCode, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
+  default: { icon: Wrench, color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
 };
 
 // Parse and render structured output with markers
@@ -123,7 +123,7 @@ function ParsedOutput({ output }: { output: string }) {
           return (
             <div key={i} className="rounded-lg bg-blue-950/30 border border-blue-800/50 p-4">
               <div className="flex items-center gap-2 mb-2 text-blue-400 text-xs font-medium">
-                <span>📋</span>
+                <ClipboardList size={14} />
                 <span>Task</span>
               </div>
               <div className="text-zinc-200 text-sm whitespace-pre-wrap leading-relaxed">
@@ -135,10 +135,11 @@ function ParsedOutput({ output }: { output: string }) {
 
         if (block.type === 'tool') {
           const style = toolStyles[block.tool || ''] || toolStyles.default;
+          const IconComponent = style.icon;
           return (
             <div key={i} className={`rounded-md overflow-hidden border border-zinc-800 ${style.bg}`}>
               <div className={`flex items-center gap-2 px-3 py-1.5 ${style.color} border-b border-zinc-800`}>
-                <span>{style.icon}</span>
+                <IconComponent size={14} />
                 <span className="font-semibold">{block.tool}</span>
                 {block.file && (
                   <span className="text-zinc-400 text-xs truncate">{block.file}</span>
