@@ -510,10 +510,13 @@ class WorktreeService {
     try {
       const status = await git.status();
 
+      // Exclude .mcp.json from modified count - it's auto-generated and shouldn't affect "clean" status
+      const realModified = status.modified.filter(f => f !== '.mcp.json');
+
       return {
         ahead: status.ahead,
         behind: status.behind,
-        modified: status.modified.length,
+        modified: realModified.length,
         staged: status.staged.length,
         untracked: status.not_added.length,
       };
