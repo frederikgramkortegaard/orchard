@@ -1189,9 +1189,12 @@ class DatabaseService extends EventEmitter {
 
   /**
    * Get interrupted print sessions (exit code -1) that need to be resumed
+   * For main worktree sessions (merges), excludes stale ones where a newer session completed
    */
-  getInterruptedPrintSessions(projectPath: string): PrintSession[] {
+  getInterruptedPrintSessions(projectPath: string, mainWorktreeId?: string): PrintSession[] {
     const db = this.getDatabase(projectPath);
+
+    // Get all interrupted sessions
     const stmt = db.prepare(`
       SELECT id, worktree_id as worktreeId, project_id as projectId, task, status,
              exit_code as exitCode, started_at as startedAt, completed_at as completedAt
@@ -1199,7 +1202,35 @@ class DatabaseService extends EventEmitter {
       WHERE exit_code = -1
       ORDER BY completed_at DESC
     `);
-    return stmt.all() as PrintSession[];
+    const allInterrupted = stmt.all() as PrintSession[];
+
+    if (!mainWorktreeId) {
+      return allInterrupted;
+    }
+
+    // Filter out stale main worktree sessions (merges)
+    // A merge is stale if there's a completed session on main that finished after it started
+    return allInterrupted.filter(session => {
+      if (session.worktreeId !== mainWorktreeId) {
+        return true; // Not a main worktree session, keep it
+      }
+
+      // Check if there's a newer completed session on main
+      const checkStmt = db.prepare(`
+        SELECT COUNT(*) as count FROM print_sessions
+        WHERE worktree_id = ? AND status = 'completed' AND completed_at > ?
+      `);
+      const result = checkStmt.get(mainWorktreeId, session.startedAt) as { count: number };
+
+      if (result.count > 0) {
+        // This merge is stale - mark it as handled so we don't check again
+        console.log(`[DatabaseService] Marking stale interrupted merge as handled: ${session.id}`);
+        this.markInterruptedSessionHandled(projectPath, session.id);
+        return false; // Exclude from results
+      }
+
+      return true; // No newer completed session, include it
+    });
   }
 
   /**

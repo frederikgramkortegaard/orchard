@@ -2639,7 +2639,9 @@ class OrchestratorLoopService extends EventEmitter {
       }));
 
       // Get interrupted print sessions (exit code -1)
-      const interrupted = databaseService.getInterruptedPrintSessions(project.path);
+      // Pass main worktree ID to filter out stale merge tasks
+      const mainWorktree = lightWorktrees.find(w => w.isMain);
+      const interrupted = databaseService.getInterruptedPrintSessions(project.path, mainWorktree?.id);
       interruptedSessions = interrupted.map(s => ({
         sessionId: s.id,
         worktreeId: s.worktreeId,
