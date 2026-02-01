@@ -189,38 +189,47 @@ function App() {
       />
 
       {/* Header */}
-      <header className="flex items-center justify-between px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700">
-        <div className="flex items-center gap-2 min-w-0 flex-1">
+      <header className="flex items-center h-11 px-4 bg-gradient-to-r from-zinc-50 to-zinc-100 dark:from-zinc-800 dark:to-zinc-800/80 border-b border-zinc-200 dark:border-zinc-700">
+        {/* Left section - Project/Branch info */}
+        <div className="flex items-center gap-3 min-w-0 flex-1">
           {activeProject ? (
-            <h1 className="text-base font-semibold flex-shrink-0 truncate">
-              {activeProject.name}
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
+              <h1 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100 truncate">
+                {activeProject.name}
+              </h1>
               {activeWorktree && (
-                <span className="font-normal text-zinc-500 dark:text-zinc-400">
-                  {' / '}{activeWorktree.branch}
-                </span>
+                <>
+                  <span className="text-zinc-300 dark:text-zinc-600">/</span>
+                  <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400 truncate">
+                    {activeWorktree.branch}
+                  </span>
+                </>
               )}
-            </h1>
+            </div>
           ) : (
-            <h1 className="text-base font-semibold flex-shrink-0">Orchard</h1>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-zinc-400 dark:bg-zinc-500" />
+              <h1 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">Orchard</h1>
+            </div>
           )}
         </div>
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          <span className="text-xs text-zinc-500 dark:text-zinc-400 truncate max-w-[200px]">
-            {activeWorktree ? activeWorktree.path : ''}
-          </span>
+
+        {/* Right section - Actions */}
+        <div className="flex items-center gap-1">
           <button
             onClick={toggleTheme}
-            className="p-2 rounded-lg transition-colors bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600"
+            className="p-2 rounded-md text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200/60 dark:hover:bg-zinc-700/60 transition-colors"
             title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
           >
-            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
           </button>
           <button
             onClick={() => setShowSettingsModal(true)}
-            className="p-2 rounded-lg transition-colors bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600"
+            className="p-2 rounded-md text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200/60 dark:hover:bg-zinc-700/60 transition-colors"
             title="Settings"
           >
-            <Settings size={18} />
+            <Settings size={16} />
           </button>
         </div>
       </header>
