@@ -301,9 +301,22 @@ class DaemonClient extends EventEmitter {
   }
 
   // Get sessions for a specific worktree
-  async getSessionsForWorktree(worktreeId: string): Promise<DaemonSession[]> {
+  // If worktreeId doesn't match any sessions, falls back to matching by path
+  async getSessionsForWorktree(worktreeId: string, path?: string): Promise<DaemonSession[]> {
     const sessions = await this.listSessions();
-    return sessions.filter(s => s.worktreeId === worktreeId);
+
+    // First try matching by worktreeId
+    const byWorktreeId = sessions.filter(s => s.worktreeId === worktreeId);
+    if (byWorktreeId.length > 0) {
+      return byWorktreeId;
+    }
+
+    // Fall back to matching by cwd path (handles sessions with old random UUIDs)
+    if (path) {
+      return sessions.filter(s => s.cwd === path);
+    }
+
+    return [];
   }
 
   /**
