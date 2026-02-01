@@ -135,10 +135,10 @@ export async function gitHistoryRoutes(fastify: FastifyInstance) {
       // Show only the current branch's history (not --all)
       const logResult = await git.raw([
         'log',
-        currentBranch,
         `--max-count=${limit}`,
         `--skip=${skip}`,
         '--format=%H|%h|%an|%ae|%aI|%P|%D|%s',
+        currentBranch,
       ]);
 
       const commits = parseGitGraph(logResult, currentBranch);
