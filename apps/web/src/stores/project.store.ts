@@ -67,7 +67,18 @@ export const useProjectStore = create<ProjectState>()(
       error: null,
 
       setProjects: (projects) => set({ projects }),
-      setActiveProject: (projectId) => set({ activeProjectId: projectId }),
+      setActiveProject: (projectId) => set((state) => {
+        // If switching to a different project, clear worktrees immediately
+        // so stale data doesn't show while loading new data
+        if (projectId !== state.activeProjectId) {
+          return {
+            activeProjectId: projectId,
+            worktrees: [],
+            activeWorktreeId: null,
+          };
+        }
+        return { activeProjectId: projectId };
+      }),
       addProject: (project) => set((state) => {
         // Check if already exists (by id or path)
         const exists = state.projects.some(p => p.id === project.id || p.path === project.path);

@@ -6,10 +6,18 @@ interface ProjectTabBarProps {
   onNewProject: () => void;
   showDashboard?: boolean;
   onToggleDashboard?: () => void;
+  onProjectSwitch?: (projectId: string) => void;
 }
 
-export function ProjectTabBar({ onNewProject, showDashboard, onToggleDashboard }: ProjectTabBarProps) {
+export function ProjectTabBar({ onNewProject, showDashboard, onToggleDashboard, onProjectSwitch }: ProjectTabBarProps) {
   const { projects, activeProjectId, setActiveProject, closeProject } = useProjectStore();
+
+  const handleProjectClick = (projectId: string) => {
+    if (projectId !== activeProjectId) {
+      setActiveProject(projectId);
+      onProjectSwitch?.(projectId);
+    }
+  };
 
   const handleCloseTab = async (e: React.MouseEvent, projectId: string) => {
     e.stopPropagation();
@@ -27,7 +35,7 @@ export function ProjectTabBar({ onNewProject, showDashboard, onToggleDashboard }
       {projects.map((project) => (
         <div
           key={project.id}
-          onClick={() => setActiveProject(project.id)}
+          onClick={() => handleProjectClick(project.id)}
           className={`group flex items-center gap-2 px-3 py-1.5 border-b-2 transition-colors cursor-pointer ${
             activeProjectId === project.id
               ? 'border-blue-500 bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-white'
