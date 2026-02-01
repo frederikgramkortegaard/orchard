@@ -115,11 +115,11 @@ function PrintSessionViewer({ session, projectId, worktreeBranch, onResume }: {
       {/* Header */}
       <div className="flex-shrink-0 flex items-center gap-2 px-3 py-1.5 bg-zinc-900 border-b border-zinc-800">
         <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
-          session.status === 'running' ? 'bg-blue-500 animate-pulse' :
+          session.status === 'running' ? 'bg-pink-500 animate-pulse' :
           session.status === 'completed' ? 'bg-emerald-500' : 'bg-red-500'
         }`} />
         <span className={`text-xs font-medium ${
-          session.status === 'running' ? 'text-blue-400' :
+          session.status === 'running' ? 'text-pink-400' :
           session.status === 'completed' ? 'text-emerald-400' : 'text-red-400'
         }`}>
           {session.status === 'running' ? 'Running' : session.status === 'completed' ? 'Completed' : 'Failed'}
@@ -146,7 +146,7 @@ function PrintSessionViewer({ session, projectId, worktreeBranch, onResume }: {
         {session.exitCode === -1 && onResume && (
           <button
             onClick={() => onResume(session.worktreeId)}
-            className="flex items-center gap-1 px-2 py-0.5 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded"
+            className="flex items-center gap-1 px-2 py-0.5 text-xs bg-pink-600 hover:bg-pink-500 text-white rounded"
             title="Resume interrupted session"
           >
             <RotateCcw size={12} />
@@ -203,7 +203,7 @@ function StatusIndicator({ status }: { status?: TerminalActivityStatus }) {
 
   if (status === 'running') {
     return (
-      <span className="flex items-center gap-1 text-xs text-blue-500">
+      <span className="flex items-center gap-1 text-xs text-pink-500">
         <Loader2 size={12} className="animate-spin" />
         <span className="hidden sm:inline">Running...</span>
       </span>

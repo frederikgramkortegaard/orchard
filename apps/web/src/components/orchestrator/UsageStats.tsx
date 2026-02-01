@@ -116,7 +116,7 @@ function MiniBarChart({ data, maxValue }: { data: Array<{ date: string; count: n
         return (
           <div
             key={i}
-            className="flex-1 bg-blue-500 dark:bg-blue-400 rounded-t transition-all hover:bg-blue-600 dark:hover:bg-blue-300"
+            className="flex-1 bg-pink-500 dark:bg-pink-400 rounded-t transition-all hover:bg-pink-600 dark:hover:bg-pink-300"
             style={{ height: `${height}%` }}
             title={`${entry.date}: ${entry.count} activities`}
           />
@@ -154,7 +154,7 @@ function BreakdownList({ items, labels, emptyMessage }: {
               </div>
               <div className="h-1.5 bg-zinc-300 dark:bg-zinc-600 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-blue-500 dark:bg-blue-400 rounded-full transition-all"
+                  className="h-full bg-pink-500 dark:bg-pink-400 rounded-full transition-all"
                   style={{ width: `${percentage}%` }}
                 />
               </div>
@@ -218,7 +218,7 @@ export function UsageStats({ projectId }: UsageStatsProps) {
                 label="Total Agents"
                 value={data.summary.totalAgents}
                 subValue={`${data.summary.activeAgents} active`}
-                color="bg-blue-100 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400"
+                color="bg-pink-100 dark:bg-pink-900/30 text-pink-500 dark:text-pink-400"
               />
               <StatCard
                 icon={MessageSquare}
@@ -259,7 +259,7 @@ export function UsageStats({ projectId }: UsageStatsProps) {
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <GitMerge size={12} className="text-blue-500" />
+                  <GitMerge size={12} className="text-pink-500" />
                   <span className="text-zinc-600 dark:text-zinc-400">
                     {data.summary.mergedAgents} Merged
                   </span>

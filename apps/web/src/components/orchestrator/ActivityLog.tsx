@@ -148,8 +148,8 @@ function getActivityColors(kind: ActivityKind) {
   switch (kind) {
     case 'file_edit':
       return {
-        icon: 'text-blue-500 dark:text-blue-400',
-        bg: 'bg-blue-100 dark:bg-blue-900/30',
+        icon: 'text-pink-500 dark:text-pink-400',
+        bg: 'bg-pink-100 dark:bg-pink-900/30',
       };
     case 'command':
       return {
@@ -446,7 +446,7 @@ export function ActivityLog({ projectId }: ActivityLogProps) {
               onClick={() => setFilterOpen(!filterOpen)}
               className={`p-1.5 hover:bg-zinc-300 dark:hover:bg-zinc-700 rounded-full transition-colors ${
                 hasActiveFilters
-                  ? 'text-blue-500 dark:text-blue-400'
+                  ? 'text-pink-500 dark:text-pink-400'
                   : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
               }`}
               title="Filter activity"
@@ -460,7 +460,7 @@ export function ActivityLog({ projectId }: ActivityLogProps) {
                   {hasActiveFilters && (
                     <button
                       onClick={resetFilters}
-                      className="text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300"
+                      className="text-xs text-pink-500 hover:text-pink-600 dark:text-pink-400 dark:hover:text-pink-300"
                     >
                       ✨ Reset 💖
                     </button>
@@ -482,7 +482,7 @@ export function ActivityLog({ projectId }: ActivityLogProps) {
                           type="checkbox"
                           checked={isEnabled}
                           onChange={() => toggleTypeFilter(kind)}
-                          className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-600 text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
+                          className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-600 text-pink-500 focus:ring-pink-500 focus:ring-offset-0"
                         />
                         <span className={`p-1 rounded ${colors.bg} ${colors.icon}`}>
                           {getActivityIcon(kind)}
@@ -502,7 +502,7 @@ export function ActivityLog({ projectId }: ActivityLogProps) {
                       type="checkbox"
                       checked={filters.onlyBranches}
                       onChange={toggleOnlyBranches}
-                      className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-600 text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
+                      className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-600 text-pink-500 focus:ring-pink-500 focus:ring-offset-0"
                     />
                     <span className="text-sm text-zinc-700 dark:text-zinc-300">
                       ✨ Only show branch updates 💖
@@ -579,7 +579,7 @@ export function ActivityLog({ projectId }: ActivityLogProps) {
                           onClick={isClickable ? handleClick : undefined}
                           className={`flex items-start gap-3 px-4 py-3 rounded-2xl text-sm ${colors.bg} shadow-sm ${
                             isClickable
-                              ? 'cursor-pointer hover:ring-2 hover:ring-blue-400 dark:hover:ring-blue-500 hover:ring-offset-1 dark:hover:ring-offset-zinc-900 transition-shadow'
+                              ? 'cursor-pointer hover:ring-2 hover:ring-pink-400 dark:hover:ring-pink-500 hover:ring-offset-1 dark:hover:ring-offset-zinc-900 transition-shadow'
                               : ''
                           }`}
                         >

@@ -138,7 +138,7 @@ export function OrchestratorLoopControl({ projectId }: OrchestratorLoopControlPr
         return 'bg-yellow-500';
       case 'STARTING':
       case 'STOPPING':
-        return 'bg-blue-500 animate-pulse';
+        return 'bg-pink-500 animate-pulse';
       default:
         return 'bg-zinc-400';
     }

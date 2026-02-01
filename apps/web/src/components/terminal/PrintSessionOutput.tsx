@@ -35,7 +35,7 @@ export function PrintSessionOutput({ projectId, sessionId }: Props) {
         <div className="flex items-center gap-2">
           <span className={`w-2 h-2 rounded-full ${
             session.status === 'running' ? 'bg-green-500 animate-pulse' :
-            session.status === 'completed' ? 'bg-blue-500' : 'bg-red-500'
+            session.status === 'completed' ? 'bg-pink-500' : 'bg-red-500'
           }`} />
           <span className="text-sm font-medium">
             {session.status === 'running' ? 'Running...' :
