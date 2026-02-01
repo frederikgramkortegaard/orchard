@@ -5,9 +5,9 @@ import { logActivity } from '../utils/log-activity.js';
  */
 export async function getFileTree(
   apiBase: string,
-  args: { projectId: string; depth?: number }
+  args: { projectId: string }
 ): Promise<string> {
-  const { projectId, depth = 2 } = args;
+  const { projectId } = args;
 
   // Get project info first
   const projectRes = await fetch(`${apiBase}/projects/${projectId}`);
@@ -19,7 +19,7 @@ export async function getFileTree(
 
   // Use the files endpoint if available, otherwise return project path
   try {
-    const filesRes = await fetch(`${apiBase}/files/tree?path=${encodeURIComponent(project.path)}&depth=${depth}`);
+    const filesRes = await fetch(`${apiBase}/files/tree?path=${encodeURIComponent(project.path)}`);
     if (filesRes.ok) {
       const tree = await filesRes.json();
       await logActivity(apiBase, 'action', 'orchestrator', `MCP: Retrieved file tree`, {}, projectId);

@@ -124,17 +124,15 @@ export async function filesRoutes(fastify: FastifyInstance) {
 
   // Get file tree for a directory
   fastify.get<{
-    Querystring: { path: string; depth?: string };
+    Querystring: { path: string };
   }>('/files/tree', async (request, reply) => {
-    const { path: dirPath, depth = '3' } = request.query;
-    const maxDepth = Math.min(parseInt(depth, 10), 5);
+    const { path: dirPath } = request.query;
 
     if (!dirPath || !existsSync(dirPath)) {
       return reply.status(404).send({ error: 'Path not found' });
     }
 
-    async function buildTree(currentPath: string, currentDepth: number): Promise<FileTreeEntry[]> {
-      if (currentDepth > maxDepth) return [];
+    async function buildTree(currentPath: string): Promise<FileTreeEntry[]> {
 
       try {
         const entries = await readdir(currentPath, { withFileTypes: true });
@@ -155,7 +153,7 @@ export async function filesRoutes(fastify: FastifyInstance) {
           const fullPath = join(currentPath, entry.name);
 
           if (entry.isDirectory()) {
-            const children = await buildTree(fullPath, currentDepth + 1);
+            const children = await buildTree(fullPath);
             result.push({
               name: entry.name,
               path: fullPath,
@@ -181,7 +179,7 @@ export async function filesRoutes(fastify: FastifyInstance) {
       }
     }
 
-    const tree = await buildTree(dirPath, 1);
+    const tree = await buildTree(dirPath);
     return { root: dirPath, entries: tree };
   });
 
