@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
-import { Sun, Moon } from 'lucide-react';
+import { Sun, Moon, Settings } from 'lucide-react';
 import { useProjectStore } from './stores/project.store';
 import { useTheme } from './contexts/ThemeContext';
 import { useToast } from './contexts/ToastContext';
@@ -9,6 +9,7 @@ import { Sidebar } from './components/sidebar/Sidebar';
 import { CreateProjectModal } from './components/modals/CreateProjectModal';
 import { CreateWorktreeModal } from './components/modals/CreateWorktreeModal';
 import { KeyboardShortcutsModal } from './components/modals/KeyboardShortcutsModal';
+import { SettingsModal } from './components/modals/SettingsModal';
 import { DiffViewerModal } from './components/diff';
 import { OrchestratorPanel } from './components/orchestrator/OrchestratorPanel';
 import { ActivityLog } from './components/orchestrator/ActivityLog';
@@ -22,6 +23,7 @@ function App() {
   const [showWorktreeModal, setShowWorktreeModal] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [diffViewerState, setDiffViewerState] = useState<{ worktreeId: string; branch: string } | null>(null);
   const {
     projects,
@@ -76,6 +78,7 @@ function App() {
         setShowShortcutsModal(false);
         setShowProjectModal(false);
         setShowWorktreeModal(false);
+        setShowSettingsModal(false);
         setDiffViewerState(null);
       }
 
