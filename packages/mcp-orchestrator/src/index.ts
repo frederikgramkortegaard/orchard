@@ -21,7 +21,6 @@ import { getFileTree } from './tools/get-file-tree.js';
 import { listSessions } from './tools/list-sessions.js';
 import { startSession } from './tools/start-session.js';
 import { stopSession } from './tools/stop-session.js';
-import { restartSession } from './tools/restart-session.js';
 import { runTask } from './tools/run-task.js';
 import { updateMessageStatus } from './tools/update-message-status.js';
 import { logActivity } from './tools/log-activity.js';
@@ -29,6 +28,29 @@ import { listProjects } from './tools/list-projects.js';
 
 // Orchard server base URL (configurable via env)
 const ORCHARD_API = process.env.ORCHARD_API || 'http://localhost:3001';
+
+// Track running tasks per worktree to prevent concurrent tasks
+// Maps worktreeId -> { sessionId, startedAt }
+const runningTasks = new Map<string, { sessionId: string; startedAt: Date }>();
+
+// Helper to check if a worktree has a running task
+function checkRunningTask(worktreeId: string): { running: boolean; sessionId?: string; startedAt?: Date } {
+  const task = runningTasks.get(worktreeId);
+  if (task) {
+    return { running: true, sessionId: task.sessionId, startedAt: task.startedAt };
+  }
+  return { running: false };
+}
+
+// Helper to register a running task
+function registerRunningTask(worktreeId: string, sessionId: string): void {
+  runningTasks.set(worktreeId, { sessionId, startedAt: new Date() });
+}
+
+// Helper to clear a running task
+function clearRunningTask(worktreeId: string): void {
+  runningTasks.delete(worktreeId);
+}
 
 // Helper to log activity after tool execution
 async function logToolActivity(
@@ -319,28 +341,6 @@ const tools: Tool[] = [
     },
   },
   {
-    name: 'restart_session',
-    description: 'Restart a Claude session for a worktree (stops existing, starts new)',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        worktreeId: {
-          type: 'string',
-          description: 'The worktree ID to restart session for',
-        },
-        projectId: {
-          type: 'string',
-          description: 'Project ID',
-        },
-        task: {
-          type: 'string',
-          description: 'Optional task to send after Claude starts',
-        },
-      },
-      required: ['worktreeId', 'projectId'],
-    },
-  },
-  {
     name: 'run_task',
     description: 'Run a one-shot task using claude -p (print mode). More efficient than interactive sessions for quick tasks.',
     inputSchema: {
@@ -478,7 +478,21 @@ const toolHandlers: Record<string, (args: Record<string, unknown>) => Promise<st
 
   start_session: async (args) => {
     const { worktreeId, projectId, task } = args as { worktreeId: string; projectId: string; task?: string };
+
+    // Check if worktree already has a running task
+    const existing = checkRunningTask(worktreeId);
+    if (existing.running) {
+      return `Error: Worktree ${worktreeId} already has a running task (session: ${existing.sessionId}, started: ${existing.startedAt?.toISOString()}). Stop the existing task before starting a new one.`;
+    }
+
     const result = await startSession(ORCHARD_API, { worktreeId, projectId, task });
+
+    // Extract session ID from result and register the task
+    const sessionMatch = result.match(/session ([a-f0-9-]+)/i);
+    if (sessionMatch) {
+      registerRunningTask(worktreeId, sessionMatch[1]);
+    }
+
     await logToolActivity(projectId, 'orchestrator', `Started session for worktree`, { worktreeId, hasTask: !!task });
     return result;
   },
@@ -486,22 +500,41 @@ const toolHandlers: Record<string, (args: Record<string, unknown>) => Promise<st
   stop_session: async (args) => {
     const { sessionId, projectId } = args as { sessionId: string; projectId: string };
     const result = await stopSession(ORCHARD_API, { sessionId, projectId });
-    await logToolActivity(projectId, 'orchestrator', `Stopped session: ${sessionId.slice(0, 8)}`, { sessionId });
-    return result;
-  },
 
-  restart_session: async (args) => {
-    const { worktreeId, projectId, task } = args as { worktreeId: string; projectId: string; task?: string };
-    const result = await restartSession(ORCHARD_API, { worktreeId, projectId, task });
-    await logToolActivity(projectId, 'orchestrator', `Restarted session for worktree`, { worktreeId, hasTask: !!task });
+    // Clear running task for any worktree that had this session
+    for (const [worktreeId, task] of runningTasks.entries()) {
+      if (task.sessionId === sessionId) {
+        clearRunningTask(worktreeId);
+        break;
+      }
+    }
+
+    await logToolActivity(projectId, 'orchestrator', `Stopped session: ${sessionId.slice(0, 8)}`, { sessionId });
     return result;
   },
 
   run_task: async (args) => {
     const { worktreeId, projectId, task, timeout } = args as { worktreeId: string; projectId: string; task: string; timeout?: number };
+
+    // Check if worktree already has a running task
+    const existing = checkRunningTask(worktreeId);
+    if (existing.running) {
+      return `Error: Worktree ${worktreeId} already has a running task (session: ${existing.sessionId}, started: ${existing.startedAt?.toISOString()}). Wait for the existing task to complete or stop it before starting a new one.`;
+    }
+
+    // Generate a unique session ID for this run_task
+    const sessionId = `run-task-${Date.now()}`;
+    registerRunningTask(worktreeId, sessionId);
+
     await logToolActivity(projectId, 'orchestrator', `Running task: ${task.slice(0, 50)}...`, { worktreeId });
-    const result = await runTask(ORCHARD_API, { worktreeId, projectId, task, timeout });
-    return result;
+
+    try {
+      const result = await runTask(ORCHARD_API, { worktreeId, projectId, task, timeout });
+      return result;
+    } finally {
+      // Always clear the running task when done (success or failure)
+      clearRunningTask(worktreeId);
+    }
   },
 
   update_message_status: async (args) => updateMessageStatus(ORCHARD_API, args as { messageId: string; status: 'unread' | 'read' | 'working' | 'resolved' }),
