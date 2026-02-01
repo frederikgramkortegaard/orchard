@@ -315,6 +315,48 @@ const ORCHESTRATOR_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: 'function',
     function: {
+      name: 'read_file',
+      description: 'Read the contents of a file. Useful for quick lookups without spawning an agent. Limited to 500 lines by default.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: {
+            type: 'string',
+            description: 'The file path relative to the project root (e.g., "src/index.ts", "package.json")',
+          },
+          maxLines: {
+            type: 'number',
+            description: 'Maximum number of lines to return (default: 500)',
+          },
+        },
+        required: ['path'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_files',
+      description: 'List files in a directory or match a glob pattern. Useful for exploring the codebase without spawning an agent.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: {
+            type: 'string',
+            description: 'Directory path relative to project root (default: ".")',
+          },
+          pattern: {
+            type: 'string',
+            description: 'Glob pattern to match files (e.g., "**/*.ts", "src/**/*.js")',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'get_merge_queue',
       description: 'Get the list of completed worktrees waiting to be merged. Use this to see what branches are ready for merging.',
       parameters: {
@@ -403,6 +445,9 @@ When agents complete tasks, they add themselves to the merge queue. You should:
 3. Use merge_from_queue to merge, or remove_from_queue to discard
 4. Archive the worktree after merging (optional, for cleanup)
 
+QUICK LOOKUPS - READ-ONLY TOOLS:
+For simple questions about code (e.g., "what's in package.json?", "show me the config"), use read_file or list_files directly instead of spawning an agent. These are much faster for quick lookups.
+
 Available tools:
 - create_worktree: Start a new feature with a Claude agent
 - send_task: Send instructions to an existing agent
@@ -418,6 +463,8 @@ Available tools:
 - archive_worktree: Archive completed worktrees
 - nudge_agent: Wake up a stuck agent
 - get_file_tree: See project directory structure
+- read_file: Read file contents for quick lookups (up to 500 lines)
+- list_files: List files in a directory or match a glob pattern
 - no_action: When no intervention is needed`;
 
 /**
@@ -1135,7 +1182,7 @@ class OrchestratorLoopService extends EventEmitter {
           }
 
           // Info-gathering tools need continuation
-          if (['get_user_messages', 'get_agent_output', 'list_worktrees', 'check_status', 'get_file_tree'].includes(toolName)) {
+          if (['get_user_messages', 'get_agent_output', 'list_worktrees', 'check_status', 'get_file_tree', 'read_file', 'list_files'].includes(toolName)) {
             needsContinuation = true;
           }
 
@@ -1232,7 +1279,7 @@ class OrchestratorLoopService extends EventEmitter {
           if (!isNoAction) tookAction = true;
 
           // Check if still gathering info
-          if (['get_user_messages', 'get_agent_output', 'list_worktrees', 'check_status', 'get_file_tree'].includes(toolName)) {
+          if (['get_user_messages', 'get_agent_output', 'list_worktrees', 'check_status', 'get_file_tree', 'read_file', 'list_files'].includes(toolName)) {
             needsMoreTurns = true;
           }
 
@@ -1405,6 +1452,10 @@ class OrchestratorLoopService extends EventEmitter {
         case 'get_file_tree':
           await this.toolGetFileTree(args.depth || 2, correlationId);
           return `SUCCESS: Retrieved file tree`;
+        case 'read_file':
+          return await this.toolReadFile(args.path, args.maxLines || 500, correlationId);
+        case 'list_files':
+          return await this.toolListFiles(args.path || '.', args.pattern, correlationId);
         case 'get_merge_queue':
           await this.toolGetMergeQueue(correlationId);
           return `SUCCESS: Retrieved merge queue`;
@@ -1883,6 +1934,137 @@ class OrchestratorLoopService extends EventEmitter {
       role: 'user',
       content: `Project file tree:\n\`\`\`\n${treeStr}\n${tree.length > 100 ? '... (truncated)' : ''}\`\`\``,
     });
+  }
+
+  /**
+   * Tool: Read file contents
+   * Returns the file contents (truncated to maxLines) for quick lookups without spawning an agent.
+   */
+  private async toolReadFile(filePath: string, maxLines: number, correlationId: string): Promise<string> {
+    const projectId = this.projectId;
+    if (!projectId) throw new Error('No project context');
+
+    const project = projectService.getProject(projectId);
+    if (!project?.path) throw new Error('Project path not found');
+
+    // Resolve the path relative to project root
+    const fullPath = join(project.path, filePath);
+
+    // Security check: ensure the path is within the project
+    const normalizedPath = join(fullPath);
+    if (!normalizedPath.startsWith(project.path)) {
+      throw new Error('Path must be within the project directory');
+    }
+
+    try {
+      const content = await readFile(fullPath, 'utf-8');
+      const lines = content.split('\n');
+      const truncated = lines.length > maxLines;
+      const resultLines = lines.slice(0, maxLines);
+      const result = resultLines.join('\n');
+
+      await activityLoggerService.log({
+        type: 'event',
+        category: 'orchestrator',
+        summary: `Read file ${filePath} (${lines.length} lines${truncated ? ', truncated' : ''})`,
+        details: { filePath, totalLines: lines.length, returnedLines: resultLines.length, truncated },
+        correlationId,
+      });
+
+      // Add to conversation history so LLM can see the file contents
+      this.conversationHistory.push({
+        role: 'user',
+        content: `Contents of ${filePath}:\n\`\`\`\n${result}\n${truncated ? `... (truncated, showing ${maxLines} of ${lines.length} lines)` : ''}\`\`\``,
+      });
+
+      return `SUCCESS: Read ${filePath} (${resultLines.length} lines${truncated ? `, truncated from ${lines.length}` : ''})`;
+    } catch (error: any) {
+      if (error.code === 'ENOENT') {
+        throw new Error(`File not found: ${filePath}`);
+      }
+      if (error.code === 'EISDIR') {
+        throw new Error(`Path is a directory, not a file: ${filePath}`);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Tool: List files in a directory or match a glob pattern
+   * Useful for exploring the codebase without spawning an agent.
+   */
+  private async toolListFiles(dirPath: string, pattern: string | undefined, correlationId: string): Promise<string> {
+    const projectId = this.projectId;
+    if (!projectId) throw new Error('No project context');
+
+    const project = projectService.getProject(projectId);
+    if (!project?.path) throw new Error('Project path not found');
+
+    // Resolve the path relative to project root
+    const fullPath = join(project.path, dirPath);
+
+    // Security check: ensure the path is within the project
+    const normalizedPath = join(fullPath);
+    if (!normalizedPath.startsWith(project.path)) {
+      throw new Error('Path must be within the project directory');
+    }
+
+    let files: string[] = [];
+
+    if (pattern) {
+      // Use glob to match files
+      const { glob } = await import('glob');
+      const globPattern = join(dirPath, pattern);
+      const matches = await glob(globPattern, {
+        cwd: project.path,
+        nodir: false,
+        ignore: ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/build/**'],
+      });
+      files = matches.slice(0, 100); // Limit results
+    } else {
+      // List directory contents
+      const { readdirSync, statSync } = await import('node:fs');
+      try {
+        const items = readdirSync(fullPath);
+        files = items
+          .filter(item => !item.startsWith('.') && item !== 'node_modules')
+          .slice(0, 100)
+          .map(item => {
+            try {
+              const itemPath = join(fullPath, item);
+              const stat = statSync(itemPath);
+              return stat.isDirectory() ? `${item}/` : item;
+            } catch {
+              return item;
+            }
+          });
+      } catch (error: any) {
+        if (error.code === 'ENOENT') {
+          throw new Error(`Directory not found: ${dirPath}`);
+        }
+        if (error.code === 'ENOTDIR') {
+          throw new Error(`Path is not a directory: ${dirPath}`);
+        }
+        throw error;
+      }
+    }
+
+    await activityLoggerService.log({
+      type: 'event',
+      category: 'orchestrator',
+      summary: `Listed files in ${dirPath}${pattern ? ` (pattern: ${pattern})` : ''} - ${files.length} results`,
+      details: { dirPath, pattern, fileCount: files.length, files: files.slice(0, 20) },
+      correlationId,
+    });
+
+    // Add to conversation history
+    const fileList = files.join('\n');
+    this.conversationHistory.push({
+      role: 'user',
+      content: `Files in ${dirPath}${pattern ? ` matching "${pattern}"` : ''}:\n\`\`\`\n${fileList}\n${files.length >= 100 ? '... (truncated to 100 results)' : ''}\`\`\``,
+    });
+
+    return `SUCCESS: Found ${files.length} files${pattern ? ` matching "${pattern}"` : ''} in ${dirPath}`;
   }
 
   /**
