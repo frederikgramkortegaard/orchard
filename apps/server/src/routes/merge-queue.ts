@@ -5,7 +5,22 @@ import { worktreeService } from '../services/worktree.service.js';
 import { simpleGit } from 'simple-git';
 
 export async function mergeQueueRoutes(fastify: FastifyInstance) {
-  // GET /merge-queue?projectId=X - list pending merges
+  // GET /merge-queue/:projectId - list pending merges (for MCP tools)
+  fastify.get<{
+    Params: { projectId: string };
+  }>('/merge-queue/:projectId', async (request, reply) => {
+    const { projectId } = request.params;
+
+    const project = projectService.getProject(projectId);
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    const queue = databaseService.getMergeQueue(project.path);
+    return { queue };
+  });
+
+  // GET /merge-queue?projectId=X - list pending merges (legacy)
   fastify.get<{
     Querystring: { projectId: string };
   }>('/merge-queue', async (request, reply) => {

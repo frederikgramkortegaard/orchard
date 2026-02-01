@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { randomUUID, createHash } from 'crypto';
 import { projectService } from './project.service.js';
 import { daemonClient } from '../pty/daemon-client.js';
+import { databaseService } from './database.service.js';
 
 export type AgentMode = 'normal' | 'plan';
 
@@ -36,56 +37,70 @@ class WorktreeService {
   private archivedWorktrees = new Set<string>(); // worktree IDs that are archived
   private worktreeModes = new Map<string, AgentMode>(); // worktree ID -> mode
 
-  // Load archived worktrees from project-local storage
-  private async loadArchivedWorktrees(projectPath: string): Promise<Set<string>> {
+  // Load archived worktrees from SQLite, migrating from JSON if needed
+  private async loadArchivedWorktrees(projectPath: string, projectId: string): Promise<Set<string>> {
+    // Check for JSON file and migrate to SQLite if it exists
     const archivePath = join(projectPath, '.orchard', 'archived-worktrees.json');
-    if (!existsSync(archivePath)) {
-      return new Set();
+    if (existsSync(archivePath)) {
+      try {
+        const data = await readFile(archivePath, 'utf-8');
+        const archived: string[] = JSON.parse(data);
+        console.log(`[WorktreeService] Migrating ${archived.length} archived worktrees from JSON to SQLite`);
+        // Note: We can't insert directly here because the worktree record needs to exist first
+        // The archived IDs are stored in memory and will be persisted when loadWorktreesForProject syncs
+        // Delete the JSON file after migration
+        const { unlink } = await import('fs/promises');
+        await unlink(archivePath);
+        console.log(`[WorktreeService] Deleted ${archivePath} after migration`);
+        return new Set(archived);
+      } catch (err) {
+        console.error('[WorktreeService] Error migrating archived worktrees:', err);
+      }
     }
-    try {
-      const data = await readFile(archivePath, 'utf-8');
-      const archived: string[] = JSON.parse(data);
-      return new Set(archived);
-    } catch {
-      return new Set();
-    }
+
+    // Load from SQLite
+    const archivedIds = databaseService.getArchivedWorktreeIds(projectPath, projectId);
+    return new Set(archivedIds);
   }
 
-  // Save archived worktrees to project-local storage
-  private async saveArchivedWorktrees(projectPath: string): Promise<void> {
-    const orchardDir = join(projectPath, '.orchard');
-    if (!existsSync(orchardDir)) {
-      await mkdir(orchardDir, { recursive: true });
-    }
-    const archivePath = join(orchardDir, 'archived-worktrees.json');
-    const archived = Array.from(this.archivedWorktrees);
-    await writeFile(archivePath, JSON.stringify(archived, null, 2));
+  // Save archived status to SQLite
+  private async saveArchivedWorktree(projectPath: string, worktreeId: string, archived: boolean): Promise<void> {
+    databaseService.setWorktreeArchived(projectPath, worktreeId, archived);
   }
 
-  // Load worktree modes from project-local storage
-  private async loadWorktreeModes(projectPath: string): Promise<Map<string, AgentMode>> {
+  // Load worktree modes from SQLite, migrating from JSON if needed
+  private async loadWorktreeModes(projectPath: string, projectId: string): Promise<Map<string, AgentMode>> {
+    // Check for JSON file and migrate to SQLite if it exists
     const modesPath = join(projectPath, '.orchard', 'worktree-modes.json');
-    if (!existsSync(modesPath)) {
-      return new Map();
+    if (existsSync(modesPath)) {
+      try {
+        const data = await readFile(modesPath, 'utf-8');
+        const modesObj: Record<string, AgentMode> = JSON.parse(data);
+        console.log(`[WorktreeService] Migrating ${Object.keys(modesObj).length} worktree modes from JSON to SQLite`);
+        // Delete the JSON file after migration
+        const { unlink } = await import('fs/promises');
+        await unlink(modesPath);
+        console.log(`[WorktreeService] Deleted ${modesPath} after migration`);
+        return new Map(Object.entries(modesObj));
+      } catch (err) {
+        console.error('[WorktreeService] Error migrating worktree modes:', err);
+      }
     }
-    try {
-      const data = await readFile(modesPath, 'utf-8');
-      const modes: Record<string, AgentMode> = JSON.parse(data);
-      return new Map(Object.entries(modes));
-    } catch {
-      return new Map();
+
+    // Load from SQLite
+    const records = databaseService.getWorktreeRecords(projectPath, projectId);
+    const modes = new Map<string, AgentMode>();
+    for (const record of records) {
+      if (record.mode) {
+        modes.set(record.id, record.mode as AgentMode);
+      }
     }
+    return modes;
   }
 
-  // Save worktree modes to project-local storage
-  private async saveWorktreeModes(projectPath: string): Promise<void> {
-    const orchardDir = join(projectPath, '.orchard');
-    if (!existsSync(orchardDir)) {
-      await mkdir(orchardDir, { recursive: true });
-    }
-    const modesPath = join(orchardDir, 'worktree-modes.json');
-    const modes = Object.fromEntries(this.worktreeModes);
-    await writeFile(modesPath, JSON.stringify(modes, null, 2));
+  // Save worktree mode to SQLite
+  private async saveWorktreeMode(projectPath: string, worktreeId: string, mode: AgentMode | null): Promise<void> {
+    databaseService.setWorktreeMode(projectPath, worktreeId, mode);
   }
 
   // Set mode for a worktree
@@ -97,7 +112,7 @@ class WorktreeService {
       this.worktrees.set(worktreeId, worktree);
       const project = projectService.getProject(worktree.projectId);
       if (project) {
-        await this.saveWorktreeModes(project.path);
+        await this.saveWorktreeMode(project.path, worktreeId, mode);
       }
     }
   }
@@ -147,14 +162,14 @@ class WorktreeService {
     if (!mainPath || !existsSync(mainPath)) return [];
 
     // Load archived worktrees from persistent storage
-    const archivedSet = await this.loadArchivedWorktrees(project.path);
+    const archivedSet = await this.loadArchivedWorktrees(project.path, canonicalProjectId);
     // Merge with in-memory set
     for (const id of archivedSet) {
       this.archivedWorktrees.add(id);
     }
 
     // Load worktree modes from persistent storage
-    const modesMap = await this.loadWorktreeModes(project.path);
+    const modesMap = await this.loadWorktreeModes(project.path, canonicalProjectId);
     for (const [id, mode] of modesMap) {
       this.worktreeModes.set(id, mode);
     }
@@ -220,9 +235,18 @@ class WorktreeService {
           worktrees.push(worktree);
           this.worktrees.set(id, worktree);
 
-          // Sync .mcp.json to ensure WORKTREE_ID matches the server's regenerated ID
-          // This is needed because IDs are regenerated deterministically on server restart
+          // Sync to SQLite for persistence
           if (!isMain) {
+            databaseService.upsertWorktree(project.path, {
+              id,
+              projectId: canonicalProjectId,
+              path,
+              branch: branch || 'detached',
+              archived,
+              mode,
+            });
+            // Sync .mcp.json to ensure WORKTREE_ID matches the server's regenerated ID
+            // This is needed because IDs are regenerated deterministically on server restart
             await this.syncAgentMcp(path, id, project.path);
           }
         }
@@ -301,10 +325,19 @@ class WorktreeService {
 
     this.worktrees.set(id, worktree);
 
-    // Save mode if specified
+    // Persist to SQLite
+    databaseService.upsertWorktree(project.path, {
+      id,
+      projectId: canonicalProjectId,
+      path: worktreePath,
+      branch,
+      archived: false,
+      mode,
+    });
+
+    // Save mode to in-memory map too
     if (mode) {
       this.worktreeModes.set(id, mode);
-      await this.saveWorktreeModes(project.path);
     }
 
     return worktree;
@@ -529,8 +562,8 @@ class WorktreeService {
     const mainPath = projectService.getMainWorktreePath(projectId);
     if (!mainPath || !existsSync(mainPath)) return [];
 
-    // Load archived set
-    const archivedSet = await this.loadArchivedWorktrees(project.path);
+    // Load archived set from SQLite
+    const archivedSet = await this.loadArchivedWorktrees(project.path, project.id);
 
     const git = simpleGit(mainPath);
     const result = await git.raw(['worktree', 'list', '--porcelain']);
@@ -600,10 +633,10 @@ class WorktreeService {
     this.archivedWorktrees.delete(worktreeId);
     this.worktrees.set(worktreeId, worktree);
 
-    // Save to persistent storage
+    // Persist to SQLite
     const project = projectService.getProject(worktree.projectId);
     if (project) {
-      this.saveArchivedWorktrees(project.path).catch(console.error);
+      this.saveArchivedWorktree(project.path, worktreeId, false).catch(console.error);
     }
 
     return worktree;
@@ -618,10 +651,10 @@ class WorktreeService {
     this.archivedWorktrees.add(worktreeId);
     this.worktrees.set(worktreeId, worktree);
 
-    // Save to persistent storage
+    // Persist to SQLite
     const project = projectService.getProject(worktree.projectId);
     if (project) {
-      await this.saveArchivedWorktrees(project.path);
+      await this.saveArchivedWorktree(project.path, worktreeId, true);
     }
 
     return worktree;

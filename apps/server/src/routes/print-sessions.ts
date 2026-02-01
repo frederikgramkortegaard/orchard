@@ -443,4 +443,64 @@ export async function printSessionsRoutes(fastify: FastifyInstance) {
       output,
     };
   });
+
+  // Stop/kill a running print session
+  fastify.delete<{
+    Params: { sessionId: string };
+    Querystring: { projectId: string };
+  }>('/print-sessions/:sessionId', async (request, reply) => {
+    const { sessionId } = request.params;
+    const { projectId } = request.query;
+
+    if (!projectId) {
+      return reply.status(400).send({ error: 'projectId query param required' });
+    }
+
+    const project = projectService.getProject(projectId);
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    const session = databaseService.getPrintSession(project.path, sessionId);
+    if (!session) {
+      return reply.status(404).send({ error: 'Session not found' });
+    }
+
+    // Find the running task by session ID
+    let killedProcess = false;
+    for (const [worktreeId, task] of runningTasks.entries()) {
+      if (task.sessionId === sessionId) {
+        try {
+          // Kill the process
+          task.process.kill('SIGTERM');
+          // Give it a moment, then force kill if needed
+          setTimeout(() => {
+            try {
+              task.process.kill('SIGKILL');
+            } catch {
+              // Already dead
+            }
+          }, 2000);
+          clearRunningTask(worktreeId);
+          killedProcess = true;
+          console.log(`[PrintSessions] Killed session ${sessionId} (worktree: ${worktreeId})`);
+        } catch (err) {
+          console.error(`[PrintSessions] Error killing session ${sessionId}:`, err);
+        }
+        break;
+      }
+    }
+
+    if (session.status === 'running') {
+      // Mark as completed with exit code -1 (killed)
+      databaseService.completePrintSession(project.path, sessionId, -1);
+      databaseService.appendTerminalOutput(project.path, sessionId, '\n[Session terminated by user]\n');
+    }
+
+    return {
+      success: true,
+      killed: killedProcess,
+      message: killedProcess ? 'Session killed' : 'Session was not running',
+    };
+  });
 }

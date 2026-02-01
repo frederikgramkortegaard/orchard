@@ -378,6 +378,23 @@ class DatabaseService extends EventEmitter {
       CREATE INDEX IF NOT EXISTS idx_merge_queue_merged ON merge_queue(merged);
     `);
 
+    // Worktrees table (persists worktree metadata including archived status)
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS worktrees (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        path TEXT NOT NULL UNIQUE,
+        branch TEXT NOT NULL,
+        archived INTEGER NOT NULL DEFAULT 0,
+        mode TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_worktrees_project_id ON worktrees(project_id);
+      CREATE INDEX IF NOT EXISTS idx_worktrees_archived ON worktrees(archived);
+    `);
+
     console.log('[DatabaseService] Schema initialized');
   }
 
@@ -1293,6 +1310,147 @@ class DatabaseService extends EventEmitter {
       return true;
     }
     return false;
+  }
+
+  // ============ Worktrees ============
+
+  /**
+   * Upsert a worktree record
+   */
+  upsertWorktree(
+    projectPath: string,
+    worktree: {
+      id: string;
+      projectId: string;
+      path: string;
+      branch: string;
+      archived?: boolean;
+      mode?: string;
+    }
+  ): void {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      INSERT INTO worktrees (id, project_id, path, branch, archived, mode, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+      ON CONFLICT (id) DO UPDATE SET
+        path = excluded.path,
+        branch = excluded.branch,
+        archived = COALESCE(excluded.archived, worktrees.archived),
+        mode = COALESCE(excluded.mode, worktrees.mode),
+        updated_at = datetime('now')
+    `);
+    stmt.run(
+      worktree.id,
+      worktree.projectId,
+      worktree.path,
+      worktree.branch,
+      worktree.archived ? 1 : 0,
+      worktree.mode || null
+    );
+  }
+
+  /**
+   * Get a worktree by ID
+   */
+  getWorktreeRecord(projectPath: string, worktreeId: string): {
+    id: string;
+    projectId: string;
+    path: string;
+    branch: string;
+    archived: boolean;
+    mode: string | null;
+  } | null {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      SELECT id, project_id as projectId, path, branch, archived, mode
+      FROM worktrees WHERE id = ?
+    `);
+    const row = stmt.get(worktreeId) as any;
+    if (!row) return null;
+    return {
+      id: row.id,
+      projectId: row.projectId,
+      path: row.path,
+      branch: row.branch,
+      archived: !!row.archived,
+      mode: row.mode,
+    };
+  }
+
+  /**
+   * Get all worktrees for a project
+   */
+  getWorktreeRecords(projectPath: string, projectId: string): Array<{
+    id: string;
+    projectId: string;
+    path: string;
+    branch: string;
+    archived: boolean;
+    mode: string | null;
+  }> {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      SELECT id, project_id as projectId, path, branch, archived, mode
+      FROM worktrees WHERE project_id = ?
+      ORDER BY created_at ASC
+    `);
+    const rows = stmt.all(projectId) as any[];
+    return rows.map(row => ({
+      id: row.id,
+      projectId: row.projectId,
+      path: row.path,
+      branch: row.branch,
+      archived: !!row.archived,
+      mode: row.mode,
+    }));
+  }
+
+  /**
+   * Set worktree archived status
+   */
+  setWorktreeArchived(projectPath: string, worktreeId: string, archived: boolean): boolean {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      UPDATE worktrees SET archived = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `);
+    const result = stmt.run(archived ? 1 : 0, worktreeId);
+    return result.changes > 0;
+  }
+
+  /**
+   * Set worktree mode
+   */
+  setWorktreeMode(projectPath: string, worktreeId: string, mode: string | null): boolean {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      UPDATE worktrees SET mode = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `);
+    const result = stmt.run(mode, worktreeId);
+    return result.changes > 0;
+  }
+
+  /**
+   * Delete a worktree record
+   */
+  deleteWorktreeRecord(projectPath: string, worktreeId: string): boolean {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`DELETE FROM worktrees WHERE id = ?`);
+    const result = stmt.run(worktreeId);
+    return result.changes > 0;
+  }
+
+  /**
+   * Get archived worktree IDs for a project
+   */
+  getArchivedWorktreeIds(projectPath: string, projectId: string): string[] {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      SELECT id FROM worktrees WHERE project_id = ? AND archived = 1
+    `);
+    const rows = stmt.all(projectId) as any[];
+    return rows.map(row => row.id);
   }
 
   /**
