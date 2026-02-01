@@ -1,5 +1,5 @@
 /**
- * Send a message to the activity log
+ * Send a message to the activity log and chat
  */
 export async function sendMessage(
   apiBase: string,
@@ -7,8 +7,8 @@ export async function sendMessage(
 ): Promise<string> {
   const { projectId, message } = args;
 
-  // Post directly to activity log instead of chat
-  const res = await fetch(`${apiBase}/orchestrator/activity`, {
+  // Post to activity log
+  const activityRes = await fetch(`${apiBase}/orchestrator/activity`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -20,9 +20,24 @@ export async function sendMessage(
     }),
   });
 
-  if (!res.ok) {
-    throw new Error(`Failed to send message: ${res.statusText}`);
+  if (!activityRes.ok) {
+    throw new Error(`Failed to log activity: ${activityRes.statusText}`);
   }
 
-  return `Message logged: ${message}`;
+  // Also post to chat so it appears in the chat UI
+  const chatRes = await fetch(`${apiBase}/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      projectId,
+      text: message,
+      from: 'orchestrator',
+    }),
+  });
+
+  if (!chatRes.ok) {
+    throw new Error(`Failed to send chat message: ${chatRes.statusText}`);
+  }
+
+  return `Message sent: ${message}`;
 }
