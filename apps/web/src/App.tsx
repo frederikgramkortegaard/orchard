@@ -10,7 +10,6 @@ import { SettingsModal } from './components/modals/SettingsModal';
 import { DiffViewerModal } from './components/diff';
 import { OrchestratorPanel } from './components/orchestrator/OrchestratorPanel';
 import { ActivityPane } from './components/orchestrator/ActivityPane';
-import { SplitTerminalPane } from './components/terminal/SplitTerminalPane';
 import { DebugPanel } from './components/DebugPanel';
 import * as api from './api/projects';
 
@@ -158,21 +157,10 @@ function App() {
 
           <Separator className="w-px bg-zinc-700 hover:bg-blue-500 dark:hover:bg-zinc-600 cursor-col-resize" />
 
-          <Panel defaultSize={40} minSize={5}>
+          <Panel defaultSize={60} minSize={5}>
             <div className="h-full bg-zinc-900">
               <OrchestratorPanel key={`chat-${activeProjectId}-${projectSwitchKey}`} projectId={activeProjectId} projectPath={activeProject.path} />
             </div>
-          </Panel>
-
-          <Separator className="w-px bg-zinc-700 hover:bg-blue-500 dark:hover:bg-zinc-600 cursor-col-resize" />
-
-          <Panel defaultSize={25} minSize={5}>
-            <SplitTerminalPane
-              key={`terminal-${activeProjectId}-${activeWorktreeId || 'none'}-${projectSwitchKey}`}
-              worktreeId={activeWorktreeId || undefined}
-              worktreePath={activeWorktree?.path}
-              projectPath={activeProject?.path}
-            />
           </Panel>
 
           <Separator className="w-px bg-zinc-700 hover:bg-blue-500 dark:hover:bg-zinc-600 cursor-col-resize" />

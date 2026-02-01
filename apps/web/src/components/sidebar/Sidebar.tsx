@@ -1,10 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, GitBranch, Folder, Trash2, Archive, Clock, GitCompare, GitMerge, Loader2, Search, X, Copy } from 'lucide-react';
+import { Group, Panel, Separator } from 'react-resizable-panels';
 import { useProjectStore, type Worktree } from '../../stores/project.store';
 import { useTerminalStore } from '../../stores/terminal.store';
 import { useToast } from '../../contexts/ToastContext';
+import { SplitTerminalPane } from '../terminal/SplitTerminalPane';
 
 interface SidebarProps {
+  onOpenProject?: () => void;
+  onCreateWorktree?: () => void;
   onDeleteWorktree: (worktreeId: string) => void;
   onArchiveWorktree: (worktreeId: string) => void;
   onViewDiff: (worktreeId: string, branch: string) => void;
@@ -311,7 +315,26 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
 
   return (
     <aside className="h-full bg-zinc-100 dark:bg-zinc-800 border-r border-zinc-300 dark:border-zinc-700 flex flex-col overflow-hidden">
-      {worktreesContent}
+      <Group direction="vertical" className="h-full">
+        {/* Terminal/Print Output - only show when a worktree is selected */}
+        {activeWorktreeId && (
+          <>
+            <Panel defaultSize={50} minSize={20}>
+              <SplitTerminalPane
+                worktreeId={activeWorktreeId}
+                worktreePath={worktreePath}
+                projectPath={projectPath}
+              />
+            </Panel>
+            <Separator className="h-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-blue-500 cursor-row-resize" />
+          </>
+        )}
+
+        {/* Worktrees list */}
+        <Panel defaultSize={activeWorktreeId ? 50 : 100} minSize={20}>
+          {worktreesContent}
+        </Panel>
+      </Group>
 
       {/* Context Menu */}
       {contextMenu && (
@@ -360,7 +383,7 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
                 onDeleteWorktree(contextMenu.worktree.id);
                 closeContextMenu();
               }}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-green-600 dark:text-green-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-left"
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-left"
             >
               <Trash2 size={14} />
               Delete
