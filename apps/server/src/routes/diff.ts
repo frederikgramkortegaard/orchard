@@ -89,7 +89,8 @@ export async function diffRoutes(fastify: FastifyInstance) {
     const git = simpleGit(worktree.path);
 
     try {
-      const log = await git.log({ maxCount: limit });
+      // Explicitly filter to only show commits from the worktree's branch
+      const log = await git.log({ maxCount: limit, [worktree.branch]: null });
       return {
         worktreeId: worktree.id,
         commits: log.all.map((commit) => ({
