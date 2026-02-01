@@ -2003,11 +2003,21 @@ class OrchestratorLoopService extends EventEmitter {
   /**
    * Gather context for the tick
    */
+  private lastFullRefresh = 0;
+  private readonly FULL_REFRESH_INTERVAL_MS = 60000; // Full refresh every 60s
+
   private async gatherTickContext(): Promise<TickContext> {
     const projectId = this.projectId || '';
 
-    // Get worktrees and their statuses
-    const worktrees = await worktreeService.loadWorktreesForProject(projectId);
+    // Use cached worktrees, only do full refresh every 60 seconds
+    const now = Date.now();
+    let worktrees = worktreeService.getWorktreesForProject(projectId);
+
+    if (worktrees.length === 0 || (now - this.lastFullRefresh) > this.FULL_REFRESH_INTERVAL_MS) {
+      // Need full refresh (empty cache or stale)
+      worktrees = await worktreeService.loadWorktreesForProject(projectId);
+      this.lastFullRefresh = now;
+    }
     const sessions = sessionPersistenceService.getSessionsForProject(projectId);
     const sessionByWorktree = new Map(sessions.map(s => [s.worktreeId, s]));
 
