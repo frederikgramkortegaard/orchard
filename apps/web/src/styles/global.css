@@ -2,6 +2,7 @@
 @import "diff2html/bundles/css/diff2html.min.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
+@custom-variant pink (&:where(.pink, .pink *));
 
 /* Toast slide-in animation */
 @keyframes slide-in {
@@ -166,4 +167,150 @@
 
 .dark .diff-viewer-content::-webkit-scrollbar-thumb {
   background: #52525b;
+}
+
+/* Pink theme - playful and fun! */
+.pink {
+  --pink-bg: #fff0f5;
+  --pink-bg-secondary: #ffe4ec;
+  --pink-accent: #ec4899;
+  --pink-accent-hover: #db2777;
+  --pink-border: #f9a8d4;
+  --pink-text: #831843;
+  --pink-text-muted: #9d174d;
+}
+
+/* Diff2html pink theme customizations */
+.pink .diff-viewer-content {
+  --d2h-dark-color: #831843;
+  --d2h-dark-empty: #fce7f3;
+  --d2h-dark-info: #fbcfe8;
+  --d2h-dark-file-header: #fdf2f8;
+}
+
+.pink .d2h-wrapper {
+  background-color: #fdf2f8;
+  color: #831843;
+}
+
+.pink .d2h-file-header {
+  background-color: #fce7f3;
+  border-bottom-color: #f9a8d4;
+}
+
+.pink .d2h-file-name-wrapper {
+  background-color: #fce7f3;
+}
+
+.pink .d2h-file-name {
+  color: #831843;
+}
+
+.pink .d2h-tag {
+  background-color: #fbcfe8;
+  color: #9d174d;
+}
+
+.pink .d2h-file-stats {
+  color: #9d174d;
+}
+
+.pink .d2h-files-diff {
+  background-color: #fdf2f8;
+}
+
+.pink .d2h-code-side-linenumber,
+.pink .d2h-code-linenumber {
+  background-color: #fce7f3;
+  border-color: #f9a8d4;
+  color: #be185d;
+}
+
+.pink .d2h-code-line {
+  background-color: #fdf2f8;
+  color: #831843;
+}
+
+.pink .d2h-code-line-ctn {
+  background-color: transparent;
+  color: #831843;
+}
+
+.pink .d2h-code-line-prefix {
+  color: #9d174d;
+}
+
+/* Diff line backgrounds for pink theme */
+.pink .d2h-del {
+  background-color: rgba(244, 63, 94, 0.2);
+}
+
+.pink .d2h-del .d2h-code-line-ctn {
+  background-color: rgba(244, 63, 94, 0.15);
+}
+
+.pink .d2h-ins {
+  background-color: rgba(34, 197, 94, 0.25);
+}
+
+.pink .d2h-ins .d2h-code-line-ctn {
+  background-color: rgba(34, 197, 94, 0.2);
+}
+
+.pink .d2h-info {
+  background-color: rgba(236, 72, 153, 0.2);
+}
+
+.pink .d2h-info .d2h-code-line-ctn {
+  background-color: rgba(236, 72, 153, 0.15);
+}
+
+/* Word-level diff highlights */
+.pink .d2h-change {
+  background-color: rgba(251, 191, 36, 0.3);
+}
+
+.pink del.d2h-change {
+  background-color: rgba(244, 63, 94, 0.4);
+}
+
+.pink ins.d2h-change {
+  background-color: rgba(34, 197, 94, 0.4);
+}
+
+/* Empty cell */
+.pink .d2h-emptyplaceholder {
+  background-color: #fce7f3;
+}
+
+/* File list styling */
+.pink .d2h-file-list-wrapper {
+  background-color: #fdf2f8;
+  border-color: #f9a8d4;
+}
+
+.pink .d2h-file-list {
+  background-color: #fdf2f8;
+}
+
+.pink .d2h-file-list-header {
+  background-color: #fce7f3;
+  border-color: #f9a8d4;
+}
+
+.pink .d2h-file-list-line {
+  border-color: #f9a8d4;
+}
+
+.pink .d2h-file-list-line:hover {
+  background-color: #fce7f3;
+}
+
+/* Scrollbar styling for pink theme */
+.pink .diff-viewer-content::-webkit-scrollbar-track {
+  background: #fce7f3;
+}
+
+.pink .diff-viewer-content::-webkit-scrollbar-thumb {
+  background: #f9a8d4;
 }
