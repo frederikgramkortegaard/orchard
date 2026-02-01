@@ -1,4 +1,4 @@
-import { Plus, X, Folder, LayoutDashboard } from 'lucide-react';
+import { Plus, X, Folder, Settings, Bug } from 'lucide-react';
 import { useProjectStore, Project } from '../../stores/project.store';
 import * as api from '../../api/projects';
 import {
@@ -20,9 +20,9 @@ import { CSS } from '@dnd-kit/utilities';
 
 interface ProjectTabBarProps {
   onNewProject: () => void;
-  showDashboard?: boolean;
-  onToggleDashboard?: () => void;
   onProjectSwitch?: (projectId: string) => void;
+  onOpenSettings?: () => void;
+  onOpenDebug?: () => void;
 }
 
 interface SortableTabProps {
@@ -75,7 +75,7 @@ function SortableTab({ project, isActive, onProjectClick, onCloseTab }: Sortable
   );
 }
 
-export function ProjectTabBar({ onNewProject, showDashboard, onToggleDashboard, onProjectSwitch }: ProjectTabBarProps) {
+export function ProjectTabBar({ onNewProject, onProjectSwitch, onOpenSettings, onOpenDebug }: ProjectTabBarProps) {
   const { projects, activeProjectId, setActiveProject, closeProject, reorderProjects } = useProjectStore();
 
   const sensors = useSensors(
@@ -98,7 +98,6 @@ export function ProjectTabBar({ onNewProject, showDashboard, onToggleDashboard, 
 
   const handleCloseTab = async (e: React.MouseEvent, projectId: string) => {
     e.stopPropagation();
-    // Just close the tab - don't delete any files!
     try {
       await api.closeProject(projectId);
     } catch (err) {
@@ -147,22 +146,25 @@ export function ProjectTabBar({ onNewProject, showDashboard, onToggleDashboard, 
         <span className="text-xs">New</span>
       </button>
 
-      {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Dashboard toggle */}
-      {onToggleDashboard && (
+      {onOpenDebug && (
         <button
-          onClick={onToggleDashboard}
-          className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-all ${
-            showDashboard
-              ? 'bg-green-500/10 text-green-600 dark:text-green-400 ring-1 ring-green-500/20'
-              : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50'
-          }`}
-          title={showDashboard ? 'Hide Dashboard' : 'Show Dashboard'}
+          onClick={onOpenDebug}
+          className="p-1.5 rounded-md text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 transition-colors"
+          title="Debug Panel"
         >
-          <LayoutDashboard size={13} />
-          <span className="text-xs font-medium">Dashboard</span>
+          <Bug size={14} />
+        </button>
+      )}
+
+      {onOpenSettings && (
+        <button
+          onClick={onOpenSettings}
+          className="p-1.5 rounded-md text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 transition-colors"
+          title="Settings"
+        >
+          <Settings size={14} />
         </button>
       )}
     </div>

@@ -348,42 +348,33 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
         </div>
       )}
 
-      {/* Input area */}
+      {/* Input area - single AudioRecorder to prevent unmount/abort */}
       <div className="flex items-center gap-2 p-2 bg-zinc-800 border-t border-zinc-700">
-        {isRecording ? (
-          <div className="flex-1 flex items-center justify-center">
-            <AudioRecorder
-              onTranscription={handleVoiceTranscription}
-              disabled={isSending}
-            />
-          </div>
-        ) : (
-          <>
-            <input
-              type="text"
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              placeholder="Type a message"
-              className="flex-1 px-4 py-2.5 bg-zinc-700 rounded-full text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-green-500 shadow-sm placeholder:text-zinc-400"
-              onKeyDown={(e) => e.key === 'Enter' && !isSending && handleSend()}
-            />
-            <AudioRecorder
-              onTranscription={handleVoiceTranscription}
-              disabled={isSending}
-            />
-            <button
-              onClick={handleSend}
-              disabled={isSending || !inputText.trim()}
-              className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shadow-sm ${
-                inputText.trim()
-                  ? 'bg-green-600 hover:bg-green-500 text-white'
-                  : 'bg-zinc-600 text-zinc-400'
-              } disabled:opacity-50`}
-            >
-              {isSending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-            </button>
-          </>
-        )}
+        <input
+          type="text"
+          value={inputText}
+          onChange={(e) => setInputText(e.target.value)}
+          placeholder="Type a message"
+          className={`flex-1 px-4 py-2.5 bg-zinc-700 rounded-full text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-green-500 shadow-sm placeholder:text-zinc-400 ${isRecording ? 'hidden' : ''}`}
+          onKeyDown={(e) => e.key === 'Enter' && !isSending && handleSend()}
+        />
+        <div className={isRecording ? 'flex-1 flex justify-center' : ''}>
+          <AudioRecorder
+            onTranscription={handleVoiceTranscription}
+            disabled={isSending}
+          />
+        </div>
+        <button
+          onClick={handleSend}
+          disabled={isSending || !inputText.trim()}
+          className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shadow-sm ${
+            inputText.trim()
+              ? 'bg-green-600 hover:bg-green-500 text-white'
+              : 'bg-zinc-600 text-zinc-400'
+          } disabled:opacity-50 ${isRecording ? 'hidden' : ''}`}
+        >
+          {isSending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+        </button>
       </div>
 
       {/* Context menu for message status */}
