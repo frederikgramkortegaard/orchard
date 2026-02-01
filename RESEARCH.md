@@ -215,3 +215,11 @@ Based on competitive analysis:
 - [MCP & Multi-Agent AI - OneReach](https://onereach.ai/blog/mcp-multi-agent-ai-collaborative-intelligence/)
 - [Building Effective AI Agents with MCP - Red Hat](https://developers.redhat.com/articles/2026/01/08/building-effective-ai-agents-mcp)
 - [MCP Official Site](https://modelcontextprotocol.io/)
+
+### Additional Research (Feb 2026)
+- [AI Coding Assistants 2025: Cursor vs GitHub Copilot vs Claude Code vs Windsurf](https://usama.codes/blog/ai-coding-assistants-2025-comparison)
+- [10 Things Developers Want from their Agentic IDEs in 2025](https://redmonk.com/kholterhoff/2025/12/22/10-things-developers-want-from-their-agentic-ides-in-2025/)
+- [How To Use Claude Code To Wield Coding Agent Clusters](https://www.pulsemcp.com/posts/how-to-use-claude-code-to-wield-coding-agent-clusters)
+- [Parallel AI Coding with Git Worktrees and Custom Claude Code Commands](https://docs.agentinterviews.com/blog/parallel-ai-coding-with-gitworktrees/)
+- [Devin AI Complete Guide](https://www.digitalapplied.com/blog/devin-ai-autonomous-coding-complete-guide)
+- [Devin 2.0 Explained](https://www.analyticsvidhya.com/blog/2025/04/devin-2-0/)
