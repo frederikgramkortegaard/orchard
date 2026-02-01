@@ -155,6 +155,26 @@ class DebugLogService {
 
     return databaseService.getDebugStats(projectPath);
   }
+
+  /**
+   * Clear all debug logs
+   */
+  clearLogs(): void {
+    const projectPath = this.getProjectPath();
+    if (!projectPath) return;
+
+    databaseService.clearDebugLogs(projectPath);
+  }
+
+  /**
+   * Clear all AI request logs
+   */
+  clearAIRequests(): void {
+    const projectPath = this.getProjectPath();
+    if (!projectPath) return;
+
+    databaseService.clearAIRequests(projectPath);
+  }
 }
 
 export const debugLogService = new DebugLogService();

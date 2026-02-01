@@ -1698,6 +1698,22 @@ class DatabaseService extends EventEmitter {
   }
 
   /**
+   * Clear all debug logs
+   */
+  clearDebugLogs(projectPath: string): void {
+    const db = this.getDatabase(projectPath);
+    db.exec('DELETE FROM debug_logs');
+  }
+
+  /**
+   * Clear all AI request logs
+   */
+  clearAIRequests(projectPath: string): void {
+    const db = this.getDatabase(projectPath);
+    db.exec('DELETE FROM ai_requests');
+  }
+
+  /**
    * Close all database connections
    */
   close(): void {

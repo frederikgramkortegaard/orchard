@@ -433,9 +433,11 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
   });
 
   // Clear pending messages (mark all as processed)
-  fastify.post('/orchestrator/loop/clear-pending', async () => {
+  fastify.post<{
+    Querystring: { projectId?: string };
+  }>('/orchestrator/loop/clear-pending', async (request) => {
     const { orchestratorLoopService } = await import('../services/orchestrator-loop.service.js');
-    await orchestratorLoopService.markAllMessagesProcessed();
+    await orchestratorLoopService.markAllMessagesProcessed(request.query.projectId);
     return { success: true };
   });
 

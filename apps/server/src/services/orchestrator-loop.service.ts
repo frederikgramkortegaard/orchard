@@ -400,6 +400,82 @@ const ORCHESTRATOR_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'git_status',
+      description: 'Get git status showing modified, staged, and untracked files. Can check main worktree or a specific worktree.',
+      parameters: {
+        type: 'object',
+        properties: {
+          worktreeId: {
+            type: 'string',
+            description: 'Optional: specific worktree ID to check. If omitted, checks the main worktree.',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'git_log',
+      description: 'Get recent commit history. Shows commit hash, author, date, and message.',
+      parameters: {
+        type: 'object',
+        properties: {
+          worktreeId: {
+            type: 'string',
+            description: 'Optional: specific worktree ID to check. If omitted, checks the main worktree.',
+          },
+          count: {
+            type: 'number',
+            description: 'Number of commits to show (default: 10, max: 50)',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'git_diff',
+      description: 'Show uncommitted changes (diff of working directory vs HEAD). Useful for reviewing what an agent has changed.',
+      parameters: {
+        type: 'object',
+        properties: {
+          worktreeId: {
+            type: 'string',
+            description: 'Optional: specific worktree ID to check. If omitted, checks the main worktree.',
+          },
+          staged: {
+            type: 'boolean',
+            description: 'If true, show staged changes only. If false (default), show unstaged changes.',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'git_branches',
+      description: 'List all branches in the repository with their last commit info.',
+      parameters: {
+        type: 'object',
+        properties: {
+          showRemote: {
+            type: 'boolean',
+            description: 'Include remote branches (default: false)',
+          },
+        },
+        required: [],
+      },
+    },
+  },
 ];
 
 const SYSTEM_PROMPT = `You are the orchestrator for a multi-agent development system called Orchard. Your role is to:
@@ -465,6 +541,10 @@ Available tools:
 - get_file_tree: See project directory structure
 - read_file: Read file contents for quick lookups (up to 500 lines)
 - list_files: List files in a directory or match a glob pattern
+- git_status: Check git status (modified/staged/untracked files)
+- git_log: View recent commit history
+- git_diff: See uncommitted changes
+- git_branches: List all branches
 - no_action: When no intervention is needed`;
 
 /**
@@ -497,9 +577,6 @@ class OrchestratorLoopService extends EventEmitter {
   private lastTickStartTime: number = 0;
   private lastActionWasNoAction: boolean = false;
 
-  // Track which chat messages have been processed
-  private lastProcessedMessageId: string | null = null;
-
   constructor(config: Partial<OrchestratorLoopConfig> = {}) {
     super();
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -525,56 +602,24 @@ class OrchestratorLoopService extends EventEmitter {
   }
 
   /**
-   * Save lastProcessedMessageId to persist across restarts
-   */
-  private async saveLastProcessedMessageId(): Promise<void> {
-    if (!this.projectId) return;
-    const project = projectService.getProject(this.projectId);
-    if (!project?.path) return;
-
-    const statePath = join(project.path, '.orchard', 'orchestrator-state.json');
-    try {
-      const state = { lastProcessedMessageId: this.lastProcessedMessageId };
-      await writeFile(statePath, JSON.stringify(state, null, 2));
-    } catch (error) {
-      console.error('[OrchestratorLoop] Failed to save state:', error);
-    }
-  }
-
-  /**
-   * Load lastProcessedMessageId from disk
-   */
-  private async loadLastProcessedMessageId(): Promise<void> {
-    if (!this.projectId) return;
-    const project = projectService.getProject(this.projectId);
-    if (!project?.path) return;
-
-    const statePath = join(project.path, '.orchard', 'orchestrator-state.json');
-    try {
-      if (existsSync(statePath)) {
-        const content = await readFile(statePath, 'utf-8');
-        const state = JSON.parse(content);
-        if (state.lastProcessedMessageId) {
-          this.lastProcessedMessageId = state.lastProcessedMessageId;
-          console.log(`[OrchestratorLoop] Loaded lastProcessedMessageId: ${this.lastProcessedMessageId}`);
-        }
-      }
-    } catch (error) {
-      console.error('[OrchestratorLoop] Failed to load state:', error);
-    }
-  }
-
-  /**
    * Mark all current messages as processed (for "clear pending" feature)
    */
-  async markAllMessagesProcessed(): Promise<void> {
-    const pendingMessages = await this.getPendingUserMessages();
-    if (pendingMessages.length > 0) {
-      const lastMessage = pendingMessages[pendingMessages.length - 1];
-      this.lastProcessedMessageId = lastMessage.id;
-      await this.saveLastProcessedMessageId();
-      console.log(`[OrchestratorLoop] Marked all messages as processed up to ${lastMessage.id}`);
+  async markAllMessagesProcessed(projectIdOverride?: string): Promise<void> {
+    const projectId = projectIdOverride || this.projectId;
+    if (!projectId) {
+      console.error('[OrchestratorLoop] markAllMessagesProcessed: No project ID - orchestrator loop not started?');
+      return;
     }
+
+    const project = projectService.getProject(projectId);
+    if (!project?.path) {
+      console.error(`[OrchestratorLoop] markAllMessagesProcessed: Project ${projectId} not found`);
+      return;
+    }
+
+    // Mark all unprocessed user messages as processed in SQLite
+    const count = databaseService.markChatMessagesProcessed(project.path, projectId);
+    console.log(`[OrchestratorLoop] Marked ${count} pending messages as processed for project ${projectId}`);
   }
 
   /**
@@ -696,9 +741,6 @@ class OrchestratorLoopService extends EventEmitter {
       if (project) {
         await this.loadConfig(project.path);
       }
-
-      // Load persisted state (lastProcessedMessageId)
-      await this.loadLastProcessedMessageId();
 
       // Check if enabled
       if (!this.config.enabled) {
@@ -977,8 +1019,8 @@ class OrchestratorLoopService extends EventEmitter {
       // Mark pending messages as processed after LLM has seen them
       // This prevents the same messages from triggering responses every tick
       if (pendingMessages.length > 0) {
-        const lastMessage = pendingMessages[pendingMessages.length - 1];
-        this.markMessagesProcessed(lastMessage.id);
+        const messageIds = pendingMessages.map(m => m.id);
+        await this.markMessagesProcessed(messageIds);
       }
 
       // Reset failure counter on success
@@ -1465,6 +1507,14 @@ class OrchestratorLoopService extends EventEmitter {
         case 'remove_from_queue':
           await this.toolRemoveFromQueue(args.worktreeId, correlationId);
           return `SUCCESS: Removed ${args.worktreeId} from queue`;
+        case 'git_status':
+          return await this.toolGitStatus(args.worktreeId, correlationId);
+        case 'git_log':
+          return await this.toolGitLog(args.worktreeId, args.count || 10, correlationId);
+        case 'git_diff':
+          return await this.toolGitDiff(args.worktreeId, args.staged || false, correlationId);
+        case 'git_branches':
+          return await this.toolGitBranches(args.showRemote || false, correlationId);
         default:
           return `ERROR: Unknown tool: ${name}`;
       }
@@ -1671,32 +1721,12 @@ class OrchestratorLoopService extends EventEmitter {
     const project = projectService.getProject(projectId);
     if (!project?.path) throw new Error('Project path not found');
 
-    const chatPath = join(project.path, '.orchard', 'chat.json');
-    let messages: Array<{ id: string; text: string; timestamp: string; from: string }> = [];
-
-    try {
-      if (existsSync(chatPath)) {
-        const data = await readFile(chatPath, 'utf-8');
-        messages = JSON.parse(data);
-      }
-    } catch {
-      messages = [];
-    }
-
-    // Get only pending (unprocessed) user messages
-    const userMessages = messages.filter(m => m.from === 'user');
-    let pendingMessages: typeof userMessages = [];
-
-    if (this.lastProcessedMessageId) {
-      const lastIndex = userMessages.findIndex(m => m.id === this.lastProcessedMessageId);
-      if (lastIndex !== -1) {
-        pendingMessages = userMessages.slice(lastIndex + 1);
-      } else {
-        pendingMessages = userMessages.slice(-limit);
-      }
-    } else {
-      pendingMessages = userMessages.slice(-limit);
-    }
+    // Get unprocessed user messages from SQLite
+    const pendingMessages = databaseService.getChatMessages(project.path, projectId, {
+      unprocessedOnly: true,
+      from: 'user',
+      limit,
+    });
 
     await activityLoggerService.log({
       type: 'event',
@@ -2190,7 +2220,217 @@ class OrchestratorLoopService extends EventEmitter {
   }
 
   /**
-   * Get pending user messages from chat.json (messages after lastProcessedMessageId)
+   * Tool: Git status - show modified, staged, and untracked files
+   */
+  private async toolGitStatus(worktreeId: string | undefined, correlationId: string): Promise<string> {
+    const projectId = this.projectId;
+    if (!projectId) throw new Error('No project context');
+
+    const project = projectService.getProject(projectId);
+    if (!project?.path) throw new Error('Project path not found');
+
+    let targetPath = project.path;
+    let targetLabel = 'main worktree';
+
+    if (worktreeId) {
+      const worktree = worktreeService.getWorktree(worktreeId);
+      if (!worktree) throw new Error(`Worktree ${worktreeId} not found`);
+      targetPath = worktree.path;
+      targetLabel = worktree.branch;
+    }
+
+    const { simpleGit } = await import('simple-git');
+    const git = simpleGit(targetPath);
+    const status = await git.status();
+
+    const statusInfo = {
+      branch: status.current,
+      ahead: status.ahead,
+      behind: status.behind,
+      modified: status.modified,
+      staged: status.staged,
+      untracked: status.not_added,
+      conflicted: status.conflicted,
+    };
+
+    await activityLoggerService.log({
+      type: 'event',
+      category: 'orchestrator',
+      summary: `Git status for ${targetLabel}`,
+      details: statusInfo,
+      correlationId,
+    });
+
+    // Format for LLM
+    const lines = [`Git status for ${targetLabel} (branch: ${status.current}):`];
+    if (status.ahead > 0) lines.push(`  Ahead of remote by ${status.ahead} commits`);
+    if (status.behind > 0) lines.push(`  Behind remote by ${status.behind} commits`);
+    if (status.staged.length > 0) lines.push(`  Staged: ${status.staged.join(', ')}`);
+    if (status.modified.length > 0) lines.push(`  Modified: ${status.modified.join(', ')}`);
+    if (status.not_added.length > 0) lines.push(`  Untracked: ${status.not_added.join(', ')}`);
+    if (status.conflicted.length > 0) lines.push(`  Conflicted: ${status.conflicted.join(', ')}`);
+    if (status.staged.length === 0 && status.modified.length === 0 && status.not_added.length === 0) {
+      lines.push('  Working tree clean');
+    }
+
+    this.conversationHistory.push({
+      role: 'user',
+      content: lines.join('\n'),
+    });
+
+    return `SUCCESS: Got git status for ${targetLabel}`;
+  }
+
+  /**
+   * Tool: Git log - show recent commits
+   */
+  private async toolGitLog(worktreeId: string | undefined, count: number, correlationId: string): Promise<string> {
+    const projectId = this.projectId;
+    if (!projectId) throw new Error('No project context');
+
+    const project = projectService.getProject(projectId);
+    if (!project?.path) throw new Error('Project path not found');
+
+    let targetPath = project.path;
+    let targetLabel = 'main worktree';
+
+    if (worktreeId) {
+      const worktree = worktreeService.getWorktree(worktreeId);
+      if (!worktree) throw new Error(`Worktree ${worktreeId} not found`);
+      targetPath = worktree.path;
+      targetLabel = worktree.branch;
+    }
+
+    // Cap count at 50
+    const maxCount = Math.min(count, 50);
+
+    const { simpleGit } = await import('simple-git');
+    const git = simpleGit(targetPath);
+    const log = await git.log({ maxCount });
+
+    await activityLoggerService.log({
+      type: 'event',
+      category: 'orchestrator',
+      summary: `Git log for ${targetLabel} (${log.total} commits)`,
+      details: { count: maxCount, commits: log.all.slice(0, 5) },
+      correlationId,
+    });
+
+    // Format for LLM
+    const lines = [`Recent commits for ${targetLabel}:`];
+    for (const commit of log.all) {
+      const date = new Date(commit.date).toLocaleDateString();
+      lines.push(`  ${commit.hash.slice(0, 7)} ${date} - ${commit.message.slice(0, 60)}`);
+    }
+
+    this.conversationHistory.push({
+      role: 'user',
+      content: lines.join('\n'),
+    });
+
+    return `SUCCESS: Got ${log.all.length} commits for ${targetLabel}`;
+  }
+
+  /**
+   * Tool: Git diff - show uncommitted changes
+   */
+  private async toolGitDiff(worktreeId: string | undefined, staged: boolean, correlationId: string): Promise<string> {
+    const projectId = this.projectId;
+    if (!projectId) throw new Error('No project context');
+
+    const project = projectService.getProject(projectId);
+    if (!project?.path) throw new Error('Project path not found');
+
+    let targetPath = project.path;
+    let targetLabel = 'main worktree';
+
+    if (worktreeId) {
+      const worktree = worktreeService.getWorktree(worktreeId);
+      if (!worktree) throw new Error(`Worktree ${worktreeId} not found`);
+      targetPath = worktree.path;
+      targetLabel = worktree.branch;
+    }
+
+    const { simpleGit } = await import('simple-git');
+    const git = simpleGit(targetPath);
+
+    let diff: string;
+    if (staged) {
+      diff = await git.diff(['--cached']);
+    } else {
+      diff = await git.diff();
+    }
+
+    // Truncate if too long
+    const maxLength = 3000;
+    const truncated = diff.length > maxLength;
+    const displayDiff = truncated ? diff.slice(0, maxLength) + '\n... (truncated)' : diff;
+
+    await activityLoggerService.log({
+      type: 'event',
+      category: 'orchestrator',
+      summary: `Git diff for ${targetLabel} (${staged ? 'staged' : 'unstaged'}, ${diff.length} chars)`,
+      details: { staged, length: diff.length, truncated },
+      correlationId,
+    });
+
+    // Format for LLM
+    const diffType = staged ? 'Staged changes' : 'Unstaged changes';
+    const content = diff.length > 0
+      ? `${diffType} in ${targetLabel}:\n\`\`\`diff\n${displayDiff}\n\`\`\``
+      : `No ${staged ? 'staged' : 'unstaged'} changes in ${targetLabel}`;
+
+    this.conversationHistory.push({
+      role: 'user',
+      content,
+    });
+
+    return `SUCCESS: Got ${staged ? 'staged' : 'unstaged'} diff for ${targetLabel} (${diff.length} chars)`;
+  }
+
+  /**
+   * Tool: Git branches - list all branches
+   */
+  private async toolGitBranches(showRemote: boolean, correlationId: string): Promise<string> {
+    const projectId = this.projectId;
+    if (!projectId) throw new Error('No project context');
+
+    const project = projectService.getProject(projectId);
+    if (!project?.path) throw new Error('Project path not found');
+
+    const { simpleGit } = await import('simple-git');
+    const git = simpleGit(project.path);
+
+    const branches = await git.branch(showRemote ? ['-a'] : []);
+
+    await activityLoggerService.log({
+      type: 'event',
+      category: 'orchestrator',
+      summary: `Git branches (${branches.all.length} total)`,
+      details: { showRemote, current: branches.current, branches: branches.all.slice(0, 20) },
+      correlationId,
+    });
+
+    // Format for LLM
+    const lines = [`Git branches (current: ${branches.current}):`];
+    for (const branch of branches.all.slice(0, 30)) {
+      const isCurrent = branch === branches.current;
+      lines.push(`  ${isCurrent ? '* ' : '  '}${branch}`);
+    }
+    if (branches.all.length > 30) {
+      lines.push(`  ... and ${branches.all.length - 30} more`);
+    }
+
+    this.conversationHistory.push({
+      role: 'user',
+      content: lines.join('\n'),
+    });
+
+    return `SUCCESS: Listed ${branches.all.length} branches`;
+  }
+
+  /**
+   * Get pending user messages from SQLite (unprocessed messages from users)
    */
   private async getPendingUserMessages(): Promise<Array<{ id: string; text: string; timestamp: string; from: string }>> {
     const projectId = this.projectId;
@@ -2199,39 +2439,34 @@ class OrchestratorLoopService extends EventEmitter {
     const project = projectService.getProject(projectId);
     if (!project?.path) return [];
 
-    const chatPath = join(project.path, '.orchard', 'chat.json');
-    let messages: Array<{ id: string; text: string; timestamp: string; from: string }> = [];
+    // Get unprocessed user messages from SQLite
+    const messages = databaseService.getChatMessages(project.path, projectId, {
+      unprocessedOnly: true,
+      from: 'user',
+      limit: 50,
+    });
 
-    try {
-      if (existsSync(chatPath)) {
-        const data = await readFile(chatPath, 'utf-8');
-        messages = JSON.parse(data);
-      }
-    } catch {
-      return [];
-    }
-
-    // Only get user messages (not orchestrator messages)
-    const userMessages = messages.filter(m => m.from === 'user');
-
-    // If we have a lastProcessedMessageId, only return messages after it
-    if (this.lastProcessedMessageId) {
-      const lastIndex = userMessages.findIndex(m => m.id === this.lastProcessedMessageId);
-      if (lastIndex !== -1) {
-        return userMessages.slice(lastIndex + 1);
-      }
-    }
-
-    return userMessages;
+    return messages.map(m => ({
+      id: m.id,
+      text: m.text,
+      timestamp: m.timestamp,
+      from: m.from,
+    }));
   }
 
   /**
-   * Mark messages as processed (up to and including the given message ID)
+   * Mark messages as processed in SQLite
    */
-  private async markMessagesProcessed(messageId: string): Promise<void> {
-    this.lastProcessedMessageId = messageId;
-    await this.saveLastProcessedMessageId();
-    console.log(`[OrchestratorLoop] Marked messages processed up to ${messageId}`);
+  private async markMessagesProcessed(messageIds: string[]): Promise<void> {
+    const projectId = this.projectId;
+    if (!projectId) return;
+
+    const project = projectService.getProject(projectId);
+    if (!project?.path) return;
+
+    // Mark messages as processed in SQLite
+    const count = databaseService.markChatMessagesProcessed(project.path, projectId, messageIds);
+    console.log(`[OrchestratorLoop] Marked ${count} messages as processed`);
   }
 
   /**

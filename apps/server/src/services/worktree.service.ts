@@ -242,7 +242,7 @@ class WorktreeService {
 
           // Auto-archive merged worktrees with no uncommitted changes and no active sessions
           // Note: `merged` is already false if there are active sessions (checked above)
-          let shouldArchive = archived;
+          let shouldArchive: boolean = archived;
           if (!archived && merged && !isMain) {
             // Double-check no active sessions before archiving
             const hasActiveSessions = await this.hasActiveTerminalSessions(id);
