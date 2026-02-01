@@ -1,15 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, GitBranch, Folder, Trash2, Archive, Clock, GitCompare, GitMerge, Loader2, Search, X, Copy } from 'lucide-react';
-import { Group, Panel, Separator } from 'react-resizable-panels';
 import { useProjectStore, type Worktree } from '../../stores/project.store';
 import { useTerminalStore } from '../../stores/terminal.store';
 import { useToast } from '../../contexts/ToastContext';
-import { SplitTerminalPane } from '../terminal/SplitTerminalPane';
-import { FileViewer } from './FileViewer';
 
 interface SidebarProps {
-  onOpenProject: () => void;
-  onCreateWorktree: () => void;
   onDeleteWorktree: (worktreeId: string) => void;
   onArchiveWorktree: (worktreeId: string) => void;
   onViewDiff: (worktreeId: string, branch: string) => void;
