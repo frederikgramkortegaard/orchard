@@ -84,8 +84,8 @@ const DEFAULT_CONFIG: OrchestratorLoopConfig = {
 };
 
 // Smart tick timing constants
-const MIN_TICK_INTERVAL_MS = 2000; // Minimum 2 seconds between ticks
-const NO_ACTION_WAIT_MS = 10000; // Wait 10 seconds after no_action
+const MIN_TICK_INTERVAL_MS = 1000; // Minimum 1 second between ticks
+const NO_ACTION_WAIT_MS = 3000; // Wait 3 seconds when idle (no pending work)
 const ACTION_WAIT_MS = 0; // Tick immediately after action
 
 // Tool definitions for the LLM
