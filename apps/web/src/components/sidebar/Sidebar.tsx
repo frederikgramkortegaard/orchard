@@ -154,16 +154,8 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
   const worktreesContent = (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Worktrees header */}
-      <div className="px-4 py-3 border-b border-zinc-300 dark:border-zinc-700 flex items-center justify-between flex-shrink-0">
+      <div className="px-4 py-3 border-b border-zinc-300 dark:border-zinc-700 flex-shrink-0">
         <h2 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400">WORKTREES</h2>
-        <button
-          onClick={onCreateWorktree}
-          disabled={!activeProjectId}
-          className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded disabled:opacity-50"
-          title="New Worktree"
-        >
-          <Plus size={16} />
-        </button>
       </div>
 
       {/* Search input */}
@@ -207,13 +199,8 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
         ) : sortedWorktrees.length === 0 ? (
           <div className="text-center py-8 text-zinc-500">
             <GitBranch size={32} className="mx-auto mb-2 opacity-50" />
-            <p className="text-sm">No worktrees</p>
-            <button
-              onClick={onCreateWorktree}
-              className="mt-2 text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 text-sm"
-            >
-              Create a worktree
-            </button>
+            <p className="text-sm">No worktrees yet</p>
+            <p className="text-xs mt-1 opacity-70">Send a task to create one</p>
           </div>
         ) : filteredWorktrees.length === 0 ? (
           <div className="text-center py-4 text-zinc-500">
