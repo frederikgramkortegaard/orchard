@@ -65,6 +65,11 @@ const tools: Tool[] = [
           type: 'string',
           description: 'The task description to give to the agent',
         },
+        mode: {
+          type: 'string',
+          enum: ['normal', 'plan'],
+          description: 'Agent mode: "normal" executes immediately, "plan" creates a plan and waits for approval before implementing (default: normal)',
+        },
       },
       required: ['projectId', 'name', 'task'],
     },
@@ -300,7 +305,7 @@ const tools: Tool[] = [
 // Tool handlers
 const toolHandlers: Record<string, (args: Record<string, unknown>) => Promise<string>> = {
   list_agents: async (args) => listAgents(ORCHARD_API, args as { projectId: string; filter?: string }),
-  create_agent: async (args) => createAgent(ORCHARD_API, args as { projectId: string; name: string; task: string }),
+  create_agent: async (args) => createAgent(ORCHARD_API, args as { projectId: string; name: string; task: string; mode?: 'normal' | 'plan' }),
   send_task: async (args) => sendTask(ORCHARD_API, args as { worktreeId: string; message: string }),
   get_agent_status: async (args) => getAgentStatus(ORCHARD_API, args as { worktreeId: string; includeOutput?: boolean; outputLines?: number }),
   merge_branch: async (args) => mergeBranch(ORCHARD_API, args as { worktreeId: string; deleteAfterMerge?: boolean }),

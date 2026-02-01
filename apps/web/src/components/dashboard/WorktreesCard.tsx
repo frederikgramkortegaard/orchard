@@ -1,14 +1,29 @@
-import { GitBranch, Clock, AlertCircle, CheckCircle } from 'lucide-react';
+import { GitBranch, Clock, AlertCircle, CheckCircle, FileText, Play } from 'lucide-react';
 import type { Worktree } from '../../stores/project.store';
+import { useState } from 'react';
 
 interface WorktreesCardProps {
   worktrees: Worktree[];
+  onApprove?: (worktreeId: string) => void;
 }
 
-export function WorktreesCard({ worktrees }: WorktreesCardProps) {
+export function WorktreesCard({ worktrees, onApprove }: WorktreesCardProps) {
+  const [approvingId, setApprovingId] = useState<string | null>(null);
   const activeWorktrees = worktrees.filter((w) => !w.archived);
   const archivedCount = worktrees.filter((w) => w.archived).length;
   const mergedCount = worktrees.filter((w) => w.merged).length;
+  const planModeCount = worktrees.filter((w) => w.mode === 'plan' && !w.archived).length;
+
+  const handleApprove = async (worktreeId: string) => {
+    setApprovingId(worktreeId);
+    try {
+      if (onApprove) {
+        await onApprove(worktreeId);
+      }
+    } finally {
+      setApprovingId(null);
+    }
+  };
 
   const getStatusColor = (worktree: Worktree) => {
     if (worktree.merged) return 'text-green-500';
@@ -45,6 +60,7 @@ export function WorktreesCard({ worktrees }: WorktreesCardProps) {
         </div>
         <div className="flex gap-3 text-xs text-zinc-500">
           <span>{activeWorktrees.length} active</span>
+          {planModeCount > 0 && <span className="text-purple-500">{planModeCount} planning</span>}
           <span>{mergedCount} merged</span>
           <span>{archivedCount} archived</span>
         </div>
@@ -67,8 +83,24 @@ export function WorktreesCard({ worktrees }: WorktreesCardProps) {
                 {worktree.isMain && (
                   <span className="text-xs bg-blue-500/20 text-blue-500 px-1.5 py-0.5 rounded">main</span>
                 )}
+                {worktree.mode === 'plan' && (
+                  <span className="text-xs bg-purple-500/20 text-purple-500 px-1.5 py-0.5 rounded flex items-center gap-1">
+                    <FileText size={10} />
+                    plan
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-3 text-xs text-zinc-500 flex-shrink-0">
+                {worktree.mode === 'plan' && onApprove && (
+                  <button
+                    onClick={() => handleApprove(worktree.id)}
+                    disabled={approvingId === worktree.id}
+                    className="flex items-center gap-1 px-2 py-1 bg-green-500/20 text-green-500 hover:bg-green-500/30 rounded transition-colors disabled:opacity-50"
+                  >
+                    <Play size={10} />
+                    {approvingId === worktree.id ? 'Approving...' : 'Approve'}
+                  </button>
+                )}
                 {(worktree.status.modified > 0 || worktree.status.staged > 0 || worktree.status.untracked > 0) && (
                   <span className="text-amber-500">
                     {worktree.status.modified + worktree.status.staged + worktree.status.untracked} changes

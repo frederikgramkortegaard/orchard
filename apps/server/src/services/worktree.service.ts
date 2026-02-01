@@ -7,6 +7,8 @@ import { randomUUID, createHash } from 'crypto';
 import { projectService } from './project.service.js';
 import { daemonClient } from '../pty/daemon-client.js';
 
+export type AgentMode = 'normal' | 'plan';
+
 export interface Worktree {
   id: string;
   projectId: string;
@@ -15,6 +17,7 @@ export interface Worktree {
   isMain: boolean;
   merged: boolean;
   archived: boolean;
+  mode?: AgentMode;       // Agent execution mode (normal or plan)
   status: WorktreeStatus;
   lastCommitDate: string | null;  // ISO date string of the most recent commit
   createdAt: string | null;       // ISO date string when worktree was created (first commit on branch)
@@ -31,6 +34,7 @@ export interface WorktreeStatus {
 class WorktreeService {
   private worktrees = new Map<string, Worktree>();
   private archivedWorktrees = new Set<string>(); // worktree IDs that are archived
+  private worktreeModes = new Map<string, AgentMode>(); // worktree ID -> mode
 
   // Load archived worktrees from project-local storage
   private async loadArchivedWorktrees(projectPath: string): Promise<Set<string>> {
@@ -56,6 +60,51 @@ class WorktreeService {
     const archivePath = join(orchardDir, 'archived-worktrees.json');
     const archived = Array.from(this.archivedWorktrees);
     await writeFile(archivePath, JSON.stringify(archived, null, 2));
+  }
+
+  // Load worktree modes from project-local storage
+  private async loadWorktreeModes(projectPath: string): Promise<Map<string, AgentMode>> {
+    const modesPath = join(projectPath, '.orchard', 'worktree-modes.json');
+    if (!existsSync(modesPath)) {
+      return new Map();
+    }
+    try {
+      const data = await readFile(modesPath, 'utf-8');
+      const modes: Record<string, AgentMode> = JSON.parse(data);
+      return new Map(Object.entries(modes));
+    } catch {
+      return new Map();
+    }
+  }
+
+  // Save worktree modes to project-local storage
+  private async saveWorktreeModes(projectPath: string): Promise<void> {
+    const orchardDir = join(projectPath, '.orchard');
+    if (!existsSync(orchardDir)) {
+      await mkdir(orchardDir, { recursive: true });
+    }
+    const modesPath = join(orchardDir, 'worktree-modes.json');
+    const modes = Object.fromEntries(this.worktreeModes);
+    await writeFile(modesPath, JSON.stringify(modes, null, 2));
+  }
+
+  // Set mode for a worktree
+  async setWorktreeMode(worktreeId: string, mode: AgentMode): Promise<void> {
+    this.worktreeModes.set(worktreeId, mode);
+    const worktree = this.worktrees.get(worktreeId);
+    if (worktree) {
+      worktree.mode = mode;
+      this.worktrees.set(worktreeId, worktree);
+      const project = projectService.getProject(worktree.projectId);
+      if (project) {
+        await this.saveWorktreeModes(project.path);
+      }
+    }
+  }
+
+  // Get mode for a worktree
+  getWorktreeMode(worktreeId: string): AgentMode | undefined {
+    return this.worktreeModes.get(worktreeId);
   }
 
   async getDefaultBranch(projectId: string): Promise<string> {
@@ -101,6 +150,12 @@ class WorktreeService {
       this.archivedWorktrees.add(id);
     }
 
+    // Load worktree modes from persistent storage
+    const modesMap = await this.loadWorktreeModes(project.path);
+    for (const [id, mode] of modesMap) {
+      this.worktreeModes.set(id, mode);
+    }
+
     const git = simpleGit(mainPath);
 
     try {
@@ -144,6 +199,7 @@ class WorktreeService {
             }
           }
 
+          const mode = this.worktreeModes.get(id);
           const worktree: Worktree = {
             id,
             projectId,
@@ -152,6 +208,7 @@ class WorktreeService {
             isMain,
             merged,
             archived,
+            mode,
             status,
             lastCommitDate,
             createdAt,
@@ -172,7 +229,7 @@ class WorktreeService {
   async createWorktree(
     projectId: string,
     branch: string,
-    options?: { newBranch?: boolean; baseBranch?: string }
+    options?: { newBranch?: boolean; baseBranch?: string; mode?: AgentMode }
   ): Promise<Worktree> {
     const project = projectService.getProject(projectId);
     if (!project) {
@@ -215,6 +272,7 @@ class WorktreeService {
     // Set up agent MCP config so Claude has access to agent tools
     await this.setupAgentMcp(worktreePath, id, project.path);
 
+    const mode = options?.mode;
     const worktree: Worktree = {
       id,
       projectId,
@@ -223,12 +281,20 @@ class WorktreeService {
       isMain: false,
       merged: false,
       archived: false,
+      mode,
       status,
       lastCommitDate,
       createdAt,
     };
 
     this.worktrees.set(id, worktree);
+
+    // Save mode if specified
+    if (mode) {
+      this.worktreeModes.set(id, mode);
+      await this.saveWorktreeModes(project.path);
+    }
+
     return worktree;
   }
 
