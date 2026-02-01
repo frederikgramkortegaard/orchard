@@ -21,13 +21,13 @@ interface PrintSession {
 
 // Tool icons/colors mapping
 const toolStyles: Record<string, { icon: string; color: string; bg: string }> = {
-  Bash: { icon: '⚡', color: 'text-yellow-400', bg: 'bg-yellow-500/10' },
-  Write: { icon: '✏️', color: 'text-green-400', bg: 'bg-green-500/10' },
-  Edit: { icon: '📝', color: 'text-blue-400', bg: 'bg-blue-500/10' },
-  Read: { icon: '📖', color: 'text-purple-400', bg: 'bg-purple-500/10' },
-  Glob: { icon: '🔍', color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
-  Grep: { icon: '🔎', color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
-  default: { icon: '🔧', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
+  Bash: { icon: '$', color: 'text-yellow-400', bg: 'bg-yellow-500/10' },
+  Write: { icon: '+', color: 'text-green-400', bg: 'bg-green-500/10' },
+  Edit: { icon: '~', color: 'text-blue-400', bg: 'bg-blue-500/10' },
+  Read: { icon: '>', color: 'text-purple-400', bg: 'bg-purple-500/10' },
+  Glob: { icon: '*', color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
+  Grep: { icon: '?', color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
+  default: { icon: '#', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
 };
 
 // Parse and render structured output with markers
@@ -123,7 +123,7 @@ function ParsedOutput({ output }: { output: string }) {
           return (
             <div key={i} className="rounded-lg bg-blue-950/30 border border-blue-800/50 p-4">
               <div className="flex items-center gap-2 mb-2 text-blue-400 text-xs font-medium">
-                <span>📋</span>
+                <span>&gt;</span>
                 <span>Task</span>
               </div>
               <div className="text-zinc-200 text-sm whitespace-pre-wrap leading-relaxed">
