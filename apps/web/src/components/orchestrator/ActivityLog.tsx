@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Filter,
 } from 'lucide-react';
+import { useProjectStore } from '../../stores/project.store';
 
 interface ActivityLogProps {
   projectId: string;
@@ -211,6 +212,15 @@ function extractAgentBranch(entry: ActivityEntry): string | null {
   return detailsObj.branch || detailsObj.worktreeId?.split('-')[0] || null;
 }
 
+function extractWorktreeId(entry: ActivityEntry): string | null {
+  try {
+    const detailsObj = JSON.parse(entry.details || '{}');
+    return detailsObj.worktreeId || null;
+  } catch {
+    return null;
+  }
+}
+
 function getEntrySource(entry: ActivityEntry): string {
   if (entry.category === 'orchestrator') {
     return 'Orchestrator';
@@ -256,6 +266,7 @@ export function ActivityLog({ projectId }: ActivityLogProps) {
   const [entries, setEntries] = useState<ActivityEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
+  const setActiveWorktree = useProjectStore((state) => state.setActiveWorktree);
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('activityLog.collapsedSections');
@@ -552,11 +563,24 @@ export function ActivityLog({ projectId }: ActivityLogProps) {
                     {group.entries.map((entry) => {
                       const kind = getActivityKind(entry);
                       const colors = getActivityColors(kind);
+                      const worktreeId = extractWorktreeId(entry);
+                      const isClickable = !!worktreeId;
+
+                      const handleClick = () => {
+                        if (worktreeId) {
+                          setActiveWorktree(worktreeId);
+                        }
+                      };
 
                       return (
                         <div
                           key={entry.id}
-                          className={`flex items-start gap-3 px-4 py-3 rounded-2xl text-sm ${colors.bg} shadow-sm`}
+                          onClick={isClickable ? handleClick : undefined}
+                          className={`flex items-start gap-3 px-4 py-3 rounded-2xl text-sm ${colors.bg} shadow-sm ${
+                            isClickable
+                              ? 'cursor-pointer hover:ring-2 hover:ring-blue-400 dark:hover:ring-blue-500 hover:ring-offset-1 dark:hover:ring-offset-zinc-900 transition-shadow'
+                              : ''
+                          }`}
                         >
                           <div className={`flex-shrink-0 mt-0.5 p-1.5 rounded-full bg-white/50 dark:bg-black/20 ${colors.icon}`}>
                             {getActivityIcon(kind)}
