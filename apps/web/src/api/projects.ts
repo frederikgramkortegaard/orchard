@@ -212,3 +212,38 @@ export async function fetchWorktreesWithConflicts(projectId: string): Promise<Wo
     conflictingFiles: conflictsResult.worktreeConflicts[wt.id] || [],
   }));
 }
+
+// Git history types
+export interface GitHistoryCommit {
+  hash: string;
+  hashShort: string;
+  message: string;
+  author: string;
+  date: string;
+  branch?: string;
+}
+
+export interface GitHistoryResult {
+  commits: GitHistoryCommit[];
+  branches?: string[];
+}
+
+// Get project-wide git history (all branches)
+export async function fetchProjectHistory(projectId: string, limit = 100): Promise<GitHistoryResult> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}/history?limit=${limit}`);
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to fetch project history');
+  }
+  return res.json();
+}
+
+// Get git history for a specific worktree
+export async function fetchWorktreeHistory(worktreeId: string, limit = 100): Promise<GitHistoryResult> {
+  const res = await fetch(`${API_BASE}/worktrees/${worktreeId}/history?limit=${limit}`);
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to fetch worktree history');
+  }
+  return res.json();
+}

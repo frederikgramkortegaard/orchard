@@ -14,6 +14,7 @@ import { DiffViewerModal } from './components/diff';
 import { OrchestratorPanel } from './components/orchestrator/OrchestratorPanel';
 import { ActivityLog } from './components/orchestrator/ActivityLog';
 import { Dashboard } from './components/dashboard/Dashboard';
+import { GitHistoryPanel } from './components/git';
 import * as api from './api/projects';
 
 function App() {
@@ -25,6 +26,7 @@ function App() {
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [diffViewerState, setDiffViewerState] = useState<{ worktreeId: string; branch: string } | null>(null);
+  const [rightPanelTab, setRightPanelTab] = useState<'activity' | 'history'>('activity');
   const {
     projects,
     activeProjectId,
@@ -244,13 +246,47 @@ function App() {
             )}
           </Panel>
 
-          {/* Right: Activity feed / Orchestrator log */}
+          {/* Right: Activity feed / Git History */}
           {activeProjectId && (
             <>
               <Separator className="w-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-col-resize" />
               <Panel defaultSize={20} minSize={5}>
-                <div className="h-full p-2 bg-zinc-100 dark:bg-zinc-800">
-                  <ActivityLog projectId={activeProjectId} />
+                <div className="h-full flex flex-col bg-zinc-100 dark:bg-zinc-800">
+                  {/* Tab bar */}
+                  <div className="flex items-center gap-1 px-2 py-2 border-b border-zinc-200 dark:border-zinc-700">
+                    <button
+                      onClick={() => setRightPanelTab('activity')}
+                      className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                        rightPanelTab === 'activity'
+                          ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
+                          : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+                      }`}
+                    >
+                      Activity
+                    </button>
+                    <button
+                      onClick={() => setRightPanelTab('history')}
+                      className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                        rightPanelTab === 'history'
+                          ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
+                          : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+                      }`}
+                    >
+                      Git History
+                    </button>
+                  </div>
+                  {/* Panel content */}
+                  <div className="flex-1 min-h-0 p-2">
+                    {rightPanelTab === 'activity' ? (
+                      <ActivityLog projectId={activeProjectId} />
+                    ) : (
+                      <GitHistoryPanel
+                        projectId={activeProjectId}
+                        worktreeId={activeWorktreeId || undefined}
+                        worktreeBranch={activeWorktree?.branch}
+                      />
+                    )}
+                  </div>
                 </div>
               </Panel>
             </>
