@@ -306,44 +306,12 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
         )}
       </div>
 
-      {/* File Viewer */}
-      <FileViewer worktreePath={worktrees.find(w => w.id === activeWorktreeId)?.path} />
     </div>
   );
 
   return (
     <aside className="h-full bg-zinc-100 dark:bg-zinc-800 border-r border-zinc-300 dark:border-zinc-700 flex flex-col overflow-hidden">
-      {activeProjectId && activeProject ? (
-        worktreeId ? (
-          // Show terminal + worktrees when a worktree is selected
-          <Group orientation="vertical" className="h-full">
-            {/* Terminal panel - top */}
-            <Panel defaultSize={60} minSize={5}>
-              <SplitTerminalPane
-                worktreeId={worktreeId}
-                worktreePath={worktreePath}
-                projectPath={projectPath}
-              />
-            </Panel>
-
-            <Separator className="h-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-row-resize" />
-
-            {/* Worktrees section - bottom */}
-            <Panel defaultSize={40} minSize={5}>
-              {worktreesContent}
-            </Panel>
-          </Group>
-        ) : (
-          // Only show worktrees when no worktree is selected
-          <div className="flex-1 overflow-hidden">
-            {worktreesContent}
-          </div>
-        )
-      ) : (
-        <div className="flex-1 overflow-hidden">
-          {worktreesContent}
-        </div>
-      )}
+      {worktreesContent}
 
       {/* Context Menu */}
       {contextMenu && (
