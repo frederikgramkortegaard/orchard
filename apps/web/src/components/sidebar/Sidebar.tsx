@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, GitBranch, Folder, Trash2, CheckCircle, Archive, Clock, GitCompare, GitMerge, Loader2, Search, X, Copy } from 'lucide-react';
+import { Plus, GitBranch, Folder, Trash2, Archive, Clock, GitCompare, GitMerge, Loader2, Search, X, Copy } from 'lucide-react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import { useProjectStore, type Worktree } from '../../stores/project.store';
 import { useTerminalStore } from '../../stores/terminal.store';
@@ -233,12 +233,10 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
                   activeWorktreeId === worktree.id
                     ? 'bg-blue-100 dark:bg-blue-900/40 ring-1 ring-blue-300 dark:ring-blue-700'
                     : 'bg-zinc-200/50 dark:bg-zinc-700/50 hover:bg-zinc-300/70 dark:hover:bg-zinc-600/70'
-                } ${worktree.archived ? 'opacity-40' : worktree.merged ? 'opacity-60' : ''} ${rateLimited ? 'ring-1 ring-amber-500/50' : ''}`}
+                } ${worktree.archived ? 'opacity-40' : ''} ${rateLimited ? 'ring-1 ring-amber-500/50' : ''}`}
               >
                 {worktree.archived ? (
                   <Archive size={14} className="text-zinc-400 flex-shrink-0" />
-                ) : worktree.merged ? (
-                  <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
                 ) : rateLimited ? (
                   <Clock size={14} className="text-amber-500 animate-pulse flex-shrink-0" />
                 ) : hasActiveSession(worktree.id) ? (
@@ -246,14 +244,13 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
                 ) : (
                   <GitBranch size={14} className="text-zinc-500 dark:text-zinc-400 flex-shrink-0" />
                 )}
-                <span className={`flex-1 truncate text-sm ${worktree.archived || worktree.merged ? 'text-zinc-400 dark:text-zinc-500' : ''}`}>
+                <span className={`flex-1 truncate text-sm ${worktree.archived ? 'text-zinc-400 dark:text-zinc-500' : ''}`}>
                   {worktree.branch}
                   {worktree.isMain && <span className="text-zinc-400 dark:text-zinc-500 ml-1">(main)</span>}
                   {worktree.archived && <span className="text-zinc-400 ml-1">(archived)</span>}
-                  {!worktree.archived && worktree.merged && <span className="text-green-500 ml-1">(merged)</span>}
                   {rateLimited && <span className="text-amber-500 ml-1">(paused)</span>}
                 </span>
-                {!worktree.archived && !worktree.merged && !rateLimited && getStatusIndicator(worktree)}
+                {!worktree.archived && !rateLimited && getStatusIndicator(worktree)}
                 {!worktree.archived && (
                   <button
                     onClick={(e) => {
