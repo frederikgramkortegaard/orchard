@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
-import { Sun, Moon, Settings } from 'lucide-react';
+import { Sun, Moon, Settings, Bug } from 'lucide-react';
 import { useProjectStore } from './stores/project.store';
 import { useTheme } from './contexts/ThemeContext';
 import { useToast } from './contexts/ToastContext';
@@ -15,6 +15,7 @@ import { OrchestratorPanel } from './components/orchestrator/OrchestratorPanel';
 import { ActivityPane } from './components/orchestrator/ActivityPane';
 import { Dashboard } from './components/dashboard/Dashboard';
 import { LoopStatusBadge } from './components/LoopStatusBadge';
+import { DebugPanel } from './components/DebugPanel';
 import * as api from './api/projects';
 
 function App() {
@@ -25,6 +26,7 @@ function App() {
   const [showDashboard, setShowDashboard] = useState(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
   const [diffViewerState, setDiffViewerState] = useState<{ worktreeId: string; branch: string } | null>(null);
   // Counter to force remount of project-dependent components on switch for instant data refresh
   const [projectSwitchKey, setProjectSwitchKey] = useState(0);
@@ -97,6 +99,7 @@ function App() {
         setShowProjectModal(false);
         setShowWorktreeModal(false);
         setShowSettingsModal(false);
+        setShowDebugPanel(false);
         setDiffViewerState(null);
       }
 
@@ -227,6 +230,13 @@ function App() {
             {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
           </button>
           <button
+            onClick={() => setShowDebugPanel(true)}
+            className="p-2 rounded-md text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200/60 dark:hover:bg-zinc-700/60 transition-colors"
+            title="Debug Panel"
+          >
+            <Bug size={16} />
+          </button>
+          <button
             onClick={() => setShowSettingsModal(true)}
             className="p-2 rounded-md text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200/60 dark:hover:bg-zinc-700/60 transition-colors"
             title="Settings"
@@ -333,6 +343,11 @@ function App() {
       <SettingsModal
         isOpen={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}
+      />
+
+      <DebugPanel
+        isOpen={showDebugPanel}
+        onClose={() => setShowDebugPanel(false)}
       />
     </div>
   );
