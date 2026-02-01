@@ -10,10 +10,10 @@ const iconMap: Record<ToastVariant, React.ReactNode> = {
 };
 
 const bgColorMap: Record<ToastVariant, string> = {
-  success: 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800',
-  error: 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800',
-  warning: 'bg-amber-50 dark:bg-amber-900/30 border-amber-200 dark:border-amber-800',
-  info: 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800',
+  success: 'bg-green-50 dark:bg-green-900/30 pink:bg-green-50 border-green-200 dark:border-green-800 pink:border-green-200',
+  error: 'bg-red-50 dark:bg-red-900/30 pink:bg-red-50 border-red-200 dark:border-red-800 pink:border-red-200',
+  warning: 'bg-amber-50 dark:bg-amber-900/30 pink:bg-amber-50 border-amber-200 dark:border-amber-800 pink:border-amber-200',
+  info: 'bg-blue-50 dark:bg-blue-900/30 pink:bg-blue-50 border-blue-200 dark:border-blue-800 pink:border-blue-200',
 };
 
 function ToastItem({ toast }: { toast: ToastType }) {
@@ -43,11 +43,11 @@ function ToastItem({ toast }: { toast: ToastType }) {
         {iconMap[toast.type]}
         <div className="flex-1 min-w-0">
           {toast.operation && (
-            <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+            <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 pink:text-pink-600">
               {toast.operation}
             </span>
           )}
-          <p className="text-sm text-zinc-800 dark:text-zinc-100 break-words">
+          <p className="text-sm text-zinc-800 dark:text-zinc-100 pink:text-pink-900 break-words">
             {toast.message}
           </p>
         </div>
@@ -55,7 +55,7 @@ function ToastItem({ toast }: { toast: ToastType }) {
           {toast.details && (
             <button
               onClick={toggleDetails}
-              className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 rounded"
+              className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 pink:hover:text-pink-600 rounded"
               title={isExpanded ? 'Hide details' : 'Show details'}
             >
               {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -63,14 +63,14 @@ function ToastItem({ toast }: { toast: ToastType }) {
           )}
           <button
             onClick={(e) => { e.stopPropagation(); handleDismiss(); }}
-            className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 rounded"
+            className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 pink:hover:text-pink-600 rounded"
           >
             <X size={14} />
           </button>
         </div>
       </div>
       {toast.details && isExpanded && (
-        <div className="text-xs text-zinc-600 dark:text-zinc-300 bg-black/5 dark:bg-black/20 rounded p-2 font-mono whitespace-pre-wrap break-all">
+        <div className="text-xs text-zinc-600 dark:text-zinc-300 pink:text-pink-700 bg-black/5 dark:bg-black/20 pink:bg-pink-200/50 rounded p-2 font-mono whitespace-pre-wrap break-all">
           {toast.details}
         </div>
       )}
@@ -78,7 +78,7 @@ function ToastItem({ toast }: { toast: ToastType }) {
         <div className="flex justify-end">
           <button
             onClick={handleAction}
-            className="text-xs font-medium px-3 py-1.5 rounded bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+            className="text-xs font-medium px-3 py-1.5 rounded bg-zinc-200 dark:bg-zinc-700 pink:bg-pink-200 text-zinc-700 dark:text-zinc-200 pink:text-pink-800 hover:bg-zinc-300 dark:hover:bg-zinc-600 pink:hover:bg-pink-300 transition-colors"
           >
             {toast.action.label}
           </button>
