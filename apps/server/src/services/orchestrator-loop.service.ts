@@ -2686,42 +2686,41 @@ class OrchestratorLoopService extends EventEmitter {
     cwd: string,
     initialTask?: string
   ): Promise<string> {
-    const session = await sessionPersistenceService.ensureSession(
-      worktreeId,
-      projectId,
-      cwd,
-      'claude --dangerously-skip-permissions'
-    );
-
-    // Start monitoring
-    terminalMonitorService.startMonitoring(session.id, worktreeId, projectId);
-
-    // Handle permission prompt and send initial task
-    if (initialTask) {
-      setTimeout(() => {
-        daemonClient.writeToSession(session.id, '\x1b[B');
-        setTimeout(() => {
-          daemonClient.writeToSession(session.id, '\r');
-          setTimeout(() => {
-            daemonClient.writeToSession(session.id, initialTask);
-            setTimeout(() => {
-              daemonClient.writeToSession(session.id, '\r');
-              console.log(`[OrchestratorLoop] Sent initial task to ${worktreeId}`);
-            }, 500);
-          }, 3000);
-        }, 200);
-      }, 4000);
+    if (!initialTask) {
+      throw new Error('Task is required for agent session');
     }
+
+    const project = projectService.getProject(projectId);
+    if (!project) {
+      throw new Error('Project not found');
+    }
+
+    // Use HTTP API to create print session (runs claude -p)
+    const response = await fetch(`http://localhost:3001/print-sessions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ worktreeId, task: initialTask }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to create print session');
+    }
+
+    const result = await response.json();
+    const sessionId = result.sessionId;
+
+    console.log(`[OrchestratorLoop] Started claude -p session ${sessionId} for ${worktreeId}`);
 
     await activityLoggerService.log({
       type: 'action',
       category: 'agent',
-      summary: `Created agent session for ${worktreeId}`,
-      details: { worktreeId, sessionId: session.id, hasTask: !!initialTask },
+      summary: `Created print session for ${worktreeId}`,
+      details: { worktreeId, sessionId, task: initialTask.slice(0, 100) },
       correlationId: randomUUID(),
     });
 
-    return session.id;
+    return sessionId;
   }
 
   /**
