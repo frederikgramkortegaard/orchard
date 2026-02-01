@@ -2002,9 +2002,9 @@ class OrchestratorLoopService extends EventEmitter {
     const deadSessions = await sessionPersistenceService.getDeadSessions();
     const deadWorktreeIds = deadSessions.map(s => s.worktreeId);
 
-    // Build agent status list - only include active (non-archived, non-merged) agents
+    // Build agent status list - only include active (non-archived) agents
     const activeAgents: AgentStatus[] = worktrees
-      .filter(w => !w.isMain && !w.archived && !w.merged)
+      .filter(w => !w.isMain && !w.archived)
       .map(w => {
         const session = sessionByWorktree.get(w.id);
         const isDead = deadWorktreeIds.includes(w.id);
