@@ -29,7 +29,7 @@ export function DiffViewer({ diffResult, loading, error }: DiffViewerProps) {
     return (
       <div className="flex items-center justify-center h-full text-zinc-500 dark:text-zinc-400">
         <div className="flex flex-col items-center gap-2">
-          <div className="w-6 h-6 border-2 border-zinc-300 dark:border-zinc-600 border-t-blue-500 rounded-full animate-spin" />
+          <div className="w-6 h-6 border-2 border-zinc-300 dark:border-zinc-600 border-t-pink-500 rounded-full animate-spin" />
           <span>Loading diff...</span>
         </div>
       </div>

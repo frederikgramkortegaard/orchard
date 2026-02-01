@@ -106,12 +106,12 @@ export function GitHistoryPanel({ projectId, worktreeId, worktreeBranch }: GitHi
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-700 flex-shrink-0">
         <div className="flex items-center gap-2">
-          <GitCommit size={16} className="text-blue-500" />
+          <GitCommit size={16} className="text-pink-500" />
           <h3 className="text-sm font-semibold">
             {isProjectMode ? 'Project History' : 'Branch History'}
           </h3>
           {isProjectMode && (
-            <span className="text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 px-1.5 py-0.5 rounded">
+            <span className="text-xs bg-pink-100 dark:bg-pink-900/50 text-pink-600 dark:text-pink-300 px-1.5 py-0.5 rounded">
               All branches
             </span>
           )}
@@ -155,7 +155,7 @@ export function GitHistoryPanel({ projectId, worktreeId, worktreeBranch }: GitHi
             <p className="text-sm">{error}</p>
             <button
               onClick={handleRefresh}
-              className="mt-2 text-blue-500 hover:text-blue-400 text-sm"
+              className="mt-2 text-pink-500 hover:text-pink-400 text-sm"
             >
               Try again
             </button>
@@ -181,8 +181,8 @@ function CommitRow({ commit, formatDate }: { commit: GitCommitInfo; formatDate: 
     <div className="px-4 py-3 hover:bg-zinc-200/50 dark:hover:bg-zinc-700/50 transition-colors">
       <div className="flex items-start gap-3">
         <div className="flex-shrink-0 mt-0.5">
-          <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center">
-            <GitCommit size={12} className="text-blue-600 dark:text-blue-400" />
+          <div className="w-6 h-6 rounded-full bg-pink-100 dark:bg-pink-900/50 flex items-center justify-center">
+            <GitCommit size={12} className="text-pink-600 dark:text-pink-400" />
           </div>
         </div>
         <div className="flex-1 min-w-0">
@@ -190,7 +190,7 @@ function CommitRow({ commit, formatDate }: { commit: GitCommitInfo; formatDate: 
             {commit.message}
           </p>
           <div className="flex items-center gap-3 mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-            <span className="font-mono text-blue-600 dark:text-blue-400">{commit.hashShort}</span>
+            <span className="font-mono text-pink-600 dark:text-pink-400">{commit.hashShort}</span>
             <span className="flex items-center gap-1">
               <User size={10} />
               {commit.author}

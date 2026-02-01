@@ -27,7 +27,7 @@ function getFileStatusIcon(status: string) {
     case 'deleted':
       return <Minus size={14} className="text-red-500" />;
     default:
-      return <Edit3 size={14} className="text-blue-500" />;
+      return <Edit3 size={14} className="text-pink-500" />;
   }
 }
 
@@ -38,7 +38,7 @@ function getFileStatusColor(status: string) {
     case 'deleted':
       return 'text-red-600 dark:text-red-400';
     default:
-      return 'text-blue-600 dark:text-blue-400';
+      return 'text-pink-600 dark:text-pink-400';
   }
 }
 
@@ -188,7 +188,7 @@ export function CommitDetailModal({
           {loading ? (
             <div className="flex items-center justify-center h-full text-zinc-500 dark:text-zinc-400">
               <div className="flex flex-col items-center gap-2">
-                <div className="w-6 h-6 border-2 border-zinc-300 dark:border-zinc-600 border-t-blue-500 rounded-full animate-spin" />
+                <div className="w-6 h-6 border-2 border-zinc-300 dark:border-zinc-600 border-t-pink-500 rounded-full animate-spin" />
                 <span>Loading diff...</span>
               </div>
             </div>

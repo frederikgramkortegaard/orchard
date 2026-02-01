@@ -37,7 +37,7 @@ function TreeNode({ entry, depth, onFileSelect, selectedPath }: TreeNodeProps) {
       <button
         onClick={handleClick}
         className={`w-full flex items-center gap-1 py-0.5 px-2 text-left text-sm hover:bg-zinc-700/50 ${
-          isSelected ? 'bg-blue-600/30 text-blue-300' : 'text-zinc-300'
+          isSelected ? 'bg-pink-600/30 text-pink-300' : 'text-zinc-300'
         }`}
         style={{ paddingLeft: `${depth * 12 + 8}px` }}
       >

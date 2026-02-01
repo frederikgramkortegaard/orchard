@@ -52,9 +52,9 @@ type TabType = 'logs' | 'ai-requests';
 
 const SOURCE_COLORS: Record<DebugLogEntry['source'], { icon: string; bg: string; text: string }> = {
   server: {
-    icon: 'text-blue-500 dark:text-blue-400',
-    bg: 'bg-blue-100 dark:bg-blue-900/30',
-    text: 'text-blue-700 dark:text-blue-300',
+    icon: 'text-pink-500 dark:text-pink-400',
+    bg: 'bg-pink-100 dark:bg-pink-900/30',
+    text: 'text-pink-700 dark:text-pink-300',
   },
   daemon: {
     icon: 'text-purple-500 dark:text-purple-400',
@@ -75,7 +75,7 @@ const SOURCE_COLORS: Record<DebugLogEntry['source'], { icon: string; bg: string;
 
 const LEVEL_COLORS: Record<DebugLogEntry['level'], string> = {
   debug: 'text-zinc-500 dark:text-zinc-400',
-  info: 'text-blue-500 dark:text-blue-400',
+  info: 'text-pink-500 dark:text-pink-400',
   warn: 'text-yellow-500 dark:text-yellow-400',
   error: 'text-red-500 dark:text-red-400',
 };
@@ -129,7 +129,7 @@ function ExpandableJSON({ data, maxLength = 200 }: { data: unknown; maxLength?: 
         {isLong && (
           <button
             onClick={() => setExpanded(!expanded)}
-            className="text-xs text-blue-500 hover:text-blue-400"
+            className="text-xs text-pink-500 hover:text-pink-400"
           >
             {expanded ? 'Collapse' : 'Expand'}
           </button>
@@ -199,7 +199,7 @@ function AIRequestEntry({ entry }: { entry: AIRequestLogEntry }) {
   const [expanded, setExpanded] = useState(false);
   const isRequest = entry.type === 'request';
   const bgColor = isRequest
-    ? 'bg-blue-100 dark:bg-blue-900/30'
+    ? 'bg-pink-100 dark:bg-pink-900/30'
     : entry.error
     ? 'bg-red-100 dark:bg-red-900/30'
     : 'bg-green-100 dark:bg-green-900/30';
@@ -207,12 +207,12 @@ function AIRequestEntry({ entry }: { entry: AIRequestLogEntry }) {
   return (
     <div className={`${bgColor} rounded-lg p-3`}>
       <div className="flex items-start gap-2">
-        <span className={`flex-shrink-0 ${isRequest ? 'text-blue-500' : entry.error ? 'text-red-500' : 'text-green-500'}`}>
+        <span className={`flex-shrink-0 ${isRequest ? 'text-pink-500' : entry.error ? 'text-red-500' : 'text-green-500'}`}>
           <Braces size={14} />
         </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 text-xs mb-1 flex-wrap">
-            <span className={`font-medium ${isRequest ? 'text-blue-700 dark:text-blue-300' : entry.error ? 'text-red-700 dark:text-red-300' : 'text-green-700 dark:text-green-300'}`}>
+            <span className={`font-medium ${isRequest ? 'text-pink-700 dark:text-pink-300' : entry.error ? 'text-red-700 dark:text-red-300' : 'text-green-700 dark:text-green-300'}`}>
               {isRequest ? 'REQUEST' : 'RESPONSE'}
             </span>
             {entry.tickNumber !== undefined && (
@@ -467,7 +467,7 @@ export function DebugPanel({ isOpen, onClose }: DebugPanelProps) {
                 <select
                   value={sourceFilter}
                   onChange={(e) => setSourceFilter(e.target.value as SourceFilter)}
-                  className="text-sm bg-zinc-100 dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 rounded px-2 py-1 focus:outline-none focus:border-blue-500"
+                  className="text-sm bg-zinc-100 dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 rounded px-2 py-1 focus:outline-none focus:border-pink-500"
                 >
                   <option value="all">All Sources</option>
                   <option value="server">Server</option>
@@ -483,7 +483,7 @@ export function DebugPanel({ isOpen, onClose }: DebugPanelProps) {
               onClick={() => setIsAutoScroll(!isAutoScroll)}
               className={`p-1.5 rounded-md transition-colors ${
                 isAutoScroll
-                  ? 'text-blue-500 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30'
+                  ? 'text-pink-500 dark:text-pink-400 bg-pink-100 dark:bg-pink-900/30'
                   : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700'
               }`}
               title={isAutoScroll ? 'Auto-scroll on' : 'Auto-scroll off'}

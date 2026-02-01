@@ -108,7 +108,7 @@ export function AgentHealthDashboard() {
       case 'healthy':
         return <CheckCircle2 size={14} className="text-green-500" />;
       case 'working':
-        return <Loader2 size={14} className="text-blue-500 animate-spin" />;
+        return <Loader2 size={14} className="text-pink-500 animate-spin" />;
       case 'idle':
         return <Clock size={14} className="text-amber-500" />;
       case 'rate-limited':
@@ -138,7 +138,7 @@ export function AgentHealthDashboard() {
       case 'healthy':
         return 'text-green-500';
       case 'working':
-        return 'text-blue-500';
+        return 'text-pink-500';
       case 'idle':
         return 'text-amber-500';
       case 'rate-limited':
@@ -217,8 +217,8 @@ export function AgentHealthDashboard() {
           <div className="text-xs text-zinc-500">Total</div>
         </div>
         <div className="text-center p-2 bg-zinc-50 dark:bg-zinc-900 rounded">
-          <Zap size={14} className="mx-auto text-blue-500 mb-1" />
-          <div className="text-lg font-semibold text-blue-500">{stats.working}</div>
+          <Zap size={14} className="mx-auto text-pink-500 mb-1" />
+          <div className="text-lg font-semibold text-pink-500">{stats.working}</div>
           <div className="text-xs text-zinc-500">Working</div>
         </div>
         <div className="text-center p-2 bg-zinc-50 dark:bg-zinc-900 rounded">
