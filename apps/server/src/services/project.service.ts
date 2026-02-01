@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join, basename } from 'path';
 import { randomUUID } from 'crypto';
+import { databaseService } from './database.service';
 
 export interface Project {
   id: string;
@@ -38,12 +39,51 @@ class ProjectService {
           inPlace: true,
         };
         this.projects.set(config.id, project);
+
+        // Add to registry for persistence
+        databaseService.addProjectToRegistry({
+          id: config.id,
+          path: cwd,
+          name: config.name,
+          createdAt: config.createdAt,
+        });
+
         console.log(`[ProjectService] Loaded project "${config.name}" from ${cwd}`);
       } catch (err) {
         console.error('[ProjectService] Error loading project config:', err);
       }
     } else {
       console.log('[ProjectService] No .orchard/config.json found in current directory');
+    }
+
+    // Load projects from the global registry
+    await this.loadProjectsFromRegistry();
+  }
+
+  /**
+   * Load all registered projects from the global registry
+   */
+  private async loadProjectsFromRegistry(): Promise<void> {
+    const registeredProjects = databaseService.getRegisteredProjects();
+    console.log(`[ProjectService] Found ${registeredProjects.length} registered project(s)`);
+
+    for (const registered of registeredProjects) {
+      // Skip if already loaded (e.g., from CWD)
+      if (this.projects.has(registered.id)) {
+        continue;
+      }
+
+      // Skip if path no longer exists
+      if (!existsSync(registered.path)) {
+        console.log(`[ProjectService] Skipping missing project path: ${registered.path}`);
+        continue;
+      }
+
+      // Reopen the project
+      const project = await this.reopenProject(registered.path);
+      if (project) {
+        console.log(`[ProjectService] Loaded registered project "${project.name}" from ${registered.path}`);
+      }
     }
   }
 
@@ -89,6 +129,15 @@ class ProjectService {
     };
 
     this.projects.set(projectId, project);
+
+    // Add to registry for persistence
+    databaseService.addProjectToRegistry({
+      id: projectId,
+      path: localPath,
+      name: projectName,
+      createdAt: config.createdAt,
+    });
+
     return project;
   }
 
@@ -161,6 +210,15 @@ class ProjectService {
       };
 
       this.projects.set(config.id!, project);
+
+      // Add to registry for persistence
+      databaseService.addProjectToRegistry({
+        id: config.id!,
+        path: projectPath,
+        name: config.name!,
+        createdAt: config.createdAt!,
+      });
+
       return project;
     } catch (err) {
       console.error('Error reopening project:', err);
@@ -183,6 +241,10 @@ class ProjectService {
   async deleteProject(projectId: string): Promise<boolean> {
     const project = this.projects.get(projectId);
     if (!project) return false;
+
+    // Remove from registry
+    databaseService.removeProjectFromRegistry(project.path);
+
     this.projects.delete(projectId);
     return true;
   }
