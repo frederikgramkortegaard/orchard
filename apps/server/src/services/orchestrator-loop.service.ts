@@ -476,6 +476,23 @@ const ORCHESTRATOR_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'resume_session',
+      description: 'Resume an interrupted Claude agent session. Use this when a session was interrupted (exit -1) and needs to continue its work.',
+      parameters: {
+        type: 'object',
+        properties: {
+          worktreeId: {
+            type: 'string',
+            description: 'The ID of the worktree with the interrupted session',
+          },
+        },
+        required: ['worktreeId'],
+      },
+    },
+  },
 ];
 
 const SYSTEM_PROMPT = `Orchard orchestrator. Manage Claude agents in git worktrees, delegate user requests, merge completed work.
@@ -1525,6 +1542,8 @@ class OrchestratorLoopService extends EventEmitter {
           return await this.toolGitDiff(args.worktreeId, args.staged || false, correlationId);
         case 'git_branches':
           return await this.toolGitBranches(args.showRemote || false, correlationId);
+        case 'resume_session':
+          return await this.toolResumeSession(args.worktreeId, correlationId);
         default:
           return `ERROR: Unknown tool: ${name}`;
       }
@@ -2459,6 +2478,42 @@ class OrchestratorLoopService extends EventEmitter {
     });
 
     return `SUCCESS: Listed ${branches.all.length} branches`;
+  }
+
+  /**
+   * Resume an interrupted Claude agent session
+   */
+  private async toolResumeSession(worktreeId: string, correlationId: string): Promise<string> {
+    const projectId = this.projectId;
+    if (!projectId) throw new Error('No project context');
+
+    const project = projectService.getProject(projectId);
+    if (!project?.path) throw new Error('Project path not found');
+
+    await activityLoggerService.log({
+      type: 'action',
+      category: 'orchestrator',
+      summary: `Resuming session for worktree ${worktreeId}`,
+      details: { worktreeId },
+      correlationId,
+    });
+
+    try {
+      // Use session persistence service to restore/resume the session
+      const newSession = await sessionPersistenceService.restoreSession(project.path, worktreeId);
+
+      if (newSession) {
+        this.conversationHistory.push({
+          role: 'user',
+          content: `Session resumed for worktree ${worktreeId}. New session ID: ${newSession.sessionId}`,
+        });
+        return `SUCCESS: Resumed session for ${worktreeId}. Session ID: ${newSession.sessionId}`;
+      } else {
+        return `ERROR: Could not resume session for ${worktreeId} - no previous session found`;
+      }
+    } catch (error: any) {
+      return `ERROR: Failed to resume session: ${error.message}`;
+    }
   }
 
   /**

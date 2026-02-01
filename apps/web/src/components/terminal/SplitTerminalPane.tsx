@@ -106,15 +106,15 @@ function PrintSessionViewer({ session, projectId }: { session: PrintSession; pro
   }, [output]);
 
   return (
-    <div className="absolute inset-0 flex flex-col bg-zinc-950 text-zinc-100">
+    <div className="h-full flex flex-col bg-zinc-950 text-zinc-100 overflow-hidden">
       {/* Header */}
-      <div className="flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-zinc-900 border-b border-zinc-800">
+      <div className="flex-shrink-0 flex items-center gap-2 px-3 py-1.5 bg-zinc-900 border-b border-zinc-800">
         <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
-          session.status === 'running' ? 'bg-green-500 animate-pulse' :
+          session.status === 'running' ? 'bg-blue-500 animate-pulse' :
           session.status === 'completed' ? 'bg-emerald-500' : 'bg-red-500'
         }`} />
         <span className={`text-xs font-medium ${
-          session.status === 'running' ? 'text-green-400' :
+          session.status === 'running' ? 'text-blue-400' :
           session.status === 'completed' ? 'text-emerald-400' : 'text-red-400'
         }`}>
           {session.status === 'running' ? 'Running' : session.status === 'completed' ? 'Completed' : 'Failed'}
@@ -135,38 +135,36 @@ function PrintSessionViewer({ session, projectId }: { session: PrintSession; pro
       </div>
 
       {/* Scrollable output */}
-      <div className="flex-1 relative">
-        <div
-          ref={containerRef}
-          className="absolute inset-0 overflow-y-auto overflow-x-hidden"
-        >
-          <div className="p-4 text-sm">
-            {output ? (
-              <ParsedOutput output={output} />
-            ) : (
-              <div className="text-zinc-500 italic">
-                {session.status === 'running' ? (
-                  <span className="flex items-center gap-2">
-                    <Loader2 size={14} className="animate-spin" />
-                    Waiting for output...
-                  </span>
-                ) : 'No output'}
-              </div>
-            )}
-          </div>
+      <div
+        ref={containerRef}
+        className="flex-1 overflow-y-auto overflow-x-hidden"
+      >
+        <div className="p-3 text-sm">
+          {output ? (
+            <ParsedOutput output={output} />
+          ) : (
+            <div className="text-zinc-500 italic">
+              {session.status === 'running' ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 size={14} className="animate-spin" />
+                  Waiting for output...
+                </span>
+              ) : 'No output'}
+            </div>
+          )}
         </div>
-
-        {/* Scroll to bottom button */}
-        {showScrollButton && (
-          <button
-            onClick={scrollToBottom}
-            className="absolute bottom-4 right-4 p-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-full shadow-lg transition-all"
-            title="Scroll to bottom"
-          >
-            <ArrowDown size={16} className="text-zinc-300" />
-          </button>
-        )}
       </div>
+
+      {/* Scroll to bottom button */}
+      {showScrollButton && (
+        <button
+          onClick={scrollToBottom}
+          className="absolute bottom-4 right-4 p-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-full shadow-lg transition-all z-10"
+          title="Scroll to bottom"
+        >
+          <ArrowDown size={16} className="text-zinc-300" />
+        </button>
+      )}
     </div>
   );
 }
@@ -421,197 +419,27 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
     send({ type: 'terminal:input', sessionId, data });
   }, [send]);
 
-  const renderPanel = (panel: TerminalPanel) => {
-    const terminalSession = panel.sessionId ? sessions.get(panel.sessionId) : null;
-    const printSession = panel.printSessionId ? printSessions.find(p => p.id === panel.printSessionId) : null;
-    const availableTerminalSessions = filteredSessions.filter(
-      (s) => !panels.some((p) => p.sessionId === s.id) || s.id === panel.sessionId
-    );
+  // Get the most recent print session to display
+  const mostRecentPrintSession = printSessions.length > 0
+    ? printSessions.sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())[0]
+    : null;
 
-    // Current selection value for the dropdown
-    const currentValue = panel.sessionId ? `terminal:${panel.sessionId}` : panel.printSessionId ? `print:${panel.printSessionId}` : '';
+  // Simple render - just show the most recent print session
+  const renderContent = () => {
+    if (mostRecentPrintSession && activeProjectId) {
+      return <PrintSessionViewer session={mostRecentPrintSession} projectId={activeProjectId} />;
+    }
 
     return (
-      <div
-        key={panel.id}
-        className={`flex flex-col h-full ${
-          activePanelId === panel.id ? 'ring-1 ring-blue-500/50' : ''
-        }`}
-        onClick={() => setActivePanelId(panel.id)}
-      >
-        {/* Panel header */}
-        <div className={`flex items-center gap-1 px-2 py-1 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700 ${terminalSession?.rateLimit?.isLimited ? 'border-b-amber-500' : ''}`}>
-          {terminalSession?.rateLimit?.isLimited && (
-            <Clock size={14} className="text-amber-500 animate-pulse" />
-          )}
-          {/* Session selector - shows both print sessions and terminal sessions */}
-          <select
-            value={currentValue}
-            onChange={(e) => {
-              const val = e.target.value;
-              if (val.startsWith('terminal:')) {
-                assignToPanel(panel.id, 'terminal', val.replace('terminal:', ''));
-              } else if (val.startsWith('print:')) {
-                assignToPanel(panel.id, 'print', val.replace('print:', ''));
-              }
-            }}
-            className="flex-1 bg-white dark:bg-zinc-900 text-sm px-2 py-0.5 rounded border border-zinc-300 dark:border-zinc-700 focus:outline-none focus:border-blue-500"
-          >
-            <option value="">Select terminal...</option>
-            {printSessions.length > 0 && (
-              <optgroup label="Agent Sessions">
-                {printSessions.map((ps) => {
-                  const status = ps.status === 'running' ? '▶' : ps.status === 'completed' ? '✓' : '✗';
-                  const taskPreview = ps.task.slice(0, 30) + (ps.task.length > 30 ? '...' : '');
-                  return (
-                    <option key={ps.id} value={`print:${ps.id}`}>
-                      {status} {taskPreview}
-                    </option>
-                  );
-                })}
-              </optgroup>
-            )}
-            {availableTerminalSessions.length > 0 && (
-              <optgroup label="Interactive Terminals">
-                {availableTerminalSessions.map((s) => {
-                  const name = s.name || s.cwd.split('/').pop() || s.id.slice(0, 8);
-                  const suffix = s.rateLimit?.isLimited ? ' (paused)' : s.isClaudeSession ? ' (claude)' : '';
-                  return (
-                    <option key={s.id} value={`terminal:${s.id}`}>
-                      {name}{suffix}
-                    </option>
-                  );
-                })}
-              </optgroup>
-            )}
-          </select>
-
-          {/* Status indicator */}
-          {terminalSession && <StatusIndicator status={terminalSession.activityStatus} />}
-          {printSession && (
-            <span className={`w-2 h-2 rounded-full ${
-              printSession.status === 'running' ? 'bg-green-500 animate-pulse' :
-              printSession.status === 'completed' ? 'bg-blue-500' : 'bg-red-500'
-            }`} />
-          )}
-
-          <button
-            onClick={() => createTerminal(panel.id)}
-            disabled={isCreating || !worktreeId || !projectPath || !isConnected}
-            className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded disabled:opacity-50"
-            title="New terminal"
-          >
-            <Plus size={14} />
-          </button>
-
-          {panels.length === 1 ? (
-            <button
-              onClick={splitPane}
-              className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded"
-              title="Split terminal"
-            >
-              <SplitSquareHorizontal size={14} />
-            </button>
-          ) : (
-            <button
-              onClick={() => unsplitPane(panel.id)}
-              className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded"
-              title="Close split"
-            >
-              <X size={14} />
-            </button>
-          )}
-
-          {terminalSession && (
-            <>
-              {/* Quick action buttons */}
-              <div className="flex items-center gap-0.5 mx-1 px-1 border-l border-r border-zinc-300 dark:border-zinc-600">
-                <button
-                  onClick={() => sendTerminalInput(terminalSession.id, '\r')}
-                  disabled={!isConnected}
-                  className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded disabled:opacity-50"
-                  title="Continue (send Enter)"
-                >
-                  <Play size={14} />
-                </button>
-                <button
-                  onClick={() => sendTerminalInput(terminalSession.id, 'y')}
-                  disabled={!isConnected}
-                  className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded disabled:opacity-50"
-                  title="Approve (send 'y')"
-                >
-                  <Check size={14} />
-                </button>
-                <button
-                  onClick={() => sendTerminalInput(terminalSession.id, '\x03')}
-                  disabled={!isConnected}
-                  className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded disabled:opacity-50"
-                  title="Stop (send Ctrl+C)"
-                >
-                  <StopCircle size={14} />
-                </button>
-              </div>
-
-              <button
-                onClick={() => closeTerminal(terminalSession.id)}
-                className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded"
-                title="Close terminal"
-              >
-                <X size={14} />
-              </button>
-            </>
-          )}
-        </div>
-
-        {/* Terminal/Print Session content */}
-        <div className="flex-1 relative">
-          {printSession && activeProjectId ? (
-            <PrintSessionViewer session={printSession} projectId={activeProjectId} />
-          ) : terminalSession ? (
-            <TerminalInstance
-              sessionId={terminalSession.id}
-              send={send}
-              subscribe={subscribe}
-              isActive={activePanelId === panel.id}
-              readOnly={terminalSession.isClaudeSession !== false}
-              rateLimit={terminalSession.rateLimit}
-              connectionId={connectionId}
-            />
-          ) : (
-            <div className="flex items-center justify-center h-full text-zinc-500">
-              <button
-                onClick={() => createTerminal(panel.id)}
-                disabled={!worktreeId || !projectPath || !isConnected}
-                className="px-4 py-2 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 rounded disabled:opacity-50"
-              >
-                Create Terminal
-              </button>
-            </div>
-          )}
-        </div>
+      <div className="flex items-center justify-center h-full text-zinc-500 text-sm">
+        No agent output yet
       </div>
     );
   };
 
-  if (panels.length === 1) {
-    return (
-      <div className="h-full bg-zinc-50 dark:bg-zinc-900 flex flex-col">
-        <div className="flex-1">{renderPanel(panels[0])}</div>
-      </div>
-    );
-  }
-
   return (
-    <div className="h-full bg-zinc-50 dark:bg-zinc-900 flex flex-col">
-      <Group orientation="horizontal" className="flex-1">
-      <Panel defaultSize={50} minSize={5}>
-        {renderPanel(panels[0])}
-      </Panel>
-      <Separator className="w-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-col-resize" />
-      <Panel defaultSize={50} minSize={5}>
-        {renderPanel(panels[1])}
-      </Panel>
-    </Group>
+    <div className="h-full bg-zinc-950 flex flex-col">
+      {renderContent()}
     </div>
   );
 }

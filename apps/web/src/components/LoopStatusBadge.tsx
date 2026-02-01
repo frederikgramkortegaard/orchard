@@ -92,7 +92,7 @@ export function LoopStatusBadge({ projectId }: LoopStatusBadgeProps) {
   }[status?.state || 'STOPPED'];
 
   return (
-    <div className="flex items-center gap-2 px-2 py-1 bg-zinc-200/50 dark:bg-zinc-700/50">
+    <div className="flex items-center gap-2 px-2 py-1">
       {/* Status dot */}
       <div className={`w-2 h-2 rounded-full ${stateColor}`} title={status?.state || 'Unknown'} />
 

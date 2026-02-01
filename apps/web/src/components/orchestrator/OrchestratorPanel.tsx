@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Send, Loader2, Bot, XCircle, Circle, Check, CheckCheck, Clock } from 'lucide-react';
+import { Send, Loader2, Bot, XCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { useChatStore, type MessageStatus } from '../../stores/chat.store';
+import { useChatStore } from '../../stores/chat.store';
 import { AudioRecorder } from '../audio/AudioRecorder';
 import { AudioPlayback } from '../audio/AudioPlayback';
 import { useAudioStore } from '../../stores/audio.store';
@@ -20,55 +20,12 @@ interface TerminalSession {
   createdAt: string;
 }
 
-interface ContextMenuState {
-  visible: boolean;
-  x: number;
-  y: number;
-  messageId: string | null;
-}
-
-function StatusIndicator({ status, from }: { status?: MessageStatus; from: 'user' | 'orchestrator' }) {
-  // For user messages, show status on the right side
-  if (from === 'user') {
-    switch (status) {
-      case 'resolved':
-        return <span title="Resolved"><CheckCheck size={14} className="text-green-400" /></span>;
-      case 'working':
-        return <span title="Being worked on"><Loader2 size={14} className="text-yellow-400 animate-spin" /></span>;
-      case 'read':
-        return <span title="Read"><Check size={14} className="text-blue-300" /></span>;
-      case 'unread':
-      default:
-        return <span title="Unread"><Circle size={8} className="text-blue-400 fill-current" /></span>;
-    }
-  }
-
-  // For orchestrator messages, show status on the left side
-  switch (status) {
-    case 'resolved':
-      return <span title="Resolved"><CheckCheck size={14} className="text-green-400" /></span>;
-    case 'working':
-      return <span title="Being worked on"><Clock size={14} className="text-yellow-400" /></span>;
-    case 'read':
-      return <span title="Read"><Check size={14} className="text-zinc-400" /></span>;
-    case 'unread':
-    default:
-      return <span title="Unread"><Circle size={8} className="text-blue-400 fill-current" /></span>;
-  }
-}
-
 export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelProps) {
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [orchestratorSessionId, setOrchestratorSessionId] = useState<string | null>(null);
-  const [contextMenu, setContextMenu] = useState<ContextMenuState>({
-    visible: false,
-    x: 0,
-    y: 0,
-    messageId: null,
-  });
 
   // Audio recording state
   const isRecording = useAudioStore((state) => state.recordingState === 'recording');
@@ -102,6 +59,7 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
     const interval = setInterval(fetchPendingCount, 5000);
     return () => clearInterval(interval);
   }, []);
+
   const chatRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
 
@@ -116,45 +74,6 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
     projectId,
     onMarkAsRead: (messageId) => updateMessageStatus(projectId, messageId, 'read'),
   });
-
-  // Handle right-click context menu
-  const handleContextMenu = useCallback((e: React.MouseEvent, messageId: string) => {
-    e.preventDefault();
-    setContextMenu({
-      visible: true,
-      x: e.clientX,
-      y: e.clientY,
-      messageId,
-    });
-  }, []);
-
-  // Close context menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = () => {
-      if (contextMenu.visible) {
-        setContextMenu((prev) => ({ ...prev, visible: false }));
-      }
-    };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, [contextMenu.visible]);
-
-  // Update message status via API
-  const handleStatusChange = useCallback(async (messageId: string, status: MessageStatus) => {
-    try {
-      const res = await fetch(`/api/chat/${messageId}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, status }),
-      });
-      if (res.ok) {
-        updateMessageStatus(projectId, messageId, status);
-      }
-    } catch (err) {
-      console.error('Failed to update message status:', err);
-    }
-    setContextMenu((prev) => ({ ...prev, visible: false }));
-  }, [projectId, updateMessageStatus]);
 
   // Load chat history on mount and poll for updates
   useEffect(() => {
@@ -266,7 +185,7 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
   }, [sendMessage]);
 
   return (
-    <div className="flex flex-col h-full bg-zinc-900 rounded-lg overflow-hidden shadow-sm">
+    <div className="flex flex-col h-full bg-zinc-900 overflow-hidden">
       {/* Chat messages */}
       <div
         ref={chatRef}
@@ -282,10 +201,9 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
             <div
               key={msg.id}
               className={`flex ${msg.from === 'user' ? 'justify-end' : 'justify-start'}`}
-              onContextMenu={(e) => handleContextMenu(e, msg.id)}
             >
               <div
-                className={`relative max-w-[85%] px-3 py-2 text-sm shadow-sm cursor-context-menu ${
+                className={`relative max-w-[85%] px-3 py-2 text-sm shadow-sm ${
                   msg.from === 'user'
                     ? 'bg-blue-600 text-white rounded-tl-xl rounded-tr-sm rounded-bl-xl rounded-br-xl'
                     : 'bg-zinc-700 text-zinc-100 rounded-tl-sm rounded-tr-xl rounded-bl-xl rounded-br-xl'
@@ -305,7 +223,6 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
                   }`}>
                     {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
-                  <StatusIndicator status={msg.status} from={msg.from} />
                 </div>
               </div>
             </div>
@@ -337,7 +254,7 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
         </div>
       )}
 
-      {/* Input area - single AudioRecorder to prevent unmount/abort */}
+      {/* Input area */}
       <div className="flex items-center gap-2 p-2 bg-zinc-800 border-t border-zinc-700">
         <input
           type="text"
@@ -365,47 +282,6 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
           {isSending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
         </button>
       </div>
-
-      {/* Context menu for message status */}
-      {contextMenu.visible && contextMenu.messageId && (
-        <div
-          className="fixed z-50 bg-zinc-800 border border-zinc-600 rounded-lg shadow-xl py-1 min-w-[160px]"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="px-3 py-1.5 text-xs text-zinc-400 font-medium border-b border-zinc-700">
-            Set Status
-          </div>
-          <button
-            onClick={() => handleStatusChange(contextMenu.messageId!, 'unread')}
-            className="w-full px-3 py-2 text-sm text-left text-zinc-200 hover:bg-zinc-700 flex items-center gap-2"
-          >
-            <Circle size={14} className="text-blue-400 fill-current" />
-            Unread
-          </button>
-          <button
-            onClick={() => handleStatusChange(contextMenu.messageId!, 'read')}
-            className="w-full px-3 py-2 text-sm text-left text-zinc-200 hover:bg-zinc-700 flex items-center gap-2"
-          >
-            <Check size={14} className="text-zinc-400" />
-            Read
-          </button>
-          <button
-            onClick={() => handleStatusChange(contextMenu.messageId!, 'working')}
-            className="w-full px-3 py-2 text-sm text-left text-zinc-200 hover:bg-zinc-700 flex items-center gap-2"
-          >
-            <Clock size={14} className="text-yellow-400" />
-            Being worked on
-          </button>
-          <button
-            onClick={() => handleStatusChange(contextMenu.messageId!, 'resolved')}
-            className="w-full px-3 py-2 text-sm text-left text-zinc-200 hover:bg-zinc-700 flex items-center gap-2"
-          >
-            <CheckCheck size={14} className="text-green-400" />
-            Resolved
-          </button>
-        </div>
-      )}
     </div>
   );
 }

@@ -81,15 +81,6 @@ function App() {
         setShowDebugPanel(false);
         setDiffViewerState(null);
       }
-
-      // Ctrl + 1-9 - Switch to project tab
-      if (e.ctrlKey && !e.metaKey && e.key >= '1' && e.key <= '9') {
-        const index = parseInt(e.key) - 1;
-        if (index < projects.length) {
-          e.preventDefault();
-          useProjectStore.getState().setActiveProject(projects[index].id);
-        }
-      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
