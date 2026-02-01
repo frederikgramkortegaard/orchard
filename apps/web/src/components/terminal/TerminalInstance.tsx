@@ -5,6 +5,18 @@ import { WebglAddon } from '@xterm/addon-webgl';
 import { Clock } from 'lucide-react';
 import '@xterm/xterm/css/xterm.css';
 import type { RateLimitStatus } from '../../stores/terminal.store';
+import { useTerminalStore } from '../../stores/terminal.store';
+
+// Patterns that indicate Claude is waiting for user input
+const WAITING_PATTERNS = [
+  /\?\s*$/,                        // Ends with question mark
+  /\[Y\/n\]/i,                     // Yes/No prompt
+  /\(y\/n\)/i,                     // Yes/No prompt
+  /press enter/i,                  // Press enter prompt
+  /continue\?/i,                   // Continue prompt
+  /waiting for input/i,            // Explicit waiting message
+  /❯\s*$/,                         // Claude Code prompt
+];
 
 interface TerminalInstanceProps {
   sessionId: string;
@@ -22,6 +34,53 @@ export function TerminalInstance({ sessionId, send, subscribe, isActive, fontSiz
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const receivedSinceAck = useRef(0);
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastOutputRef = useRef<string>('');
+  const { setSessionActivity } = useTerminalStore();
+
+  const IDLE_TIMEOUT = 3000; // 3 seconds of no output = idle
+
+  // Check if output indicates waiting for input
+  const checkForWaitingState = useCallback((data: string) => {
+    // Accumulate recent output to check patterns
+    lastOutputRef.current = (lastOutputRef.current + data).slice(-500);
+
+    for (const pattern of WAITING_PATTERNS) {
+      if (pattern.test(lastOutputRef.current)) {
+        return true;
+      }
+    }
+    return false;
+  }, []);
+
+  // Update activity status when output is received
+  const handleOutputActivity = useCallback((data: string) => {
+    const now = Date.now();
+
+    // Clear existing idle timer
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current);
+    }
+
+    // Check if waiting for input
+    const isWaiting = checkForWaitingState(data);
+
+    if (isWaiting) {
+      setSessionActivity(sessionId, 'waiting', now);
+    } else {
+      setSessionActivity(sessionId, 'running', now);
+    }
+
+    // Set timer to transition to idle after timeout
+    idleTimerRef.current = setTimeout(() => {
+      // Re-check if still waiting (pattern might still match)
+      if (checkForWaitingState('')) {
+        setSessionActivity(sessionId, 'waiting');
+      } else {
+        setSessionActivity(sessionId, 'idle');
+      }
+    }, IDLE_TIMEOUT);
+  }, [sessionId, setSessionActivity, checkForWaitingState]);
 
   const handleResize = useCallback(() => {
     if (fitAddonRef.current && terminalRef.current && isActive) {
@@ -127,6 +186,9 @@ export function TerminalInstance({ sessionId, send, subscribe, isActive, fontSiz
         terminalRef.current.write(msg.data);
         receivedSinceAck.current++;
 
+        // Track activity status
+        handleOutputActivity(msg.data);
+
         // Acknowledge every 50 chunks for flow control
         if (receivedSinceAck.current >= 50) {
           send({
@@ -155,8 +217,11 @@ export function TerminalInstance({ sessionId, send, subscribe, isActive, fontSiz
       unsubData();
       unsubScrollback();
       unsubExit();
+      if (idleTimerRef.current) {
+        clearTimeout(idleTimerRef.current);
+      }
     };
-  }, [sessionId, subscribe, send]);
+  }, [sessionId, subscribe, send, handleOutputActivity]);
 
   // Refit when becoming active
   useEffect(() => {

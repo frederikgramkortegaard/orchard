@@ -7,6 +7,8 @@ export interface RateLimitStatus {
   resumedAt?: number;
 }
 
+export type TerminalActivityStatus = 'idle' | 'running' | 'waiting';
+
 export interface TerminalSession {
   id: string;
   worktreeId: string;
@@ -16,6 +18,8 @@ export interface TerminalSession {
   isClaudeSession?: boolean; // If true, terminal is read-only (controlled by orchestrator)
   name?: string; // Display name for the terminal
   rateLimit?: RateLimitStatus; // Rate limit status for Claude sessions
+  activityStatus?: TerminalActivityStatus; // Current activity status
+  lastOutputAt?: number; // Timestamp of last output
 }
 
 interface TerminalState {
@@ -29,6 +33,7 @@ interface TerminalState {
   setSessionConnected: (sessionId: string, connected: boolean) => void;
   setSessionRateLimited: (sessionId: string, rateLimit: RateLimitStatus) => void;
   clearSessionRateLimit: (sessionId: string) => void;
+  setSessionActivity: (sessionId: string, status: TerminalActivityStatus, lastOutputAt?: number) => void;
   getSessionsForWorktree: (worktreeId: string) => TerminalSession[];
   getRateLimitedSessions: () => TerminalSession[];
 }
@@ -90,6 +95,21 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
         sessions.set(sessionId, {
           ...session,
           rateLimit: { isLimited: false, resumedAt: Date.now() },
+        });
+      }
+      return { sessions };
+    });
+  },
+
+  setSessionActivity: (sessionId, status, lastOutputAt) => {
+    set((state) => {
+      const sessions = new Map(state.sessions);
+      const session = sessions.get(sessionId);
+      if (session) {
+        sessions.set(sessionId, {
+          ...session,
+          activityStatus: status,
+          lastOutputAt: lastOutputAt ?? session.lastOutputAt,
         });
       }
       return { sessions };

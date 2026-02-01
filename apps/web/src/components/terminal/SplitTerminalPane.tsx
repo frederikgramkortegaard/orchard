@@ -1,10 +1,42 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
-import { Plus, X, SplitSquareHorizontal, Square, Clock } from 'lucide-react';
-import { useTerminalStore } from '../../stores/terminal.store';
+import { Plus, X, SplitSquareHorizontal, Square, Clock, Circle, Loader2, MessageCircleQuestion } from 'lucide-react';
+import { useTerminalStore, type TerminalActivityStatus } from '../../stores/terminal.store';
 import { TerminalInstance } from './TerminalInstance';
 import { useWebSocket } from '../../contexts/WebSocketContext';
 import { useToast } from '../../contexts/ToastContext';
+
+// Status indicator component
+function StatusIndicator({ status }: { status?: TerminalActivityStatus }) {
+  if (!status || status === 'idle') {
+    return (
+      <span className="flex items-center gap-1 text-xs text-green-500">
+        <Circle size={8} className="fill-current" />
+        <span className="hidden sm:inline">Idle</span>
+      </span>
+    );
+  }
+
+  if (status === 'running') {
+    return (
+      <span className="flex items-center gap-1 text-xs text-blue-500">
+        <Loader2 size={12} className="animate-spin" />
+        <span className="hidden sm:inline">Running...</span>
+      </span>
+    );
+  }
+
+  if (status === 'waiting') {
+    return (
+      <span className="flex items-center gap-1 text-xs text-amber-500">
+        <MessageCircleQuestion size={12} />
+        <span className="hidden sm:inline">Waiting</span>
+      </span>
+    );
+  }
+
+  return null;
+}
 
 interface SplitTerminalPaneProps {
   worktreeId?: string;
@@ -235,6 +267,9 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
               );
             })}
           </select>
+
+          {/* Status indicator */}
+          {session && <StatusIndicator status={session.activityStatus} />}
 
           <button
             onClick={() => createTerminal(panel.id)}
