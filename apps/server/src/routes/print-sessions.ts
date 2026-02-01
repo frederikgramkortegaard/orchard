@@ -128,6 +128,12 @@ export async function printSessionsRoutes(fastify: FastifyInstance) {
     // Build full prompt with MCP instructions
     const fullPrompt = MCP_AGENT_PROMPT + task;
 
+    // Auto-unarchive the worktree if it was archived (a new task is starting)
+    if (worktree.archived) {
+      console.log(`[PrintSessions] Unarchiving worktree ${worktreeId} for new task`);
+      worktreeService.markWorktreeActive(worktreeId);
+    }
+
     // Create session record
     databaseService.createPrintSession(project.path, {
       id: sessionId,

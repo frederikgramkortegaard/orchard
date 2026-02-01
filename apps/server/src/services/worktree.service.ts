@@ -230,27 +230,42 @@ class WorktreeService {
           const { lastCommitDate, createdAt } = await this.getWorktreeDates(path, branch || 'HEAD', canonicalProjectId);
 
           // Check if this branch has been merged into default branch
-          // Only mark merged if: all commits in main AND no uncommitted changes AND no ahead commits AND no active terminal sessions
+          // Only mark merged if: all commits in main AND no uncommitted changes AND no ahead commits AND no active sessions
           let merged = false;
           if (!isMain && branch && status.modified === 0 && status.staged === 0 && status.untracked === 0 && status.ahead === 0) {
-            // Check for active terminal sessions first
+            // Check for active terminal sessions and running print sessions first
             const hasActiveSessions = await this.hasActiveTerminalSessions(id);
-            if (!hasActiveSessions) {
+            const hasRunningPrint = databaseService.hasRunningPrintSession(project.path, id);
+            if (!hasActiveSessions && !hasRunningPrint) {
               merged = await this.checkIfMerged(canonicalProjectId, branch);
             }
           }
 
           // Auto-archive merged worktrees with no uncommitted changes and no active sessions
           // Note: `merged` is already false if there are active sessions (checked above)
+          // Also requires at least one completed session (don't archive if never finished a task)
           let shouldArchive: boolean = archived;
           if (!archived && merged && !isMain) {
             // Double-check no active sessions before archiving
             const hasActiveSessions = await this.hasActiveTerminalSessions(id);
-            if (!hasActiveSessions) {
+            const hasRunningPrint = databaseService.hasRunningPrintSession(project.path, id);
+            const hasCompletedSession = databaseService.hasCompletedSession(project.path, id);
+            if (!hasActiveSessions && !hasRunningPrint && hasCompletedSession) {
               console.log(`[WorktreeService] Auto-archiving merged worktree: ${branch}`);
               shouldArchive = true;
               this.archivedWorktrees.add(id);
               await this.saveArchivedWorktree(project.path, id, true);
+            }
+          }
+
+          // Auto-unarchive if there's a running print session (shouldn't happen, but recover)
+          if (shouldArchive && !isMain) {
+            const hasRunningPrint = databaseService.hasRunningPrintSession(project.path, id);
+            if (hasRunningPrint) {
+              console.log(`[WorktreeService] Unarchiving worktree with running session: ${branch}`);
+              shouldArchive = false;
+              this.archivedWorktrees.delete(id);
+              await this.saveArchivedWorktree(project.path, id, false);
             }
           }
 

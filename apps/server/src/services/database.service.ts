@@ -1203,6 +1203,35 @@ class DatabaseService extends EventEmitter {
   }
 
   /**
+   * Get orphaned running sessions (status='running' but on archived worktrees)
+   * These are sessions that got stuck when worktree was archived
+   */
+  getOrphanedRunningSessions(projectPath: string): PrintSession[] {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      SELECT ps.id, ps.worktree_id as worktreeId, ps.project_id as projectId, ps.task, ps.status,
+             ps.exit_code as exitCode, ps.started_at as startedAt, ps.completed_at as completedAt
+      FROM print_sessions ps
+      INNER JOIN worktrees w ON ps.worktree_id = w.id
+      WHERE ps.status = 'running' AND w.archived = 1
+      ORDER BY ps.started_at DESC
+    `);
+    return stmt.all() as PrintSession[];
+  }
+
+  /**
+   * Mark an orphaned running session as failed (worktree was archived while running)
+   */
+  markSessionOrphaned(projectPath: string, sessionId: string): void {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      UPDATE print_sessions SET status = 'failed', exit_code = -3, completed_at = datetime('now')
+      WHERE id = ? AND status = 'running'
+    `);
+    stmt.run(sessionId);
+  }
+
+  /**
    * Mark an interrupted session as handled (so we don't keep retrying)
    */
   markInterruptedSessionHandled(projectPath: string, sessionId: string): void {
@@ -1212,6 +1241,32 @@ class DatabaseService extends EventEmitter {
       UPDATE print_sessions SET exit_code = -2 WHERE id = ? AND exit_code = -1
     `);
     stmt.run(sessionId);
+  }
+
+  /**
+   * Check if a worktree has any running print sessions
+   */
+  hasRunningPrintSession(projectPath: string, worktreeId: string): boolean {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      SELECT COUNT(*) as count FROM print_sessions
+      WHERE worktree_id = ? AND status = 'running'
+    `);
+    const result = stmt.get(worktreeId) as { count: number };
+    return result.count > 0;
+  }
+
+  /**
+   * Check if a worktree has ever had a completed session
+   */
+  hasCompletedSession(projectPath: string, worktreeId: string): boolean {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      SELECT COUNT(*) as count FROM print_sessions
+      WHERE worktree_id = ? AND status = 'completed'
+    `);
+    const result = stmt.get(worktreeId) as { count: number };
+    return result.count > 0;
   }
 
   /**
