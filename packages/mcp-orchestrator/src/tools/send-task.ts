@@ -1,7 +1,8 @@
 import { logActivity } from '../utils/log-activity.js';
 
 /**
- * Send a task or message to an existing coding agent
+ * Send a task to an agent by starting a new claude -p session
+ * (Since agents use -p mode, each task runs in a fresh session)
  */
 export async function sendTask(
   apiBase: string,
@@ -9,42 +10,55 @@ export async function sendTask(
 ): Promise<string> {
   const { worktreeId, message } = args;
 
-  await logActivity(apiBase, 'action', 'orchestrator', `MCP: Sending task to agent ${worktreeId}`, { worktreeId, message: message.slice(0, 100) });
-
-  // Get terminal sessions for this worktree
-  const sessionsRes = await fetch(`${apiBase}/terminals/worktree/${encodeURIComponent(worktreeId)}`);
-  if (!sessionsRes.ok) {
-    throw new Error(`Failed to find sessions for worktree: ${sessionsRes.statusText}`);
+  // Get worktree info
+  const worktreeRes = await fetch(`${apiBase}/worktrees/${worktreeId}`);
+  if (!worktreeRes.ok) {
+    throw new Error(`Worktree ${worktreeId} not found`);
   }
+  const worktree = await worktreeRes.json();
 
-  const sessions = await sessionsRes.json();
-  if (sessions.length === 0) {
-    throw new Error(`No active session found for worktree ${worktreeId}`);
+  // Get project info for projectPath
+  const projectRes = await fetch(`${apiBase}/projects/${worktree.projectId}`);
+  if (!projectRes.ok) {
+    throw new Error(`Project not found for worktree`);
   }
+  const project = await projectRes.json();
 
-  const sessionId = sessions[0].id;
+  await logActivity(apiBase, 'action', 'orchestrator', `MCP: Sending task to agent ${worktree.branch}`, { worktreeId, branch: worktree.branch, message: message.slice(0, 100) });
 
-  // Send the message to the terminal
-  const res = await fetch(`${apiBase}/terminals/${sessionId}/input`, {
+  // Escape single quotes in the message for shell
+  const escapedMessage = message.replace(/'/g, "'\\''");
+
+  // Start a new terminal session with claude -p
+  const sessionRes = await fetch(`${apiBase}/terminals`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ input: message, sendEnter: true }),
+    body: JSON.stringify({
+      worktreeId,
+      projectPath: project.path,
+      cwd: worktree.path,
+      initialCommand: `claude -p '${escapedMessage}' --dangerously-skip-permissions`,
+    }),
   });
 
-  if (!res.ok) {
-    throw new Error(`Failed to send message: ${res.statusText}`);
+  if (!sessionRes.ok) {
+    throw new Error(`Failed to start agent session: ${sessionRes.statusText}`);
   }
 
-  // Send multiple enter presses after the message to ensure the agent wakes up
-  const enterCount = 5;
-  for (let i = 0; i < enterCount; i++) {
-    await new Promise(resolve => setTimeout(resolve, 100));
-    await fetch(`${apiBase}/terminals/${sessionId}/input`, {
+  const session = await sessionRes.json();
+
+  // Wait for terminal to be ready and send enters to execute the command
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  for (let i = 0; i < 3; i++) {
+    await fetch(`${apiBase}/terminals/${session.id}/input`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ input: '\r', sendEnter: false }),
     });
+    await new Promise(resolve => setTimeout(resolve, 100));
   }
 
-  return `Sent task to agent ${worktreeId}:\n\n${message}`;
+  await logActivity(apiBase, 'event', 'agent', `Task sent to ${worktree.branch}`, { sessionId: session.id, worktreeId, branch: worktree.branch });
+
+  return `Started print-mode task for ${worktree.branch}:\n\n${message.substring(0, 200)}${message.length > 200 ? '...' : ''}\n\nAgent will report completion via MCP when done.`;
 }

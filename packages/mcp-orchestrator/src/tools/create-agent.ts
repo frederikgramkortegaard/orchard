@@ -30,7 +30,7 @@ export async function createAgent(
 
   await logActivity(apiBase, 'action', 'orchestrator', `MCP: Creating agent "${name}"${mode === 'plan' ? ' (plan mode)' : ''}`, { name, task: task.slice(0, 100), mode }, projectId);
 
-  // Create worktree via Orchard API
+  // Create worktree via Orchard API (skip auto-session, we'll create our own with -p)
   const res = await fetch(`${apiBase}/worktrees`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -39,6 +39,7 @@ export async function createAgent(
       branch: `feature/${name}`,
       newBranch: true,
       mode,
+      skipAutoSession: true,
     }),
   });
 
@@ -49,13 +50,25 @@ export async function createAgent(
 
   const worktree = await res.json();
 
-  // Start a terminal session with Claude in the worktree
+  // Get project info for projectPath
+  const projectRes = await fetch(`${apiBase}/projects/${projectId}`);
+  if (!projectRes.ok) {
+    return `Created worktree ${worktree.id} but failed to get project info`;
+  }
+  const project = await projectRes.json();
+
+  // Escape single quotes in the task for shell
+  const escapedTask = finalTask.replace(/'/g, "'\\''");
+
+  // Start a terminal session with Claude in -p mode (runs task directly, exits when done)
   const sessionRes = await fetch(`${apiBase}/terminals`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       worktreeId: worktree.id,
-      command: 'claude --dangerously-skip-permissions',
+      projectPath: project.path,
+      cwd: worktree.path,
+      initialCommand: `claude -p '${escapedTask}' --dangerously-skip-permissions`,
     }),
   });
 
@@ -65,21 +78,19 @@ export async function createAgent(
 
   const session = await sessionRes.json();
 
-  // Send the initial task (after a delay for Claude to start)
-  setTimeout(async () => {
-    try {
-      await fetch(`${apiBase}/terminals/${session.id}/input`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input: finalTask, sendEnter: true }),
-      });
-    } catch {
-      // Ignore errors
-    }
-  }, 5000);
+  // Wait for terminal to be ready and send enters to execute the command
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  for (let i = 0; i < 3; i++) {
+    await fetch(`${apiBase}/terminals/${session.id}/input`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ input: '\r', sendEnter: false }),
+    });
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
 
-  await logActivity(apiBase, 'event', 'agent', `MCP: Agent "${name}" created and started`, { worktreeId: worktree.id, branch: `feature/${name}`, mode }, projectId);
+  await logActivity(apiBase, 'event', 'agent', `MCP: Agent "${name}" created (print mode)`, { worktreeId: worktree.id, branch: `feature/${name}`, mode }, projectId);
 
   const modeInfo = mode === 'plan' ? '\nMode: Plan (will create plan and wait for approval)' : '';
-  return `Created agent "${name}" (${worktree.id})\nBranch: feature/${name}${modeInfo}\nTask: ${task}\n\nAgent is starting up and will begin working on the task shortly.`;
+  return `Created agent "${name}" (${worktree.id})\nBranch: feature/${name}${modeInfo}\nTask: ${task}\n\nAgent running in print mode. Will report completion via MCP when done.`;
 }

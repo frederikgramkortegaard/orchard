@@ -2,14 +2,16 @@ import { logActivity } from '../utils/log-activity.js';
 
 /**
  * Start a Claude session for a worktree
+ * @param task - Optional task to run with claude -p. If not provided, starts interactive mode.
  */
 export async function startSession(
   apiBase: string,
-  args: { worktreeId: string; projectId: string }
+  args: { worktreeId: string; projectId: string; task?: string }
 ): Promise<string> {
-  const { worktreeId, projectId } = args;
+  const { worktreeId, projectId, task } = args;
 
-  await logActivity(apiBase, 'action', 'orchestrator', `MCP: Starting session for worktree ${worktreeId}`, { worktreeId }, projectId);
+  const mode = task ? 'print' : 'interactive';
+  await logActivity(apiBase, 'action', 'orchestrator', `MCP: Starting ${mode} session for worktree ${worktreeId}`, { worktreeId, mode }, projectId);
 
   // Get worktree info to get the path
   const worktreeRes = await fetch(`${apiBase}/worktrees/${worktreeId}`);
@@ -25,6 +27,16 @@ export async function startSession(
   }
   const project = await projectRes.json();
 
+  // Build the command - use -p for print mode with task, otherwise interactive
+  let initialCommand: string;
+  if (task) {
+    // Escape single quotes in the task for shell
+    const escapedTask = task.replace(/'/g, "'\\''");
+    initialCommand = `claude -p '${escapedTask}' --dangerously-skip-permissions`;
+  } else {
+    initialCommand = 'claude --dangerously-skip-permissions';
+  }
+
   // Create the terminal session
   const res = await fetch(`${apiBase}/terminals`, {
     method: 'POST',
@@ -33,7 +45,7 @@ export async function startSession(
       worktreeId,
       projectPath: project.path,
       cwd: worktree.path,
-      initialCommand: 'claude --dangerously-skip-permissions',
+      initialCommand,
     }),
   });
 
@@ -44,31 +56,46 @@ export async function startSession(
 
   const session = await res.json();
 
-  // Wait for Claude to be ready by polling terminal output
-  const maxAttempts = 10;
-  const pollInterval = 500;
+  // For print mode (-p), the task runs immediately - no need to wait for prompt
+  // For interactive mode, wait for Claude to be ready
   let ready = false;
 
-  for (let i = 0; i < maxAttempts; i++) {
-    await new Promise(resolve => setTimeout(resolve, pollInterval));
+  if (!task) {
+    // Wait for Claude to be ready by polling terminal output
+    const maxAttempts = 10;
+    const pollInterval = 500;
 
-    try {
-      const outputRes = await fetch(`${apiBase}/terminals/${session.id}/output?lines=50`);
-      if (outputRes.ok) {
-        const data = await outputRes.json();
-        const output = data.output || '';
-        // Check for Claude prompt indicators
-        if (output.includes('>') || output.includes('Claude') || output.includes('?')) {
-          ready = true;
-          break;
+    for (let i = 0; i < maxAttempts; i++) {
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+
+      try {
+        const outputRes = await fetch(`${apiBase}/terminals/${session.id}/output?lines=50`);
+        if (outputRes.ok) {
+          const data = await outputRes.json();
+          const output = data.output || '';
+          // Check for Claude prompt indicators
+          if (output.includes('>') || output.includes('Claude') || output.includes('?')) {
+            ready = true;
+            break;
+          }
         }
+      } catch {
+        // Continue polling
       }
-    } catch {
-      // Continue polling
     }
   }
 
-  await logActivity(apiBase, 'event', 'agent', `Session started for worktree ${worktreeId}`, { sessionId: session.id, worktreeId, ready }, projectId);
+  await logActivity(apiBase, 'event', 'agent', `Session started for worktree ${worktree.branch}`, {
+    sessionId: session.id,
+    worktreeId,
+    branch: worktree.branch,
+    mode: task ? 'print' : 'interactive',
+    ready: task ? 'running' : ready
+  }, projectId);
 
-  return `Started session ${session.id} for worktree ${worktreeId}\nPath: ${worktree.path}\nReady: ${ready ? 'yes' : 'still starting...'}`;
+  if (task) {
+    return `Started print-mode session ${session.id} for worktree ${worktree.branch}\nPath: ${worktree.path}\nTask: ${task.substring(0, 100)}${task.length > 100 ? '...' : ''}\nStatus: Running (agent will report completion via MCP)`;
+  }
+
+  return `Started interactive session ${session.id} for worktree ${worktree.branch}\nPath: ${worktree.path}\nReady: ${ready ? 'yes' : 'still starting...'}`;
 }

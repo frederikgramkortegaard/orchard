@@ -17,9 +17,9 @@ export async function worktreesRoutes(fastify: FastifyInstance) {
 
   // Create worktree
   fastify.post<{
-    Body: { projectId: string; branch: string; newBranch?: boolean; baseBranch?: string; mode?: 'normal' | 'plan' };
+    Body: { projectId: string; branch: string; newBranch?: boolean; baseBranch?: string; mode?: 'normal' | 'plan'; skipAutoSession?: boolean };
   }>('/worktrees', async (request, reply) => {
-    const { projectId, branch, newBranch, baseBranch, mode } = request.body;
+    const { projectId, branch, newBranch, baseBranch, mode, skipAutoSession } = request.body;
 
     if (!projectId || !branch) {
       return reply.status(400).send({ error: 'projectId and branch required' });
@@ -60,8 +60,8 @@ export async function worktreesRoutes(fastify: FastifyInstance) {
         mode,
       });
 
-      // Auto-spawn a Claude session for this worktree (with skip-permissions since inside project)
-      if (daemonClient.isConnected()) {
+      // Auto-spawn a Claude session for this worktree (unless skipAutoSession is true)
+      if (!skipAutoSession && daemonClient.isConnected()) {
         try {
           if (project) {
             await daemonClient.createSession(worktree.id, project.path, worktree.path, 'claude --dangerously-skip-permissions');
