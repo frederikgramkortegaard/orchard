@@ -7,17 +7,45 @@ export async function mergeFromQueue(
 ): Promise<string> {
   const { worktreeId } = args;
 
-  // Call the merge queue endpoint directly - it handles everything
-  const res = await fetch(`${apiBase}/merge-queue/${encodeURIComponent(worktreeId)}/merge`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-  });
-
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(`Failed to merge from queue: ${error.error || res.statusText}`);
+  // Get worktree info first
+  const worktreeRes = await fetch(`${apiBase}/worktrees/${encodeURIComponent(worktreeId)}`);
+  if (!worktreeRes.ok) {
+    throw new Error(`Worktree not found: ${worktreeId}`);
   }
 
-  const data = await res.json();
-  return `Successfully merged ${data.branch || worktreeId} into main`;
+  const worktree = await worktreeRes.json();
+
+  // Check if already merged
+  if (worktree.merged) {
+    return `Branch ${worktree.branch} is already merged`;
+  }
+
+  // Perform merge via orchestrator API
+  const mergeRes = await fetch(`${apiBase}/orchestrator/merge`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      projectId: worktree.projectId,
+      source: worktree.branch,
+      target: 'main',
+    }),
+  });
+
+  if (!mergeRes.ok) {
+    const error = await mergeRes.json().catch(() => ({ error: mergeRes.statusText }));
+    throw new Error(`Merge failed: ${error.error || mergeRes.statusText}`);
+  }
+
+  // Mark the merge queue entry as merged
+  const markRes = await fetch(
+    `${apiBase}/merge-queue/${encodeURIComponent(worktree.projectId)}/${encodeURIComponent(worktreeId)}/merge`,
+    { method: 'POST' }
+  );
+
+  if (!markRes.ok) {
+    // Log but don't fail - the merge succeeded
+    console.error(`Warning: Failed to mark merge queue entry as merged: ${worktreeId}`);
+  }
+
+  return `Successfully merged ${worktree.branch} into main and marked as merged in queue`;
 }

@@ -7,7 +7,7 @@ export async function getMergeQueue(
 ): Promise<string> {
   const { projectId } = args;
 
-  const res = await fetch(`${apiBase}/merge-queue?projectId=${encodeURIComponent(projectId)}`);
+  const res = await fetch(`${apiBase}/merge-queue/${encodeURIComponent(projectId)}`);
   if (!res.ok) {
     const error = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(`Failed to get merge queue: ${error.error || res.statusText}`);
