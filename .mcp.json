@@ -3,11 +3,11 @@
     "orchard-agent": {
       "command": "node",
       "args": [
-        "/Users/fgk/Developer/orchard/packages/mcp-agent/dist/index.js"
+        "/Users/fgk/Developer/orchard/apps/server/packages/mcp-agent/dist/index.js"
       ],
       "env": {
         "ORCHARD_API": "http://localhost:3001",
-        "WORKTREE_ID": "44c7a962-cdb6-6937-9561-f2cc24027807"
+        "WORKTREE_ID": "858fb8af-d74b-07d3-8d1f-a91e65ff6bd2"
       }
     }
   }
