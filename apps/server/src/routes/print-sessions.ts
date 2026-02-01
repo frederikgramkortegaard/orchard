@@ -4,6 +4,8 @@ import { projectService } from '../services/project.service.js';
 import { worktreeService } from '../services/worktree.service.js';
 import { spawn } from 'child_process';
 import { randomUUID } from 'crypto';
+import { writeFileSync } from 'fs';
+import { join } from 'path';
 
 export async function printSessionsRoutes(fastify: FastifyInstance) {
   // Create a new print session (runs claude -p)
@@ -38,6 +40,21 @@ export async function printSessionsRoutes(fastify: FastifyInstance) {
       projectId: worktree.projectId,
       task,
     });
+
+    // Create .mcp.json in worktree directory so agent has access to MCP tools
+    const mcpConfig = {
+      mcpServers: {
+        'orchard-agent': {
+          command: 'node',
+          args: ['/Users/fgk/Developer/orchard/packages/mcp-agent/dist/index.js'],
+          env: {
+            ORCHARD_API: 'http://localhost:3001',
+            WORKTREE_ID: worktreeId,
+          },
+        },
+      },
+    };
+    writeFileSync(join(worktree.path, '.mcp.json'), JSON.stringify(mcpConfig, null, 2));
 
     // Escape task for shell
     const escapedTask = task.replace(/'/g, "'\\''");
