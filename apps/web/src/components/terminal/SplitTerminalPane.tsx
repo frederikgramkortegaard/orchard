@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
-import { Plus, X, SplitSquareHorizontal, Square, Clock } from 'lucide-react';
+import { Plus, X, SplitSquareHorizontal, Square, Clock, Play, Check, StopCircle } from 'lucide-react';
 import { useTerminalStore } from '../../stores/terminal.store';
 import { TerminalInstance } from './TerminalInstance';
 import { useWebSocket } from '../../contexts/WebSocketContext';
@@ -194,6 +194,11 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
     );
   }, []);
 
+  // Send input to terminal (for quick action buttons)
+  const sendTerminalInput = useCallback((sessionId: string, data: string) => {
+    send({ type: 'terminal:input', sessionId, data });
+  }, [send]);
+
   const renderPanel = (panel: TerminalPanel) => {
     const session = panel.sessionId ? sessions.get(panel.sessionId) : null;
     const availableSessions = filteredSessions.filter(
@@ -265,6 +270,34 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
 
           {session && (
             <>
+              {/* Quick action buttons */}
+              <div className="flex items-center gap-0.5 mx-1 px-1 border-l border-r border-zinc-300 dark:border-zinc-600">
+                <button
+                  onClick={() => sendTerminalInput(session.id, '\r')}
+                  disabled={!isConnected}
+                  className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded disabled:opacity-50"
+                  title="Continue (send Enter)"
+                >
+                  <Play size={14} />
+                </button>
+                <button
+                  onClick={() => sendTerminalInput(session.id, 'y')}
+                  disabled={!isConnected}
+                  className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded disabled:opacity-50"
+                  title="Approve (send 'y')"
+                >
+                  <Check size={14} />
+                </button>
+                <button
+                  onClick={() => sendTerminalInput(session.id, '\x03')}
+                  disabled={!isConnected}
+                  className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded disabled:opacity-50"
+                  title="Stop (send Ctrl+C)"
+                >
+                  <StopCircle size={14} />
+                </button>
+              </div>
+
               <button
                 onClick={() => closeTerminal(session.id)}
                 className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded"
