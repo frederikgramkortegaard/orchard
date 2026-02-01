@@ -37,20 +37,10 @@ export async function agentRoutes(fastify: FastifyInstance) {
       details: { worktreeId, summary, details, branch: worktree.branch },
     });
 
-    // Add a chat message so the orchestrator can see it
-    const messageId = randomUUID();
-    databaseService.addChatMessage(project.path, {
-      id: messageId,
-      projectId: worktree.projectId,
-      from: 'user', // Appears as user message to orchestrator
-      text: `[Agent ${worktree.branch}] Task completed: ${summary}${details ? `\n\nDetails: ${details}` : ''}`,
-    });
-
     return {
       success: true,
       message: `Completion reported for ${worktree.branch}`,
       logId,
-      messageId,
     };
   });
 
@@ -89,28 +79,10 @@ export async function agentRoutes(fastify: FastifyInstance) {
       details: { worktreeId, question, context, options, questionId, branch: worktree.branch },
     });
 
-    // Add as chat message for orchestrator to see
-    let messageText = `[Agent ${worktree.branch}] Question: ${question}`;
-    if (context) {
-      messageText += `\n\nContext: ${context}`;
-    }
-    if (options && options.length > 0) {
-      messageText += `\n\nOptions:\n${options.map((opt, i) => `  ${i + 1}. ${opt}`).join('\n')}`;
-    }
-
-    const messageId = randomUUID();
-    databaseService.addChatMessage(project.path, {
-      id: messageId,
-      projectId: worktree.projectId,
-      from: 'user',
-      text: messageText,
-    });
-
     return {
       success: true,
       message: `Question submitted for ${worktree.branch}`,
       questionId,
-      messageId,
     };
   });
 
@@ -190,28 +162,10 @@ export async function agentRoutes(fastify: FastifyInstance) {
       details: { worktreeId, error, severity, context, suggestedAction, branch: worktree.branch },
     });
 
-    // Add as chat message for orchestrator to see (especially for blockers)
-    let messageText = `[Agent ${worktree.branch}] ${severity.toUpperCase()}: ${error}`;
-    if (context) {
-      messageText += `\n\nContext: ${context}`;
-    }
-    if (suggestedAction) {
-      messageText += `\n\nSuggested action: ${suggestedAction}`;
-    }
-
-    const messageId = randomUUID();
-    databaseService.addChatMessage(project.path, {
-      id: messageId,
-      projectId: worktree.projectId,
-      from: 'user',
-      text: messageText,
-    });
-
     return {
       success: true,
       message: `${severity} reported for ${worktree.branch}`,
       logId,
-      messageId,
     };
   });
 
