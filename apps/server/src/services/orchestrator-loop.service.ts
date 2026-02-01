@@ -14,6 +14,7 @@ import { orchestratorService } from './orchestrator.service.js';
 import { projectService } from './project.service.js';
 import { databaseService } from './database.service.js';
 import { daemonClient } from '../pty/daemon-client.js';
+import { debugLogService } from './debug-log.service.js';
 
 export enum LoopState {
   STOPPED = 'STOPPED',
@@ -695,6 +696,11 @@ class OrchestratorLoopService extends EventEmitter {
       this.emit('state:change', this.state);
 
       console.log(`[OrchestratorLoop] Started for project ${this.projectId} using ${this.config.model}`);
+      debugLogService.info('orchestrator', `Loop started for project ${this.projectId}`, {
+        model: this.config.model,
+        provider: this.config.provider,
+        tickIntervalMs: this.config.tickIntervalMs,
+      });
     } catch (error: any) {
       this.state = LoopState.STOPPED;
       this.emit('state:change', this.state);
@@ -731,6 +737,10 @@ class OrchestratorLoopService extends EventEmitter {
     this.emit('state:change', this.state);
 
     console.log('[OrchestratorLoop] Stopped');
+    debugLogService.info('orchestrator', 'Loop stopped', {
+      tickNumber: this.tickNumber,
+      consecutiveFailures: this.consecutiveFailures,
+    });
   }
 
   /**
@@ -1015,6 +1025,18 @@ class OrchestratorLoopService extends EventEmitter {
       correlationId,
     });
 
+    // Log to debug panel
+    debugLogService.logAIRequest({
+      tickNumber: context.tickNumber,
+      model: this.config.model,
+      provider: this.config.provider,
+      messages: fullMessages.map(m => ({
+        role: m.role,
+        content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+      })),
+      correlationId,
+    });
+
     // Log to text file for UI visibility
     await this.logToTextFile(`[TICK #${context.tickNumber}] Sending request to ${this.config.model}...`);
     await this.logToTextFile(`  Context: ${context.pendingUserMessages} pending msgs, ${context.activeAgents.length} agents`);
@@ -1044,6 +1066,25 @@ class OrchestratorLoopService extends EventEmitter {
           usage: response.usage || null,
           finishReason: response.choices[0]?.finish_reason || null,
         },
+        correlationId,
+      });
+
+      // Log to debug panel
+      debugLogService.logAIResponse({
+        tickNumber: context.tickNumber,
+        model: this.config.model,
+        provider: this.config.provider,
+        content: assistantMessage?.content || undefined,
+        toolCalls: assistantMessage?.tool_calls?.map(tc => ({
+          name: tc.function.name,
+          arguments: tc.function.arguments,
+        })),
+        usage: response.usage ? {
+          prompt_tokens: response.usage.prompt_tokens,
+          completion_tokens: response.usage.completion_tokens,
+          total_tokens: response.usage.total_tokens,
+        } : undefined,
+        finishReason: response.choices[0]?.finish_reason || undefined,
         correlationId,
       });
 
@@ -1132,6 +1173,16 @@ class OrchestratorLoopService extends EventEmitter {
         category: 'orchestrator',
         summary: `LLM call failed: ${error.message}`,
         details: { error: error.stack },
+        correlationId,
+      });
+      debugLogService.error('orchestrator', `LLM call failed: ${error.message}`, {
+        error: error.stack,
+        correlationId,
+      });
+      debugLogService.logAIResponse({
+        tickNumber: context.tickNumber,
+        model: this.config.model,
+        error: error.message,
         correlationId,
       });
       return false;
@@ -1299,6 +1350,7 @@ class OrchestratorLoopService extends EventEmitter {
     }
 
     console.log(`[OrchestratorLoop] Executing tool: ${name}`, args);
+    debugLogService.debug('orchestrator', `Executing tool: ${name}`, { tool: name, arguments: args });
 
     await activityLoggerService.log({
       type: 'action',
