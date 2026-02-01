@@ -23,6 +23,7 @@ import { startSession } from './tools/start-session.js';
 import { stopSession } from './tools/stop-session.js';
 import { restartSession } from './tools/restart-session.js';
 import { runTask } from './tools/run-task.js';
+import { updateMessageStatus } from './tools/update-message-status.js';
 
 // Orchard server base URL (configurable via env)
 const ORCHARD_API = process.env.ORCHARD_API || 'http://localhost:3001';
@@ -331,6 +332,25 @@ const tools: Tool[] = [
       required: ['worktreeId', 'projectId', 'task'],
     },
   },
+  {
+    name: 'update_message_status',
+    description: 'Update the status of a chat message to track progress',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        messageId: {
+          type: 'string',
+          description: 'The ID of the message to update',
+        },
+        status: {
+          type: 'string',
+          enum: ['unread', 'read', 'working', 'resolved'],
+          description: 'The new status for the message',
+        },
+      },
+      required: ['messageId', 'status'],
+    },
+  },
 ];
 
 // Tool handlers
@@ -351,6 +371,7 @@ const toolHandlers: Record<string, (args: Record<string, unknown>) => Promise<st
   stop_session: async (args) => stopSession(ORCHARD_API, args as { sessionId: string; projectId: string }),
   restart_session: async (args) => restartSession(ORCHARD_API, args as { worktreeId: string; projectId: string; task?: string }),
   run_task: async (args) => runTask(ORCHARD_API, args as { worktreeId: string; projectId: string; task: string; timeout?: number }),
+  update_message_status: async (args) => updateMessageStatus(ORCHARD_API, args as { messageId: string; status: 'unread' | 'read' | 'working' | 'resolved' }),
 };
 
 // Create and configure server
