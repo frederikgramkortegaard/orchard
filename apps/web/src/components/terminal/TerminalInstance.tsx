@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
@@ -121,7 +121,7 @@ export function TerminalInstance({ sessionId, send, subscribe, isActive, fontSiz
       const webglAddon = new WebglAddon();
       terminal.loadAddon(webglAddon);
     } catch {
-      console.log('WebGL not available, using canvas renderer');
+      // WebGL not available, using canvas renderer
     }
 
     fitAddon.fit();
@@ -230,14 +230,26 @@ export function TerminalInstance({ sessionId, send, subscribe, isActive, fontSiz
     }
   }, [isActive, handleResize]);
 
-  // Format the time since rate limit was detected
-  const getWaitTime = () => {
-    if (!rateLimit?.detectedAt) return '';
-    const elapsed = Math.floor((Date.now() - rateLimit.detectedAt) / 1000);
-    const minutes = Math.floor(elapsed / 60);
-    const seconds = elapsed % 60;
-    return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
-  };
+  // Auto-updating wait time for rate limit display
+  const [waitTime, setWaitTime] = useState('');
+
+  useEffect(() => {
+    if (!rateLimit?.isLimited || !rateLimit?.detectedAt) {
+      setWaitTime('');
+      return;
+    }
+
+    const updateWaitTime = () => {
+      const elapsed = Math.floor((Date.now() - rateLimit.detectedAt!) / 1000);
+      const minutes = Math.floor(elapsed / 60);
+      const seconds = elapsed % 60;
+      setWaitTime(minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`);
+    };
+
+    updateWaitTime();
+    const interval = setInterval(updateWaitTime, 1000);
+    return () => clearInterval(interval);
+  }, [rateLimit?.isLimited, rateLimit?.detectedAt]);
 
   return (
     <div
@@ -263,7 +275,7 @@ export function TerminalInstance({ sessionId, send, subscribe, isActive, fontSiz
               </p>
             )}
             <p className="text-zinc-500 text-xs">
-              Waiting: {getWaitTime()}
+              Waiting: {waitTime}
             </p>
           </div>
         </div>
