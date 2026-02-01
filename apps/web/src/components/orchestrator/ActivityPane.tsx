@@ -40,7 +40,7 @@ export function ActivityPane({ projectId, worktreeId, worktreeBranch }: Activity
               onClick={() => setActiveTab(tab.id)}
               className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${
                 isActive
-                  ? 'text-green-400 bg-zinc-900 border-b-2 border-green-500'
+                  ? 'text-blue-400 bg-zinc-900 border-b-2 border-blue-500'
                   : 'text-zinc-400 hover:text-zinc-300 hover:bg-zinc-700/50'
               }`}
             >

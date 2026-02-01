@@ -2,6 +2,7 @@ import { Plus, X, Folder, Settings, Bug, Sun, Moon } from 'lucide-react';
 import { useProjectStore, Project } from '../../stores/project.store';
 import { useTheme } from '../../contexts/ThemeContext';
 import * as api from '../../api/projects';
+import { LoopStatusBadge } from '../LoopStatusBadge';
 import {
   DndContext,
   closestCenter,
@@ -63,7 +64,7 @@ function SortableTab({ project, isActive, onProjectClick, onCloseTab }: Sortable
           : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50'
       }`}
     >
-      <Folder size={13} className={isActive ? 'text-green-500' : ''} />
+      <Folder size={13} className={isActive ? 'text-blue-500' : ''} />
       <span className="text-xs font-medium max-w-28 truncate">{project.name}</span>
       <button
         onClick={(e) => onCloseTab(e, project.id)}
@@ -149,6 +150,11 @@ export function ProjectTabBar({ onNewProject, onProjectSwitch, onOpenSettings, o
       </button>
 
       <div className="flex-1" />
+
+      {/* Loop Status Badge */}
+      {activeProjectId && (
+        <LoopStatusBadge projectId={activeProjectId} />
+      )}
 
       <button
         onClick={toggleTheme}

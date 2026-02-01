@@ -1,11 +1,12 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Send, Loader2, Bot, XCircle, MessageCircle, Circle, Check, CheckCheck, Clock } from 'lucide-react';
+import { Send, Loader2, Bot, XCircle, Circle, Check, CheckCheck, Clock } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useChatStore, type MessageStatus } from '../../stores/chat.store';
 import { AudioRecorder } from '../audio/AudioRecorder';
 import { AudioPlayback } from '../audio/AudioPlayback';
 import { useAudioStore } from '../../stores/audio.store';
 import { LoadingSpinner } from '../LoadingSpinner';
+import { useAutoReadMessages } from '../../hooks/useAutoReadMessages';
 
 interface OrchestratorPanelProps {
   projectId: string;
@@ -109,6 +110,12 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
   const setMessages = useChatStore((state) => state.setMessages);
   const addMessage = useChatStore((state) => state.addMessage);
   const updateMessageStatus = useChatStore((state) => state.updateMessageStatus);
+
+  // Auto-read orchestrator messages when enabled
+  useAutoReadMessages(chatMessages, {
+    projectId,
+    onMarkAsRead: (messageId) => updateMessageStatus(projectId, messageId, 'read'),
+  });
 
   // Handle right-click context menu
   const handleContextMenu = useCallback((e: React.MouseEvent, messageId: string) => {
@@ -260,24 +267,6 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
 
   return (
     <div className="flex flex-col h-full bg-zinc-900 rounded-lg overflow-hidden shadow-sm">
-      {/* Chat header */}
-      <div className="flex items-center gap-3 px-4 py-3 bg-zinc-800 text-white border-b border-zinc-700">
-        <div className="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center">
-          <MessageCircle size={20} />
-        </div>
-        <div className="flex-1">
-          <div className="font-medium text-sm">Orchestrator</div>
-          <div className="text-xs text-zinc-400">
-            {orchestratorSessionId ? 'Online' : 'Messages will queue'}
-          </div>
-        </div>
-        <div
-          className={`w-2.5 h-2.5 rounded-full ${
-            orchestratorSessionId ? 'bg-green-500' : 'bg-zinc-500'
-          }`}
-        />
-      </div>
-
       {/* Chat messages */}
       <div
         ref={chatRef}
@@ -285,7 +274,7 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
       >
         {chatMessages.length === 0 ? (
           <div className="text-xs text-zinc-400 text-center py-8 bg-zinc-800/80 rounded-lg mx-auto max-w-xs shadow-sm">
-            <Bot size={24} className="mx-auto mb-2 text-green-500" />
+            <Bot size={24} className="mx-auto mb-2 text-blue-500" />
             No messages yet. Send a message to the orchestrator.
           </div>
         ) : (
@@ -298,11 +287,11 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
               <div
                 className={`relative max-w-[85%] px-3 py-2 text-sm shadow-sm cursor-context-menu ${
                   msg.from === 'user'
-                    ? 'bg-green-600 text-white rounded-tl-xl rounded-tr-sm rounded-bl-xl rounded-br-xl'
+                    ? 'bg-blue-600 text-white rounded-tl-xl rounded-tr-sm rounded-bl-xl rounded-br-xl'
                     : 'bg-zinc-700 text-zinc-100 rounded-tl-sm rounded-tr-xl rounded-bl-xl rounded-br-xl'
                 }`}
               >
-                <div className="prose prose-sm prose-invert max-w-none break-words [&_p]:my-0 [&_p:not(:last-child)]:mb-2 [&_ul]:my-1 [&_ul]:pl-4 [&_ol]:my-1 [&_ol]:pl-4 [&_li]:my-0 [&_pre]:my-2 [&_pre]:p-2 [&_pre]:rounded [&_pre]:bg-black/20 [&_code]:text-xs [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:bg-black/20 [&_pre_code]:p-0 [&_pre_code]:bg-transparent [&_a]:text-green-300 [&_a]:underline [&_strong]:font-semibold [&_em]:italic [&_blockquote]:border-l-2 [&_blockquote]:border-zinc-500 [&_blockquote]:pl-2 [&_blockquote]:my-2 [&_blockquote]:italic">
+                <div className="prose prose-sm prose-invert max-w-none break-words [&_p]:my-0 [&_p:not(:last-child)]:mb-2 [&_ul]:my-1 [&_ul]:pl-4 [&_ol]:my-1 [&_ol]:pl-4 [&_li]:my-0 [&_pre]:my-2 [&_pre]:p-2 [&_pre]:rounded [&_pre]:bg-black/20 [&_code]:text-xs [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:bg-black/20 [&_pre_code]:p-0 [&_pre_code]:bg-transparent [&_a]:text-blue-300 [&_a]:underline [&_strong]:font-semibold [&_em]:italic [&_blockquote]:border-l-2 [&_blockquote]:border-zinc-500 [&_blockquote]:pl-2 [&_blockquote]:my-2 [&_blockquote]:italic">
                   <ReactMarkdown>{msg.text}</ReactMarkdown>
                 </div>
                 <div className={`flex items-center gap-1.5 mt-1 ${
@@ -312,7 +301,7 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
                     <AudioPlayback text={msg.text} messageId={msg.id} />
                   )}
                   <span className={`text-[10px] ${
-                    msg.from === 'user' ? 'text-green-200' : 'text-zinc-500'
+                    msg.from === 'user' ? 'text-blue-200' : 'text-zinc-500'
                   }`}>
                     {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
@@ -355,7 +344,7 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           placeholder="Type a message"
-          className={`flex-1 px-4 py-2.5 bg-zinc-700 rounded-full text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-green-500 shadow-sm placeholder:text-zinc-400 ${isRecording ? 'hidden' : ''}`}
+          className={`flex-1 px-4 py-2.5 bg-zinc-700 rounded-full text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm placeholder:text-zinc-400 ${isRecording ? 'hidden' : ''}`}
           onKeyDown={(e) => e.key === 'Enter' && !isSending && handleSend()}
         />
         <div className={isRecording ? 'flex-1 flex justify-center' : ''}>
@@ -369,7 +358,7 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
           disabled={isSending || !inputText.trim()}
           className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shadow-sm ${
             inputText.trim()
-              ? 'bg-green-600 hover:bg-green-500 text-white'
+              ? 'bg-blue-600 hover:bg-blue-500 text-white'
               : 'bg-zinc-600 text-zinc-400'
           } disabled:opacity-50 ${isRecording ? 'hidden' : ''}`}
         >

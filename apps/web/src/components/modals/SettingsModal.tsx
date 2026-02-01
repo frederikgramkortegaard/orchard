@@ -22,12 +22,14 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     notificationSound,
     compactMode,
     showTimestamps,
+    autoReadMessages,
     setTimezone,
     setTimeFormat,
     setEnableNotifications,
     setNotificationSound,
     setCompactMode,
     setShowTimestamps,
+    setAutoReadMessages,
     resetToDefaults,
   } = useSettingsStore();
 
@@ -93,7 +95,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     onClick={() => setThemePreference(option.value)}
                     className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded transition-colors ${
                       themePreference === option.value
-                        ? 'bg-green-600 text-white'
+                        ? 'bg-blue-600 text-white'
                         : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'
                     }`}
                   >
@@ -154,7 +156,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     onClick={() => setTimeFormat(option.value)}
                     className={`flex-1 px-3 py-2 rounded text-sm transition-colors ${
                       timeFormat === option.value
-                        ? 'bg-green-600 text-white'
+                        ? 'bg-blue-600 text-white'
                         : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'
                     }`}
                   >
@@ -214,6 +216,27 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               />
             </div>
           </section>
+
+          {/* Audio Section */}
+          <section>
+            <h3 className="text-sm font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-3">
+              Audio
+            </h3>
+
+            {/* Auto-Read Messages */}
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="block text-sm font-medium">Auto-Read Messages</label>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Automatically read orchestrator messages aloud
+                </p>
+              </div>
+              <ToggleSwitch
+                checked={autoReadMessages}
+                onChange={setAutoReadMessages}
+              />
+            </div>
+          </section>
         </div>
 
         {/* Footer */}
@@ -227,7 +250,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           </button>
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-red-600 hover:bg-green-500 text-white rounded"
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded"
           >
             Done
           </button>
@@ -257,7 +280,7 @@ function ToggleSwitch({
           : 'cursor-pointer'
       } ${
         checked
-          ? 'bg-red-600'
+          ? 'bg-blue-600'
           : 'bg-zinc-300 dark:bg-zinc-600'
       }`}
     >

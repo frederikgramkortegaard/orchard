@@ -554,6 +554,7 @@ export function ActivityLog({ projectId }: ActivityLogProps) {
                   <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
                     {group.source}
                   </span>
+                  <span className="flex-1" />
                   <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-300 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400">
                     {group.entries.length}
                   </span>

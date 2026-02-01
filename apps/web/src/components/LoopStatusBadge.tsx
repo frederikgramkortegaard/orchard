@@ -83,11 +83,11 @@ export function LoopStatusBadge({ projectId }: LoopStatusBadgeProps) {
   const isStopped = status?.state === 'STOPPED';
 
   const stateColor = {
-    RUNNING: 'bg-green-500',
+    RUNNING: 'bg-blue-500',
     DEGRADED: 'bg-amber-500',
     PAUSED: 'bg-yellow-500',
-    STARTING: 'bg-green-500 animate-pulse',
-    STOPPING: 'bg-green-500 animate-pulse',
+    STARTING: 'bg-blue-500 animate-pulse',
+    STOPPING: 'bg-blue-500 animate-pulse',
     STOPPED: 'bg-zinc-400',
   }[status?.state || 'STOPPED'];
 
@@ -136,7 +136,7 @@ export function LoopStatusBadge({ projectId }: LoopStatusBadgeProps) {
         <button
           onClick={handleStart}
           disabled={isLoading}
-          className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-green-500 dark:hover:text-green-400 disabled:opacity-50"
+          className="p-1 text-zinc-500 dark:text-zinc-400 hover:text-blue-500 dark:hover:text-blue-400 disabled:opacity-50"
           title="Start Loop"
         >
           {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}

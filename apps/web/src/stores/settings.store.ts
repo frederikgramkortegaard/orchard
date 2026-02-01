@@ -20,6 +20,9 @@ export interface SettingsState {
   compactMode: boolean;
   showTimestamps: boolean;
 
+  // Audio
+  autoReadMessages: boolean;
+
   // Actions
   setThemePreference: (preference: ThemePreference) => void;
   setTimezone: (timezone: string) => void;
@@ -28,6 +31,7 @@ export interface SettingsState {
   setNotificationSound: (enabled: boolean) => void;
   setCompactMode: (enabled: boolean) => void;
   setShowTimestamps: (enabled: boolean) => void;
+  setAutoReadMessages: (enabled: boolean) => void;
   resetToDefaults: () => void;
 }
 
@@ -39,6 +43,7 @@ const defaultSettings = {
   notificationSound: false,
   compactMode: false,
   showTimestamps: true,
+  autoReadMessages: false,
 };
 
 export const useSettingsStore = create<SettingsState>()(
@@ -53,6 +58,7 @@ export const useSettingsStore = create<SettingsState>()(
       setNotificationSound: (notificationSound) => set({ notificationSound }),
       setCompactMode: (compactMode) => set({ compactMode }),
       setShowTimestamps: (showTimestamps) => set({ showTimestamps }),
+      setAutoReadMessages: (autoReadMessages) => set({ autoReadMessages }),
       resetToDefaults: () => set(defaultSettings),
     }),
     {
@@ -65,6 +71,7 @@ export const useSettingsStore = create<SettingsState>()(
         notificationSound: state.notificationSound,
         compactMode: state.compactMode,
         showTimestamps: state.showTimestamps,
+        autoReadMessages: state.autoReadMessages,
       }),
     }
   )
