@@ -585,6 +585,7 @@ class OrchestratorLoopService extends EventEmitter {
     this.openai = new OpenAI({
       baseURL: this.config.baseUrl,
       apiKey: 'ollama', // Ollama doesn't need a real key
+      timeout: 60000, // 60 second timeout
     });
     console.log(`[OrchestratorLoop] Initialized OpenAI client for ${this.config.provider} at ${this.config.baseUrl}`);
   }
