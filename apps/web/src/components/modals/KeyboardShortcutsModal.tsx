@@ -7,6 +7,7 @@ interface KeyboardShortcutsModalProps {
 
 const shortcuts = [
   { keys: ['?'], description: 'Show keyboard shortcuts' },
+  { keys: ['Cmd/Ctrl', ','], description: 'Open settings' },
   { keys: ['Escape'], description: 'Close modal/panel' },
   { keys: ['Cmd/Ctrl', 'K'], description: 'Focus chat input' },
   { keys: ['Cmd/Ctrl', '1-9'], description: 'Switch to worktree 1-9' },

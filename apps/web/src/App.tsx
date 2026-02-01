@@ -73,6 +73,12 @@ function App() {
         setShowShortcutsModal(true);
       }
 
+      // Cmd/Ctrl + , - Open settings
+      if ((e.metaKey || e.ctrlKey) && e.key === ',') {
+        e.preventDefault();
+        setShowSettingsModal(true);
+      }
+
       // Escape - Close modals
       if (e.key === 'Escape') {
         setShowShortcutsModal(false);
@@ -172,8 +178,8 @@ function App() {
           )}
           {/* OrchestratorStatus hidden - loop UI disabled */}
         </div>
-        <div className="flex items-center gap-4 flex-shrink-0">
-          <span className="text-sm text-zinc-500 dark:text-zinc-400 truncate max-w-xs">
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <span className="text-sm text-zinc-500 dark:text-zinc-400 truncate max-w-xs mr-2">
             {activeWorktree ? activeWorktree.path : 'No worktree selected'}
           </span>
           <button
@@ -182,6 +188,13 @@ function App() {
             title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
           >
             {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+          <button
+            onClick={() => setShowSettingsModal(true)}
+            className="p-2 rounded-lg transition-colors bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600"
+            title="Settings"
+          >
+            <Settings size={18} />
           </button>
         </div>
       </header>
@@ -274,6 +287,11 @@ function App() {
       <KeyboardShortcutsModal
         isOpen={showShortcutsModal}
         onClose={() => setShowShortcutsModal(false)}
+      />
+
+      <SettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
       />
     </div>
   );
