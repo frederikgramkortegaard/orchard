@@ -3,7 +3,6 @@ import { orchestratorService } from '../services/orchestrator.service.js';
 import { worktreeService } from '../services/worktree.service.js';
 import { orchestratorLoopService } from '../services/orchestrator-loop.service.js';
 import { activityLoggerService } from '../services/activity-logger.service.js';
-import { sessionPersistenceService } from '../services/session-persistence.service.js';
 
 interface HealthAction {
   type: 'archive' | 'sync' | 'commit' | 'cleanup' | 'review';
@@ -179,34 +178,6 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Send prompt to a worktree's Claude session
-  // This allows the orchestrator to communicate with other agents
-  fastify.post<{
-    Params: { projectId: string };
-    Body: { worktreeId: string; prompt: string };
-  }>('/orchestrator/:projectId/send-prompt', async (request, reply) => {
-    const { worktreeId, prompt } = request.body;
-
-    if (!worktreeId || !prompt) {
-      return reply.status(400).send({ error: 'worktreeId and prompt are required' });
-    }
-
-    const success = await orchestratorService.sendPromptToWorktree(worktreeId, prompt);
-    if (!success) {
-      return reply.status(404).send({ error: 'No active session found for worktree' });
-    }
-
-    return { success: true, worktreeId, promptSent: true };
-  });
-
-  // List active worktree sessions that can receive prompts
-  fastify.get<{
-    Params: { projectId: string };
-  }>('/orchestrator/:projectId/sessions', async (request) => {
-    const sessions = orchestratorService.getActiveWorktreeSessions(request.params.projectId);
-    return { sessions };
-  });
-
   // Consolidated health check endpoint
   fastify.get<{
     Params: { projectId: string };
@@ -219,11 +190,7 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'No worktrees found for project' });
     }
 
-    // Get all active sessions for the project
-    const activeSessions = await orchestratorService.getActiveWorktreeSessions(projectId);
-    const activeWorktreeIds = new Set(activeSessions.map(s => s.worktreeId));
-
-    // Build worktree health data
+    // Build worktree health data (no active sessions without terminal support)
     const worktreeHealth: WorktreeHealth[] = worktrees.map(w => ({
       id: w.id,
       branch: w.branch,
@@ -232,7 +199,7 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
       merged: w.merged,
       archived: w.archived,
       status: w.status,
-      hasActiveSession: activeWorktreeIds.has(w.id),
+      hasActiveSession: false,
     }));
 
     // Identify archive candidates
@@ -240,16 +207,15 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
     for (const w of worktrees) {
       if (w.isMain || w.archived) continue;
 
-      const hasSession = activeWorktreeIds.has(w.id);
       const hasChanges = w.status.modified > 0 || w.status.staged > 0 || w.status.untracked > 0;
 
-      if (w.merged && !hasSession) {
+      if (w.merged) {
         archiveCandidates.push({
           worktreeId: w.id,
           branch: w.branch,
-          reason: 'Branch merged and no active session',
+          reason: 'Branch merged',
         });
-      } else if (!hasSession && !hasChanges && w.status.ahead === 0) {
+      } else if (!hasChanges && w.status.ahead === 0) {
         // Idle worktree with no changes and nothing to push
         archiveCandidates.push({
           worktreeId: w.id,
@@ -264,8 +230,6 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
 
     for (const w of worktrees) {
       if (w.isMain) continue;
-
-      const hasSession = activeWorktreeIds.has(w.id);
 
       // Behind remote - needs sync
       if (w.status.behind > 0) {
@@ -290,7 +254,7 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
       }
 
       // Merged and ready to archive
-      if (w.merged && !w.archived && !hasSession) {
+      if (w.merged && !w.archived) {
         suggestedActions.push({
           type: 'archive',
           worktreeId: w.id,
@@ -319,7 +283,7 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
     // Build summary
     const summary = {
       totalWorktrees: worktrees.length,
-      activeWorktrees: activeSessions.length,
+      activeWorktrees: 0,
       mergedWorktrees: worktrees.filter(w => w.merged).length,
       archivedWorktrees: worktrees.filter(w => w.archived).length,
       worktreesWithChanges: worktrees.filter(w =>
@@ -331,7 +295,7 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
       projectId,
       timestamp: new Date().toISOString(),
       worktrees: worktreeHealth,
-      activeSessions,
+      activeSessions: [],
       archiveCandidates,
       suggestedActions,
       summary,
@@ -482,82 +446,4 @@ export async function orchestratorRoutes(fastify: FastifyInstance) {
     return { success: false, error: 'projectId required' };
   });
 
-  // ============ Session Persistence & Resume ============
-
-  // Get all persisted sessions for a project
-  fastify.get<{
-    Params: { projectId: string };
-  }>('/orchestrator/:projectId/persisted-sessions', async (request) => {
-    const sessions = sessionPersistenceService.getSessionsForProject(request.params.projectId);
-    return { sessions };
-  });
-
-  // Get resumable sessions (those with Claude session IDs)
-  fastify.get<{
-    Params: { projectId: string };
-  }>('/orchestrator/:projectId/resumable-sessions', async (request) => {
-    const sessions = sessionPersistenceService.getResumableSessions(request.params.projectId);
-    return { sessions };
-  });
-
-  // Get dead sessions (persisted but no longer running)
-  fastify.get<{
-    Params: { projectId: string };
-  }>('/orchestrator/:projectId/dead-sessions', async (request) => {
-    const sessions = await sessionPersistenceService.getDeadSessions();
-    const filtered = sessions.filter(s => s.projectId === request.params.projectId);
-    return { sessions: filtered };
-  });
-
-  // Resume a dead session
-  fastify.post<{
-    Params: { projectId: string };
-    Body: { worktreeId: string };
-  }>('/orchestrator/:projectId/resume-session', async (request, reply) => {
-    const { worktreeId } = request.body;
-
-    if (!worktreeId) {
-      return reply.status(400).send({ error: 'worktreeId is required' });
-    }
-
-    const session = await sessionPersistenceService.restoreSession(worktreeId);
-    if (!session) {
-      return reply.status(404).send({ error: 'Failed to resume session' });
-    }
-
-    return {
-      success: true,
-      session,
-      resumed: !!session.claudeSessionId,
-      message: session.claudeSessionId
-        ? `Session resumed with Claude context (resume count: ${session.resumeCount})`
-        : 'Session restored without previous context',
-    };
-  });
-
-  // Validate all sessions against daemon
-  fastify.post<{
-    Params: { projectId: string };
-  }>('/orchestrator/:projectId/validate-sessions', async (request) => {
-    const result = await sessionPersistenceService.validateAllSessions();
-    const projectSessions = sessionPersistenceService.getSessionsForProject(request.params.projectId);
-
-    return {
-      ...result,
-      projectSessions: projectSessions.length,
-    };
-  });
-
-  // Clean up old terminated sessions
-  fastify.post<{
-    Params: { projectId: string };
-    Body: { olderThanDays?: number };
-  }>('/orchestrator/:projectId/cleanup-sessions', async (request) => {
-    const { olderThanDays = 7 } = request.body;
-    const cleaned = sessionPersistenceService.cleanupOldSessions(
-      request.params.projectId,
-      olderThanDays
-    );
-    return { cleaned };
-  });
 }

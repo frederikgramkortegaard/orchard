@@ -5,7 +5,6 @@ import { join, basename, resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { randomUUID, createHash } from 'crypto';
 import { projectService } from './project.service.js';
-import { daemonClient } from '../pty/daemon-client.js';
 import { databaseService } from './database.service.js';
 
 export type AgentMode = 'normal' | 'plan';
@@ -230,28 +229,19 @@ class WorktreeService {
           const { lastCommitDate, createdAt } = await this.getWorktreeDates(path, branch || 'HEAD', canonicalProjectId);
 
           // Check if this branch has been merged into default branch
-          // Only mark merged if: all commits in main AND no uncommitted changes AND no ahead commits AND no active terminal sessions
+          // Only mark merged if: all commits in main AND no uncommitted changes AND no ahead commits
           let merged = false;
           if (!isMain && branch && status.modified === 0 && status.staged === 0 && status.untracked === 0 && status.ahead === 0) {
-            // Check for active terminal sessions first
-            const hasActiveSessions = await this.hasActiveTerminalSessions(id);
-            if (!hasActiveSessions) {
-              merged = await this.checkIfMerged(canonicalProjectId, branch);
-            }
+            merged = await this.checkIfMerged(canonicalProjectId, branch);
           }
 
-          // Auto-archive merged worktrees with no uncommitted changes and no active sessions
-          // Note: `merged` is already false if there are active sessions (checked above)
+          // Auto-archive merged worktrees with no uncommitted changes
           let shouldArchive: boolean = archived;
           if (!archived && merged && !isMain) {
-            // Double-check no active sessions before archiving
-            const hasActiveSessions = await this.hasActiveTerminalSessions(id);
-            if (!hasActiveSessions) {
-              console.log(`[WorktreeService] Auto-archiving merged worktree: ${branch}`);
-              shouldArchive = true;
-              this.archivedWorktrees.add(id);
-              await this.saveArchivedWorktree(project.path, id, true);
-            }
+            console.log(`[WorktreeService] Auto-archiving merged worktree: ${branch}`);
+            shouldArchive = true;
+            this.archivedWorktrees.add(id);
+            await this.saveArchivedWorktree(project.path, id, true);
           }
 
           const worktree: Worktree = {
@@ -648,17 +638,6 @@ class WorktreeService {
       return true; // Exit code 0 means branch is merged
     } catch {
       return false; // Exit code 1 means not merged
-    }
-  }
-
-  // Check if a worktree has active terminal sessions (means someone is working on it)
-  async hasActiveTerminalSessions(worktreeId: string): Promise<boolean> {
-    if (!daemonClient.isConnected()) return false;
-    try {
-      const sessions = await daemonClient.listSessions();
-      return sessions.some((s: any) => s.worktreeId === worktreeId);
-    } catch {
-      return false;
     }
   }
 

@@ -7,14 +7,20 @@ import { existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import OpenAI from 'openai';
 import { activityLoggerService } from './activity-logger.service.js';
-import { sessionPersistenceService } from './session-persistence.service.js';
-import { terminalMonitorService, type DetectedPattern } from './terminal-monitor.service.js';
 import { worktreeService } from './worktree.service.js';
 import { orchestratorService } from './orchestrator.service.js';
 import { projectService } from './project.service.js';
 import { databaseService } from './database.service.js';
-import { daemonClient } from '../pty/daemon-client.js';
 import { debugLogService } from './debug-log.service.js';
+
+// Placeholder type for compatibility
+type DetectedPattern = {
+  worktreeId: string;
+  sessionId: string;
+  type: string;
+  timestamp: Date;
+  content?: string;
+};
 
 export enum LoopState {
   STOPPED = 'STOPPED',
@@ -662,26 +668,6 @@ class OrchestratorLoopService extends EventEmitter {
    * Initialize the loop - must be called before start
    */
   async initialize(): Promise<void> {
-    // Initialize dependent services
-    await sessionPersistenceService.initialize();
-    await terminalMonitorService.initialize();
-
-    // Subscribe to terminal monitor events
-    terminalMonitorService.on('pattern:task_complete', (detection: DetectedPattern) => {
-      this.pendingCompletions.push(detection);
-      this.emit('completion', detection);
-    });
-
-    terminalMonitorService.on('pattern:question', (detection: DetectedPattern) => {
-      this.pendingQuestions.push(detection);
-      this.emit('question', detection);
-    });
-
-    terminalMonitorService.on('pattern:error', (detection: DetectedPattern) => {
-      this.pendingErrors.push(detection);
-      this.emit('error', detection);
-    });
-
     console.log('[OrchestratorLoop] Initialized');
   }
 
@@ -740,18 +726,6 @@ class OrchestratorLoopService extends EventEmitter {
         },
         correlationId: randomUUID(),
       });
-
-      // Validate existing sessions
-      const validation = await sessionPersistenceService.validateAllSessions();
-      if (validation.dead.length > 0) {
-        console.log(`[OrchestratorLoop] Found ${validation.dead.length} dead sessions to restore`);
-      }
-
-      // Start monitoring existing sessions
-      const sessions = sessionPersistenceService.getSessionsForProject(this.projectId);
-      for (const session of sessions) {
-        terminalMonitorService.startMonitoring(session.id, session.worktreeId, session.projectId);
-      }
 
       // Schedule first tick
       this.scheduleNextTick();
@@ -1737,7 +1711,6 @@ class OrchestratorLoopService extends EventEmitter {
 
     if (worktreeId) {
       const worktree = worktreeService.getWorktree(worktreeId);
-      const sessions = await daemonClient.getSessionsForWorktree(worktreeId);
 
       await activityLoggerService.log({
         type: 'event',
@@ -1745,7 +1718,6 @@ class OrchestratorLoopService extends EventEmitter {
         summary: `Status check for ${worktreeId}`,
         details: {
           worktree: worktree ? { id: worktree.id, branch: worktree.branch } : null,
-          hasSession: sessions.length > 0,
         },
         correlationId,
       });
@@ -1869,8 +1841,6 @@ class OrchestratorLoopService extends EventEmitter {
     if (!projectId) throw new Error('No project context');
 
     const worktrees = await worktreeService.loadWorktreesForProject(projectId);
-    const sessions = sessionPersistenceService.getSessionsForProject(projectId);
-    const sessionByWorktree = new Map(sessions.map(s => [s.worktreeId, s]));
 
     // Filter worktrees based on filter parameter
     let filtered = worktrees.filter(w => !w.isMain);
@@ -1888,15 +1858,12 @@ class OrchestratorLoopService extends EventEmitter {
     }
 
     const worktreeInfo = filtered.map(w => {
-      const session = sessionByWorktree.get(w.id);
       return {
         id: w.id,
         branch: w.branch,
         path: w.path,
         merged: w.merged || false,
         archived: w.archived || false,
-        hasSession: !!session,
-        sessionId: session?.id,
         lastCommit: w.lastCommitMessage,
         lastCommitDate: w.lastCommitDate,
         status: w.status,
@@ -2590,28 +2557,22 @@ class OrchestratorLoopService extends EventEmitter {
 
     // Use lightweight worktree listing (no git status checks)
     const lightWorktrees = await worktreeService.listWorktreesLight(projectId);
-    const sessions = sessionPersistenceService.getSessionsForProject(projectId);
-    const sessionByWorktree = new Map(sessions.map(s => [s.worktreeId, s]));
-
-    // Get dead sessions
-    const deadSessions = await sessionPersistenceService.getDeadSessions();
-    const deadWorktreeIds = deadSessions.map(s => s.worktreeId);
 
     // Build agent status list - only include active (non-archived) agents
     const activeAgents: AgentStatus[] = lightWorktrees
       .filter(w => !w.archived)
       .map(w => {
-        const session = sessionByWorktree.get(w.id);
-        const isDead = deadWorktreeIds.includes(w.id);
-
         return {
           worktreeId: w.id,
           branch: w.branch,
-          status: session ? (isDead ? 'dead' : 'running') : 'idle',
-          hasActiveSession: !!session && !isDead,
-          sessionId: session?.id,
+          status: 'IDLE' as const,
+          hasActiveSession: false,
+          sessionId: undefined,
         };
       });
+
+    // No dead sessions without terminal support
+    const deadWorktreeIds: string[] = [];
 
     // Get pending user messages from chat.json (not messageQueueService)
     const pendingMessages = await this.getPendingUserMessages();
@@ -2678,61 +2639,18 @@ class OrchestratorLoopService extends EventEmitter {
   }
 
   /**
-   * Restart dead sessions
+   * Restart dead sessions (no-op without terminal support)
    */
-  private async restartDeadSessions(worktreeIds: string[], correlationId: string): Promise<void> {
-    for (const worktreeId of worktreeIds) {
-      try {
-        const restored = await sessionPersistenceService.restoreSession(worktreeId);
-        if (restored) {
-          // Start monitoring the restored session
-          terminalMonitorService.startMonitoring(restored.id, restored.worktreeId, restored.projectId);
-
-          await activityLoggerService.log({
-            type: 'action',
-            category: 'agent',
-            summary: `Auto-restarted dead session for ${worktreeId}`,
-            details: { worktreeId, newSessionId: restored.id },
-            correlationId,
-          });
-
-          this.emit('session:restarted', { worktreeId, sessionId: restored.id });
-        }
-      } catch (error: any) {
-        console.error(`[OrchestratorLoop] Failed to restart session for ${worktreeId}:`, error.message);
-      }
-    }
+  private async restartDeadSessions(_worktreeIds: string[], _correlationId: string): Promise<void> {
+    // Terminal session restart is no longer supported
   }
 
   /**
-   * Send a message to a specific agent
+   * Send a message to a specific agent (no longer supported without terminal)
    */
-  async sendToAgent(worktreeId: string, message: string): Promise<boolean> {
-    const session = sessionPersistenceService.getSession(worktreeId);
-    if (!session) {
-      console.log(`[OrchestratorLoop] No session found for ${worktreeId}`);
-      return false;
-    }
-
-    try {
-      daemonClient.writeToSession(session.id, message);
-      setTimeout(() => {
-        daemonClient.writeToSession(session.id, '\r');
-      }, 100);
-
-      await activityLoggerService.log({
-        type: 'action',
-        category: 'orchestrator',
-        summary: `Sent message to agent in ${worktreeId}`,
-        details: { worktreeId, message: message.slice(0, 200) },
-        correlationId: randomUUID(),
-      });
-
-      return true;
-    } catch (error: any) {
-      console.error(`[OrchestratorLoop] Failed to send to agent:`, error.message);
-      return false;
-    }
+  async sendToAgent(_worktreeId: string, _message: string): Promise<boolean> {
+    // Terminal session messaging is no longer supported
+    return false;
   }
 
   /**

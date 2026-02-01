@@ -1,7 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { worktreeService } from '../services/worktree.service.js';
 import { projectService } from '../services/project.service.js';
-import { daemonClient } from '../pty/daemon-client.js';
 import { fileTrackingService } from '../services/file-tracking.service.js';
 import { databaseService } from '../services/database.service.js';
 
@@ -17,9 +16,9 @@ export async function worktreesRoutes(fastify: FastifyInstance) {
 
   // Create worktree
   fastify.post<{
-    Body: { projectId: string; branch: string; newBranch?: boolean; baseBranch?: string; mode?: 'normal' | 'plan'; skipAutoSession?: boolean };
+    Body: { projectId: string; branch: string; newBranch?: boolean; baseBranch?: string; mode?: 'normal' | 'plan' };
   }>('/worktrees', async (request, reply) => {
-    const { projectId, branch, newBranch, baseBranch, mode, skipAutoSession } = request.body;
+    const { projectId, branch, newBranch, baseBranch, mode } = request.body;
 
     if (!projectId || !branch) {
       return reply.status(400).send({ error: 'projectId and branch required' });
@@ -59,19 +58,6 @@ export async function worktreesRoutes(fastify: FastifyInstance) {
         baseBranch,
         mode,
       });
-
-      // Auto-spawn a Claude session for this worktree (unless skipAutoSession is true)
-      if (!skipAutoSession && daemonClient.isConnected()) {
-        try {
-          if (project) {
-            await daemonClient.createSession(worktree.id, project.path, worktree.path, 'claude --dangerously-skip-permissions');
-            console.log(`Created Claude session for worktree ${worktree.id}`);
-          }
-        } catch (err) {
-          console.error('Failed to create Claude session for worktree:', err);
-          // Don't fail the worktree creation if session fails
-        }
-      }
 
       return worktree;
     } catch (err: any) {
@@ -123,48 +109,7 @@ export async function worktreesRoutes(fastify: FastifyInstance) {
     return { ...worktree, status };
   });
 
-  // Ensure a Claude session exists for a worktree (creates one if not)
-  fastify.post<{ Params: { id: string } }>('/worktrees/:id/ensure-session', async (request, reply) => {
-    const worktree = worktreeService.getWorktree(request.params.id);
-    if (!worktree) {
-      return reply.status(404).send({ error: 'Worktree not found' });
-    }
-
-    if (!daemonClient.isConnected()) {
-      return reply.status(503).send({ error: 'Terminal daemon not available' });
-    }
-
-    // Check if session already exists for this worktree
-    const existingSessions = await daemonClient.getSessionsForWorktree(worktree.id);
-    if (existingSessions.length > 0) {
-      return { session: existingSessions[0], created: false };
-    }
-
-    // Create new Claude session with skip-permissions since worktree is inside project
-    try {
-      const project = projectService.getProject(worktree.projectId);
-      if (!project) {
-        return reply.status(404).send({ error: 'Project not found for worktree' });
-      }
-      const sessionId = await daemonClient.createSession(worktree.id, project.path, worktree.path, 'claude --dangerously-skip-permissions');
-      const session = await daemonClient.getSession(sessionId);
-      console.log(`Created Claude session ${sessionId} for worktree ${worktree.id}`);
-      return {
-        session: {
-          id: sessionId,
-          worktreeId: worktree.id,
-          projectPath: project.path,
-          cwd: worktree.path,
-          createdAt: session?.createdAt || new Date().toISOString(),
-        },
-        created: true
-      };
-    } catch (err: any) {
-      return reply.status(500).send({ error: err.message });
-    }
-  });
-
-  // Archive worktree - close all terminal sessions and mark as archived
+  // Archive worktree - mark as archived
   fastify.post<{ Params: { id: string } }>('/worktrees/:id/archive', async (request, reply) => {
     const worktree = worktreeService.getWorktree(request.params.id);
     if (!worktree) {
@@ -175,27 +120,12 @@ export async function worktreesRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'Cannot archive main worktree' });
     }
 
-    // Kill any active sessions for this worktree
-    let sessionsDestroyed = 0;
-    if (daemonClient.isConnected()) {
-      try {
-        const sessions = await daemonClient.getSessionsForWorktree(worktree.id);
-        for (const session of sessions) {
-          await daemonClient.destroySession(session.id);
-          sessionsDestroyed++;
-          console.log(`Destroyed session ${session.id} for archived worktree ${worktree.id}`);
-        }
-      } catch (err) {
-        console.error('Error destroying sessions for archived worktree:', err);
-      }
-    }
-
     // Mark worktree as archived (persists to disk)
     const archivedWorktree = await worktreeService.archiveWorktree(request.params.id);
     if (!archivedWorktree) {
       return reply.status(500).send({ error: 'Failed to archive worktree' });
     }
 
-    return { success: true, sessionsDestroyed, worktree: archivedWorktree };
+    return { success: true, worktree: archivedWorktree };
   });
 }

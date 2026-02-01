@@ -1,10 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, GitBranch, Folder, Trash2, Archive, Clock, GitCompare, GitMerge, Loader2, Search, X, Copy } from 'lucide-react';
-import { Group, Panel, Separator } from 'react-resizable-panels';
+import { Plus, GitBranch, Folder, Trash2, Archive, GitCompare, GitMerge, Loader2, Search, X, Copy } from 'lucide-react';
 import { useProjectStore, type Worktree } from '../../stores/project.store';
-import { useTerminalStore } from '../../stores/terminal.store';
 import { useToast } from '../../contexts/ToastContext';
-import { SplitTerminalPane } from '../terminal/SplitTerminalPane';
+import { FileViewer } from './FileViewer';
 
 interface SidebarProps {
   onOpenProject?: () => void;
@@ -23,9 +21,8 @@ interface ContextMenu {
   worktree: Worktree;
 }
 
-export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onArchiveWorktree, onViewDiff, worktreeId, worktreePath, projectPath }: SidebarProps) {
+export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onArchiveWorktree, onViewDiff }: SidebarProps) {
   const { projects, activeProjectId, worktrees, activeWorktreeId, setActiveWorktree, fetchWorktrees } = useProjectStore();
-  const { sessions } = useTerminalStore();
   const { addToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
@@ -88,16 +85,8 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
 
   const activeProject = projects.find(p => p.id === activeProjectId);
 
-  // Check if a worktree has any active terminal sessions
-  const hasActiveSession = (worktreeId: string) => {
-    return Array.from(sessions.values()).some(
-      s => s.worktreeId === worktreeId && s.isConnected
-    );
-  };
-
   // Sort worktrees by most recent activity: 1) lastCommitDate, 2) createdAt
   // Main worktree always appears first, archived worktrees last
-  // Worktrees with active sessions appear before those without
   const sortedWorktrees = [...worktrees].sort((a, b) => {
     // Main worktree always first
     if (a.isMain && !b.isMain) return -1;
@@ -106,12 +95,6 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
     // Archived worktrees always last
     if (a.archived && !b.archived) return 1;
     if (!a.archived && b.archived) return -1;
-
-    // Worktrees with active sessions come first
-    const aHasSession = hasActiveSession(a.id);
-    const bHasSession = hasActiveSession(b.id);
-    if (aHasSession && !bHasSession) return -1;
-    if (!aHasSession && bHasSession) return 1;
 
     // Sort by most recent commit date (descending - newest first)
     const aCommitDate = a.lastCommitDate ? new Date(a.lastCommitDate).getTime() : 0;
@@ -130,13 +113,6 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
   const filteredWorktrees = sortedWorktrees.filter(worktree =>
     worktree.branch.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
-  // Check if a worktree has any rate-limited sessions
-  const isWorktreeRateLimited = (worktreeId: string) => {
-    return Array.from(sessions.values()).some(
-      s => s.worktreeId === worktreeId && s.rateLimit?.isLimited
-    );
-  };
 
   const getStatusIndicator = (worktree: Worktree) => {
     const { modified, staged, untracked, ahead, behind } = worktree.status;
@@ -209,7 +185,6 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
         ) : (
           <div className="space-y-1.5">
             {filteredWorktrees.map((worktree) => {
-              const rateLimited = isWorktreeRateLimited(worktree.id);
               return (
               <div
                 key={worktree.id}
@@ -219,14 +194,10 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
                   activeWorktreeId === worktree.id
                     ? 'bg-blue-100 dark:bg-blue-900/40 ring-1 ring-blue-300 dark:ring-blue-700'
                     : 'bg-zinc-200/50 dark:bg-zinc-700/50 hover:bg-zinc-300/70 dark:hover:bg-zinc-600/70'
-                } ${worktree.archived ? 'opacity-40' : ''} ${rateLimited ? 'ring-1 ring-amber-500/50' : ''}`}
+                } ${worktree.archived ? 'opacity-40' : ''}`}
               >
                 {worktree.archived ? (
                   <Archive size={14} className="text-zinc-400 flex-shrink-0" />
-                ) : rateLimited ? (
-                  <Clock size={14} className="text-amber-500 animate-pulse flex-shrink-0" />
-                ) : hasActiveSession(worktree.id) ? (
-                  <Loader2 size={14} className="text-blue-500 animate-spin flex-shrink-0" />
                 ) : (
                   <GitBranch size={14} className="text-zinc-500 dark:text-zinc-400 flex-shrink-0" />
                 )}
@@ -234,9 +205,8 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
                   {worktree.branch}
                   {worktree.isMain && <span className="text-zinc-400 dark:text-zinc-500 ml-1">(main)</span>}
                   {worktree.archived && <span className="text-zinc-400 ml-1">(archived)</span>}
-                  {rateLimited && <span className="text-amber-500 ml-1">(paused)</span>}
                 </span>
-                {!worktree.archived && !rateLimited && getStatusIndicator(worktree)}
+                {!worktree.archived && getStatusIndicator(worktree)}
                 {!worktree.archived && (
                   <button
                     onClick={(e) => {
@@ -273,7 +243,7 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
                       onArchiveWorktree(worktree.id);
                     }}
                     className="opacity-0 group-hover:opacity-100 p-0.5 text-zinc-500 dark:text-zinc-400 hover:text-amber-500 dark:hover:text-amber-400"
-                    title="Archive worktree (close session)"
+                    title="Archive worktree"
                   >
                     <Archive size={12} />
                   </button>
@@ -302,26 +272,9 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
 
   return (
     <aside className="h-full bg-zinc-100 dark:bg-zinc-800 border-r border-zinc-300 dark:border-zinc-700 flex flex-col overflow-hidden">
-      <Group orientation="vertical" className="h-full">
-        {/* Terminal/Print Output - only show when a worktree is selected */}
-        {activeWorktreeId && (
-          <>
-            <Panel defaultSize={50} minSize={20}>
-              <SplitTerminalPane
-                worktreeId={activeWorktreeId}
-                worktreePath={worktreePath}
-                projectPath={projectPath}
-              />
-            </Panel>
-            <Separator className="h-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-blue-500 cursor-row-resize" />
-          </>
-        )}
-
-        {/* Worktrees list */}
-        <Panel defaultSize={activeWorktreeId ? 50 : 100} minSize={20}>
-          {worktreesContent}
-        </Panel>
-      </Group>
+      <div className="flex-1 overflow-hidden">
+        {worktreesContent}
+      </div>
 
       {/* Context Menu */}
       {contextMenu && (
