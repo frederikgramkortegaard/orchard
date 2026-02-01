@@ -171,3 +171,44 @@ export async function fetchWorktreeBranches(worktreeId: string): Promise<Branche
   }
   return res.json();
 }
+
+// File conflict types
+export interface FileConflict {
+  filePath: string;
+  worktrees: Array<{
+    worktreeId: string;
+    branch: string;
+    status: 'modified' | 'staged' | 'untracked';
+  }>;
+}
+
+export interface ConflictsResult {
+  projectId: string;
+  conflicts: FileConflict[];
+  worktreeConflicts: Record<string, string[]>;
+  hasConflicts: boolean;
+}
+
+// Fetch file conflicts for a project
+export async function fetchConflicts(projectId: string): Promise<ConflictsResult> {
+  const res = await fetch(`${API_BASE}/files/conflicts?projectId=${projectId}`);
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to fetch conflicts');
+  }
+  return res.json();
+}
+
+// Fetch worktrees with conflict information
+export async function fetchWorktreesWithConflicts(projectId: string): Promise<Worktree[]> {
+  const [worktrees, conflictsResult] = await Promise.all([
+    fetchWorktrees(projectId),
+    fetchConflicts(projectId).catch(() => ({ worktreeConflicts: {} } as ConflictsResult)),
+  ]);
+
+  // Merge conflict information into worktrees
+  return worktrees.map(wt => ({
+    ...wt,
+    conflictingFiles: conflictsResult.worktreeConflicts[wt.id] || [],
+  }));
+}
