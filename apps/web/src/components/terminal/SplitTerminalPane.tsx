@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
-import { Plus, X, SplitSquareHorizontal, Clock, Circle, Loader2, MessageCircleQuestion, Play, Check, StopCircle, ArrowDown, Terminal, FileEdit, FilePen, FileText, Search, SearchCode, Wrench, ClipboardList } from 'lucide-react';
+import { Plus, X, SplitSquareHorizontal, Clock, Circle, Loader2, MessageCircleQuestion, Play, Check, StopCircle, ArrowDown } from 'lucide-react';
 import { useTerminalStore, type TerminalActivityStatus } from '../../stores/terminal.store';
 import { TerminalInstance } from './TerminalInstance';
 import { useWebSocket } from '../../contexts/WebSocketContext';
@@ -19,190 +19,21 @@ interface PrintSession {
   completedAt?: string;
 }
 
-// Tool icons/colors mapping - using Lucide icons instead of emojis
-const toolStyles: Record<string, { icon: React.ComponentType<{ size?: number; className?: string }>; color: string; bg: string }> = {
-  Bash: { icon: Terminal, color: 'text-yellow-400', bg: 'bg-yellow-500/10' },
-  Write: { icon: FileEdit, color: 'text-green-400', bg: 'bg-green-500/10' },
-  Edit: { icon: FilePen, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-  Read: { icon: FileText, color: 'text-purple-400', bg: 'bg-purple-500/10' },
-  Glob: { icon: Search, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
-  Grep: { icon: SearchCode, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
-  default: { icon: Wrench, color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
-};
-
-// Parse and render structured output with markers
+// Simple text-based output component (no terminal styling)
 function ParsedOutput({ output }: { output: string }) {
-  // Parse output into structured blocks
-  const blocks: Array<{
-    type: 'tool' | 'text' | 'output' | 'stderr' | 'raw' | 'prompt';
-    tool?: string;
-    command?: string;
-    file?: string;
-    content: string;
-  }> = [];
+  // Strip all @@MARKER@@ tags and render as plain text
+  const cleanOutput = output
+    .replace(/@@(PROMPT|TOOL:\w+|CMD:.*|FILE:.*|TEXT|OUTPUT|STDERR|END)@@\n?/g, '')
+    .trim();
 
-  let currentBlock: typeof blocks[0] | null = null;
-  const lines = output.split('\n');
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-
-    // Prompt marker: @@PROMPT@@ - shows the task given to the agent
-    if (line === '@@PROMPT@@') {
-      if (currentBlock) blocks.push(currentBlock);
-      currentBlock = { type: 'prompt', content: '' };
-      continue;
-    }
-
-    // Tool marker: @@TOOL:Name@@
-    const toolMatch = line.match(/^@@TOOL:(\w+)@@$/);
-    if (toolMatch) {
-      if (currentBlock) blocks.push(currentBlock);
-      currentBlock = { type: 'tool', tool: toolMatch[1], content: '' };
-      continue;
-    }
-
-    // Command marker: @@CMD:command@@
-    const cmdMatch = line.match(/^@@CMD:(.*)@@$/);
-    if (cmdMatch && currentBlock?.type === 'tool') {
-      currentBlock.command = cmdMatch[1];
-      continue;
-    }
-
-    // File marker: @@FILE:path@@
-    const fileMatch = line.match(/^@@FILE:(.*)@@$/);
-    if (fileMatch && currentBlock?.type === 'tool') {
-      currentBlock.file = fileMatch[1];
-      continue;
-    }
-
-    // Text block: @@TEXT@@
-    if (line === '@@TEXT@@') {
-      if (currentBlock) blocks.push(currentBlock);
-      currentBlock = { type: 'text', content: '' };
-      continue;
-    }
-
-    // Output block: @@OUTPUT@@
-    if (line === '@@OUTPUT@@') {
-      if (currentBlock) blocks.push(currentBlock);
-      currentBlock = { type: 'output', content: '' };
-      continue;
-    }
-
-    // Stderr marker: @@STDERR@@
-    if (line === '@@STDERR@@') {
-      if (currentBlock) blocks.push(currentBlock);
-      currentBlock = { type: 'stderr', content: '' };
-      continue;
-    }
-
-    // End marker: @@END@@
-    if (line === '@@END@@') {
-      if (currentBlock) blocks.push(currentBlock);
-      currentBlock = null;
-      continue;
-    }
-
-    // Accumulate content in current block or create raw block
-    if (currentBlock) {
-      currentBlock.content += (currentBlock.content ? '\n' : '') + line;
-    } else if (line.trim()) {
-      // Raw line outside any block
-      blocks.push({ type: 'raw', content: line });
-    }
+  if (!cleanOutput) {
+    return null;
   }
 
-  if (currentBlock) blocks.push(currentBlock);
-
   return (
-    <div className="space-y-3">
-      {blocks.map((block, i) => {
-        // Task prompt - shown at the top like a chat message
-        if (block.type === 'prompt') {
-          return (
-            <div key={i} className="rounded-lg bg-blue-950/30 border border-blue-800/50 p-4">
-              <div className="flex items-center gap-2 mb-2 text-blue-400 text-xs font-medium">
-                <ClipboardList size={14} />
-                <span>Task</span>
-              </div>
-              <div className="text-zinc-200 text-sm whitespace-pre-wrap leading-relaxed">
-                {block.content}
-              </div>
-            </div>
-          );
-        }
-
-        if (block.type === 'tool') {
-          const style = toolStyles[block.tool || ''] || toolStyles.default;
-          const IconComponent = style.icon;
-          return (
-            <div key={i} className={`rounded-md overflow-hidden border border-zinc-800 ${style.bg}`}>
-              <div className={`flex items-center gap-2 px-3 py-1.5 ${style.color} border-b border-zinc-800`}>
-                <IconComponent size={14} />
-                <span className="font-semibold">{block.tool}</span>
-                {block.file && (
-                  <span className="text-zinc-400 text-xs truncate">{block.file}</span>
-                )}
-              </div>
-              {block.command && (
-                <div className="px-3 py-2 font-mono text-sm">
-                  <span className="text-green-400">$</span>
-                  <span className="text-zinc-200 ml-2">{block.command}</span>
-                </div>
-              )}
-            </div>
-          );
-        }
-
-        if (block.type === 'text') {
-          return (
-            <div key={i} className="text-zinc-300 leading-relaxed whitespace-pre-wrap">
-              {block.content}
-            </div>
-          );
-        }
-
-        if (block.type === 'output') {
-          const outputLines = (block.content || '(no output)').split('\n');
-          return (
-            <div key={i} className="bg-zinc-900/50 rounded overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full font-mono text-xs">
-                  <tbody>
-                    {outputLines.map((line, lineNum) => (
-                      <tr key={lineNum} className="hover:bg-zinc-800/50">
-                        <td className="text-zinc-600 text-right pr-3 pl-2 py-0.5 select-none border-r border-zinc-800 w-10">
-                          {lineNum + 1}
-                        </td>
-                        <td className="text-zinc-400 pl-3 pr-2 py-0.5 whitespace-pre">
-                          {line || ' '}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          );
-        }
-
-        if (block.type === 'stderr') {
-          return (
-            <div key={i} className="bg-red-950/30 border border-red-900/50 rounded px-3 py-2 font-mono text-xs text-red-400 whitespace-pre-wrap">
-              {block.content}
-            </div>
-          );
-        }
-
-        // Raw content - apply basic highlighting
-        return (
-          <div key={i} className="text-zinc-400 font-mono text-sm">
-            {block.content}
-          </div>
-        );
-      })}
-    </div>
+    <pre className="text-zinc-300 text-sm whitespace-pre-wrap font-mono leading-relaxed">
+      {cleanOutput}
+    </pre>
   );
 }
 

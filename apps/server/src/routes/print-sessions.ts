@@ -136,8 +136,8 @@ export async function printSessionsRoutes(fastify: FastifyInstance) {
       task,
     });
 
-    // Store the prompt header in terminal output so UI can display it
-    databaseService.appendTerminalOutput(project.path, sessionId, `@@PROMPT@@\n${task}\n@@END@@\n`);
+    // Store the task at the start of output
+    databaseService.appendTerminalOutput(project.path, sessionId, `Task: ${task}\n\n`);
 
     // Escape full prompt for shell
     const escapedTask = fullPrompt.replace(/'/g, "'\\''");
@@ -165,8 +165,7 @@ export async function printSessionsRoutes(fastify: FastifyInstance) {
     // Track current tool for associating results
     let currentTool: { name: string; id: string } | null = null;
 
-    // Parse stream-json format and extract relevant output
-    // Output format uses markers: @@TOOL:name@@, @@CMD:command@@, @@FILE:path@@, @@OUTPUT@@, @@END@@, @@TEXT@@
+    // Parse stream-json format and extract relevant output as plain text
     const parseStreamJson = (text: string) => {
       lineBuffer += text;
       const lines = lineBuffer.split('\n');
@@ -184,61 +183,62 @@ export async function printSessionsRoutes(fastify: FastifyInstance) {
             for (const block of event.message.content) {
               if (block.type === 'text' && block.text?.trim()) {
                 // Claude's thinking/response text
-                databaseService.appendTerminalOutput(project.path, sessionId, `@@TEXT@@\n${block.text}\n@@END@@\n`);
+                databaseService.appendTerminalOutput(project.path, sessionId, `${block.text}\n`);
               } else if (block.type === 'tool_use') {
                 // Track current tool for result association
                 currentTool = { name: block.name || 'unknown', id: block.id || '' };
                 const input = block.input || {};
 
+                // Log tool usage as simple text
                 if (block.name === 'Bash' && input.command) {
                   databaseService.appendTerminalOutput(project.path, sessionId,
-                    `@@TOOL:Bash@@\n@@CMD:${input.command}@@\n`
+                    `[Bash] $ ${input.command}\n`
                   );
                 } else if (block.name === 'Write') {
                   databaseService.appendTerminalOutput(project.path, sessionId,
-                    `@@TOOL:Write@@\n@@FILE:${input.file_path || ''}@@\n`
+                    `[Write] ${input.file_path || ''}\n`
                   );
                 } else if (block.name === 'Edit') {
                   databaseService.appendTerminalOutput(project.path, sessionId,
-                    `@@TOOL:Edit@@\n@@FILE:${input.file_path || ''}@@\n`
+                    `[Edit] ${input.file_path || ''}\n`
                   );
                 } else if (block.name === 'Read') {
                   databaseService.appendTerminalOutput(project.path, sessionId,
-                    `@@TOOL:Read@@\n@@FILE:${input.file_path || ''}@@\n`
+                    `[Read] ${input.file_path || ''}\n`
                   );
                 } else if (block.name === 'Glob' || block.name === 'Grep') {
                   databaseService.appendTerminalOutput(project.path, sessionId,
-                    `@@TOOL:${block.name}@@\n@@CMD:${input.pattern || ''}@@\n`
+                    `[${block.name}] ${input.pattern || ''}\n`
                   );
                 } else if (block.name === 'WebSearch') {
                   databaseService.appendTerminalOutput(project.path, sessionId,
-                    `@@TOOL:WebSearch@@\n@@CMD:${input.query || ''}@@\n`
+                    `[WebSearch] ${input.query || ''}\n`
                   );
                 } else if (block.name === 'WebFetch') {
                   databaseService.appendTerminalOutput(project.path, sessionId,
-                    `@@TOOL:WebFetch@@\n@@CMD:${input.url || ''}@@\n`
+                    `[WebFetch] ${input.url || ''}\n`
                   );
                 } else if (block.name === 'Task') {
                   databaseService.appendTerminalOutput(project.path, sessionId,
-                    `@@TOOL:Task@@\n@@CMD:${input.description || input.prompt?.slice(0, 100) || ''}@@\n`
+                    `[Task] ${input.description || input.prompt?.slice(0, 100) || ''}\n`
                   );
                 } else {
                   // Other tools
                   databaseService.appendTerminalOutput(project.path, sessionId,
-                    `@@TOOL:${block.name}@@\n`
+                    `[${block.name}]\n`
                   );
                 }
               }
             }
           } else if (event.type === 'result') {
-            // Tool result
+            // Tool result - output as plain text
             let resultText = '';
             if (typeof event.result === 'string') {
               resultText = event.result;
             } else if (event.result?.stdout) {
               resultText = event.result.stdout;
               if (event.result.stderr) {
-                resultText += `\n@@STDERR@@\n${event.result.stderr}`;
+                resultText += `\n[stderr] ${event.result.stderr}`;
               }
             } else if (event.result?.output) {
               resultText = event.result.output;
@@ -250,9 +250,7 @@ export async function printSessionsRoutes(fastify: FastifyInstance) {
             }
 
             if (resultText) {
-              databaseService.appendTerminalOutput(project.path, sessionId,
-                `@@OUTPUT@@\n${resultText}\n@@END@@\n`
-              );
+              databaseService.appendTerminalOutput(project.path, sessionId, `${resultText}\n`);
             }
             currentTool = null;
           } else if (event.type === 'content_block_delta' && event.delta?.text) {
