@@ -121,40 +121,45 @@ function App() {
 
       {/* Header */}
       <header className="flex items-center justify-between px-4 py-2 bg-zinc-100 dark:bg-zinc-800 pink:bg-pink-100 border-b border-zinc-300 dark:border-zinc-700 pink:border-pink-300">
-        <div className="flex items-center gap-4">
-          <h1 className="text-xl font-bold pink:text-pink-600">Orchard {isPink && '💖'}</h1>
+        <div className="flex items-center gap-4 min-w-0 flex-1">
+          <h1 className="text-xl font-bold pink:text-pink-600 flex-shrink-0">Orchard {isPink && '💖'}</h1>
           {activeProject && (
-            <span className="text-sm text-zinc-500 dark:text-zinc-400 pink:text-pink-500">
+            <span className="text-sm text-zinc-500 dark:text-zinc-400 pink:text-pink-500 truncate">
               {activeProject.name}
               {activeWorktree && ` / ${activeWorktree.branch}`}
             </span>
           )}
           {activeProjectId && <OrchestratorStatus projectId={activeProjectId} />}
         </div>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-zinc-500 dark:text-zinc-400 pink:text-pink-500">
+        <div className="flex items-center gap-4 flex-shrink-0">
+          <span className="text-sm text-zinc-500 dark:text-zinc-400 pink:text-pink-500 truncate max-w-xs">
             {activeWorktree ? activeWorktree.path : 'No worktree selected'}
           </span>
-          <button
-            onClick={() => setPinkMode(!isPink)}
-            className={`p-2 rounded-lg transition-colors ${
-              isPink
-                ? 'bg-pink-400 text-white hover:bg-pink-500'
-                : 'bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-600 dark:text-zinc-300'
-            }`}
-            title={isPink ? 'Exit pink mode' : 'Activate pink mode!'}
-          >
-            <Heart size={18} fill={isPink ? 'currentColor' : 'none'} />
-          </button>
-          {!isPink && (
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={() => setPinkMode(!isPink)}
+              className={`p-2 rounded-lg transition-colors ${
+                isPink
+                  ? 'bg-pink-400 text-white hover:bg-pink-500'
+                  : 'bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-600 dark:text-zinc-300'
+              }`}
+              title={isPink ? 'Exit pink mode' : 'Activate pink mode!'}
+            >
+              <Heart size={18} fill={isPink ? 'currentColor' : 'none'} />
+            </button>
             <button
               onClick={toggleTheme}
-              className="p-2 rounded-lg bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+              className={`p-2 rounded-lg transition-colors ${
+                isPink
+                  ? 'invisible'
+                  : 'bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600'
+              }`}
               title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              disabled={isPink}
             >
               {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
             </button>
-          )}
+          </div>
         </div>
       </header>
 
