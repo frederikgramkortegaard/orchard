@@ -60,6 +60,26 @@ export interface AgentSession {
   metadata?: string; // JSON string for additional state
 }
 
+export type PrintSessionStatus = 'running' | 'completed' | 'failed';
+
+export interface PrintSession {
+  id: string;
+  worktreeId: string;
+  projectId: string;
+  task: string;
+  status: PrintSessionStatus;
+  exitCode?: number;
+  startedAt: string;
+  completedAt?: string;
+}
+
+export interface TerminalOutputChunk {
+  id: number;
+  sessionId: string;
+  chunk: string;
+  timestamp: string;
+}
+
 class DatabaseService extends EventEmitter {
   private databases: Map<string, Database.Database> = new Map();
   private initialized = false;
@@ -193,6 +213,37 @@ class DatabaseService extends EventEmitter {
       CREATE INDEX IF NOT EXISTS idx_agent_sessions_project_id ON agent_sessions(project_id);
       CREATE INDEX IF NOT EXISTS idx_agent_sessions_worktree_id ON agent_sessions(worktree_id);
       CREATE INDEX IF NOT EXISTS idx_agent_sessions_status ON agent_sessions(status);
+    `);
+
+    // Print sessions table (for claude -p streaming to SQLite)
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS print_sessions (
+        id TEXT PRIMARY KEY,
+        worktree_id TEXT NOT NULL,
+        project_id TEXT NOT NULL,
+        task TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'running' CHECK (status IN ('running', 'completed', 'failed')),
+        exit_code INTEGER,
+        started_at TEXT NOT NULL DEFAULT (datetime('now')),
+        completed_at TEXT
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_print_sessions_worktree_id ON print_sessions(worktree_id);
+      CREATE INDEX IF NOT EXISTS idx_print_sessions_project_id ON print_sessions(project_id);
+      CREATE INDEX IF NOT EXISTS idx_print_sessions_status ON print_sessions(status);
+    `);
+
+    // Terminal output chunks (streamed output from claude -p)
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS terminal_output (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT NOT NULL,
+        chunk TEXT NOT NULL,
+        timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (session_id) REFERENCES print_sessions(id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_terminal_output_session_id ON terminal_output(session_id);
     `);
 
     console.log('[DatabaseService] Schema initialized');
@@ -903,6 +954,106 @@ class DatabaseService extends EventEmitter {
     }
 
     return stats;
+  }
+
+  // ============ Print Sessions (claude -p streaming) ============
+
+  /**
+   * Create a new print session
+   */
+  createPrintSession(
+    projectPath: string,
+    session: { id: string; worktreeId: string; projectId: string; task: string }
+  ): void {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      INSERT INTO print_sessions (id, worktree_id, project_id, task, status, started_at)
+      VALUES (?, ?, ?, ?, 'running', datetime('now'))
+    `);
+    stmt.run(session.id, session.worktreeId, session.projectId, session.task);
+    this.emit('print_session', { type: 'created', session });
+  }
+
+  /**
+   * Get a print session by ID
+   */
+  getPrintSession(projectPath: string, sessionId: string): PrintSession | null {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      SELECT id, worktree_id as worktreeId, project_id as projectId, task, status,
+             exit_code as exitCode, started_at as startedAt, completed_at as completedAt
+      FROM print_sessions WHERE id = ?
+    `);
+    return stmt.get(sessionId) as PrintSession | null;
+  }
+
+  /**
+   * Get print sessions for a worktree
+   */
+  getPrintSessionsForWorktree(projectPath: string, worktreeId: string): PrintSession[] {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      SELECT id, worktree_id as worktreeId, project_id as projectId, task, status,
+             exit_code as exitCode, started_at as startedAt, completed_at as completedAt
+      FROM print_sessions WHERE worktree_id = ? ORDER BY started_at DESC
+    `);
+    return stmt.all(worktreeId) as PrintSession[];
+  }
+
+  /**
+   * Complete a print session
+   */
+  completePrintSession(projectPath: string, sessionId: string, exitCode: number): void {
+    const db = this.getDatabase(projectPath);
+    const status = exitCode === 0 ? 'completed' : 'failed';
+    const stmt = db.prepare(`
+      UPDATE print_sessions SET status = ?, exit_code = ?, completed_at = datetime('now')
+      WHERE id = ?
+    `);
+    stmt.run(status, exitCode, sessionId);
+    this.emit('print_session', { type: 'completed', sessionId, status, exitCode });
+  }
+
+  /**
+   * Append output to a print session
+   */
+  appendTerminalOutput(projectPath: string, sessionId: string, chunk: string): number {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      INSERT INTO terminal_output (session_id, chunk, timestamp)
+      VALUES (?, ?, datetime('now'))
+    `);
+    const result = stmt.run(sessionId, chunk);
+    this.emit('terminal_output', { sessionId, chunk, id: result.lastInsertRowid });
+    return result.lastInsertRowid as number;
+  }
+
+  /**
+   * Get terminal output for a session (optionally after a certain ID for polling)
+   */
+  getTerminalOutput(projectPath: string, sessionId: string, afterId?: number): TerminalOutputChunk[] {
+    const db = this.getDatabase(projectPath);
+    if (afterId !== undefined) {
+      const stmt = db.prepare(`
+        SELECT id, session_id as sessionId, chunk, timestamp
+        FROM terminal_output WHERE session_id = ? AND id > ? ORDER BY id ASC
+      `);
+      return stmt.all(sessionId, afterId) as TerminalOutputChunk[];
+    } else {
+      const stmt = db.prepare(`
+        SELECT id, session_id as sessionId, chunk, timestamp
+        FROM terminal_output WHERE session_id = ? ORDER BY id ASC
+      `);
+      return stmt.all(sessionId) as TerminalOutputChunk[];
+    }
+  }
+
+  /**
+   * Get full terminal output as a single string
+   */
+  getFullTerminalOutput(projectPath: string, sessionId: string): string {
+    const chunks = this.getTerminalOutput(projectPath, sessionId);
+    return chunks.map(c => c.chunk).join('');
   }
 
   /**

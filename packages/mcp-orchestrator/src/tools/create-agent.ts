@@ -50,25 +50,13 @@ export async function createAgent(
 
   const worktree = await res.json();
 
-  // Get project info for projectPath
-  const projectRes = await fetch(`${apiBase}/projects/${projectId}`);
-  if (!projectRes.ok) {
-    return `Created worktree ${worktree.id} but failed to get project info`;
-  }
-  const project = await projectRes.json();
-
-  // Escape single quotes in the task for shell
-  const escapedTask = finalTask.replace(/'/g, "'\\''");
-
-  // Start a terminal session with Claude in -p mode (runs task directly, exits when done)
-  const sessionRes = await fetch(`${apiBase}/terminals`, {
+  // Start a print session (streams claude -p output to SQLite)
+  const sessionRes = await fetch(`${apiBase}/print-sessions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       worktreeId: worktree.id,
-      projectPath: project.path,
-      cwd: worktree.path,
-      initialCommand: `claude -p '${escapedTask}' --dangerously-skip-permissions`,
+      task: finalTask,
     }),
   });
 
@@ -78,18 +66,7 @@ export async function createAgent(
 
   const session = await sessionRes.json();
 
-  // Wait for terminal to be ready and send enters to execute the command
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  for (let i = 0; i < 3; i++) {
-    await fetch(`${apiBase}/terminals/${session.id}/input`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ input: '\r', sendEnter: false }),
-    });
-    await new Promise(resolve => setTimeout(resolve, 100));
-  }
-
-  await logActivity(apiBase, 'event', 'agent', `MCP: Agent "${name}" created (print mode)`, { worktreeId: worktree.id, branch: `feature/${name}`, mode }, projectId);
+  await logActivity(apiBase, 'event', 'agent', `MCP: Agent "${name}" created (print mode)`, { worktreeId: worktree.id, sessionId: session.id, branch: `feature/${name}`, mode }, projectId);
 
   const modeInfo = mode === 'plan' ? '\nMode: Plan (will create plan and wait for approval)' : '';
   return `Created agent "${name}" (${worktree.id})\nBranch: feature/${name}${modeInfo}\nTask: ${task}\n\nAgent running in print mode. Will report completion via MCP when done.`;

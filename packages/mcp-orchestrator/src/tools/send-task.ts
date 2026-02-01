@@ -17,27 +17,15 @@ export async function sendTask(
   }
   const worktree = await worktreeRes.json();
 
-  // Get project info for projectPath
-  const projectRes = await fetch(`${apiBase}/projects/${worktree.projectId}`);
-  if (!projectRes.ok) {
-    throw new Error(`Project not found for worktree`);
-  }
-  const project = await projectRes.json();
-
   await logActivity(apiBase, 'action', 'orchestrator', `MCP: Sending task to agent ${worktree.branch}`, { worktreeId, branch: worktree.branch, message: message.slice(0, 100) });
 
-  // Escape single quotes in the message for shell
-  const escapedMessage = message.replace(/'/g, "'\\''");
-
-  // Start a new terminal session with claude -p
-  const sessionRes = await fetch(`${apiBase}/terminals`, {
+  // Start a print session (streams claude -p output to SQLite)
+  const sessionRes = await fetch(`${apiBase}/print-sessions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       worktreeId,
-      projectPath: project.path,
-      cwd: worktree.path,
-      initialCommand: `claude -p '${escapedMessage}' --dangerously-skip-permissions`,
+      task: message,
     }),
   });
 
@@ -46,17 +34,6 @@ export async function sendTask(
   }
 
   const session = await sessionRes.json();
-
-  // Wait for terminal to be ready and send enters to execute the command
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  for (let i = 0; i < 3; i++) {
-    await fetch(`${apiBase}/terminals/${session.id}/input`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ input: '\r', sendEnter: false }),
-    });
-    await new Promise(resolve => setTimeout(resolve, 100));
-  }
 
   await logActivity(apiBase, 'event', 'agent', `Task sent to ${worktree.branch}`, { sessionId: session.id, worktreeId, branch: worktree.branch });
 
