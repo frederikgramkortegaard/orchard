@@ -10,7 +10,7 @@ import { CreateProjectModal } from './components/modals/CreateProjectModal';
 import { CreateWorktreeModal } from './components/modals/CreateWorktreeModal';
 import { OrchestratorPanel } from './components/orchestrator/OrchestratorPanel';
 import { OrchestratorLoopControl } from './components/OrchestratorLoopControl';
-import { OrchestratorLog } from './components/orchestrator/OrchestratorLog';
+import { ActivityLog } from './components/orchestrator/ActivityLog';
 import { Dashboard } from './components/dashboard/Dashboard';
 import * as api from './api/projects';
 
@@ -189,7 +189,7 @@ function App() {
               <Separator className="w-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-col-resize" />
               <Panel defaultSize={20} minSize={5}>
                 <div className="h-full p-2 bg-zinc-100 dark:bg-zinc-800">
-                  <OrchestratorLog projectId={activeProjectId} />
+                  <ActivityLog projectId={activeProjectId} />
                 </div>
               </Panel>
             </>

@@ -215,6 +215,48 @@ export async function agentRoutes(fastify: FastifyInstance) {
     };
   });
 
+  // Log agent activity (for the activity feed)
+  fastify.post<{
+    Body: {
+      worktreeId: string;
+      activityType: 'file_edit' | 'command' | 'commit' | 'question' | 'task_complete' | 'error' | 'progress';
+      summary: string;
+      details?: Record<string, unknown>;
+    };
+  }>('/agent/activity', async (request, reply) => {
+    const { worktreeId, activityType, summary, details = {} } = request.body;
+
+    if (!worktreeId || !activityType || !summary) {
+      return reply.status(400).send({ error: 'worktreeId, activityType, and summary are required' });
+    }
+
+    const worktree = worktreeService.getWorktree(worktreeId);
+    if (!worktree) {
+      return reply.status(404).send({ error: 'Worktree not found' });
+    }
+
+    const project = projectService.getProject(worktree.projectId);
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    // Map activity type to log type
+    const logType = activityType === 'error' ? 'error' : 'action';
+
+    // Log the activity
+    const logId = databaseService.addActivityLog(project.path, worktree.projectId, {
+      type: logType,
+      category: 'agent',
+      summary,
+      details: { ...details, activityType, worktreeId, branch: worktree.branch },
+    });
+
+    return {
+      success: true,
+      logId,
+    };
+  });
+
   // Get agent status (for agent to check its own worktree info)
   fastify.get<{
     Querystring: { worktreeId: string };

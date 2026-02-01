@@ -4,6 +4,45 @@ import { projectService } from '../services/project.service.js';
 import { databaseService } from '../services/database.service.js';
 
 export async function messagesRoutes(fastify: FastifyInstance) {
+  // Get unified activity feed (from SQLite)
+  fastify.get<{
+    Querystring: { projectId: string; limit?: string; type?: string; category?: string };
+  }>('/activity', async (request, reply) => {
+    const { projectId, limit = '100', type, category } = request.query;
+
+    if (!projectId) {
+      return reply.status(400).send({ error: 'projectId required' });
+    }
+
+    const project = projectService.getProject(projectId);
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    const numLimit = parseInt(limit, 10) || 100;
+    const logs = databaseService.getActivityLogs(project.path, project.id, {
+      limit: numLimit,
+      type: type as any,
+      category: category as any,
+    });
+
+    // Return in chronological order (oldest first)
+    const entries = logs.reverse().map(log => ({
+      id: log.id,
+      timestamp: log.timestamp,
+      type: log.type,
+      category: log.category,
+      summary: log.summary,
+      details: log.details,
+    }));
+
+    return {
+      entries,
+      total: logs.length,
+      lastModified: new Date().toISOString(),
+    };
+  });
+
   // Get orchestrator activity log (from SQLite)
   fastify.get<{
     Querystring: { projectId: string; lines?: string; type?: string; category?: string };
