@@ -167,20 +167,24 @@ function App() {
       />
 
       {/* Header */}
-      <header className="flex items-center justify-between px-4 py-2 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700">
-        <div className="flex items-center gap-4 min-w-0 flex-1">
-          <h1 className="text-xl font-bold flex-shrink-0">Orchard</h1>
-          {activeProject && (
-            <span className="text-sm text-zinc-500 dark:text-zinc-400 truncate">
+      <header className="flex items-center justify-between px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          {activeProject ? (
+            <h1 className="text-base font-semibold flex-shrink-0 truncate">
               {activeProject.name}
-              {activeWorktree && ` / ${activeWorktree.branch}`}
-            </span>
+              {activeWorktree && (
+                <span className="font-normal text-zinc-500 dark:text-zinc-400">
+                  {' / '}{activeWorktree.branch}
+                </span>
+              )}
+            </h1>
+          ) : (
+            <h1 className="text-base font-semibold flex-shrink-0">Orchard</h1>
           )}
-          {/* OrchestratorStatus hidden - loop UI disabled */}
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <span className="text-sm text-zinc-500 dark:text-zinc-400 truncate max-w-xs mr-2">
-            {activeWorktree ? activeWorktree.path : 'No worktree selected'}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <span className="text-xs text-zinc-500 dark:text-zinc-400 truncate max-w-[200px]">
+            {activeWorktree ? activeWorktree.path : ''}
           </span>
           <button
             onClick={toggleTheme}
