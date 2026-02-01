@@ -219,6 +219,12 @@ class WorktreeService {
 
           worktrees.push(worktree);
           this.worktrees.set(id, worktree);
+
+          // Sync .mcp.json to ensure WORKTREE_ID matches the server's regenerated ID
+          // This is needed because IDs are regenerated deterministically on server restart
+          if (!isMain) {
+            await this.syncAgentMcp(path, id, project.path);
+          }
         }
       }
 
@@ -365,6 +371,35 @@ class WorktreeService {
       await writeFile(mcpConfigPath, JSON.stringify(mcpConfig, null, 2));
     } catch (err) {
       console.error('Error setting up agent MCP:', err);
+    }
+  }
+
+  // Sync the .mcp.json file to ensure the WORKTREE_ID matches the server's ID
+  // This is needed after server restart when worktree IDs are regenerated
+  private async syncAgentMcp(worktreePath: string, worktreeId: string, projectPath: string): Promise<void> {
+    const mcpConfigPath = join(worktreePath, '.mcp.json');
+
+    // Only sync if .mcp.json exists (i.e., this was a created worktree, not main)
+    if (!existsSync(mcpConfigPath)) {
+      return;
+    }
+
+    try {
+      // Read existing config and check if ID needs updating
+      const existingContent = await readFile(mcpConfigPath, 'utf-8');
+      const existingConfig = JSON.parse(existingContent);
+
+      const currentId = existingConfig?.mcpServers?.['orchard-agent']?.env?.WORKTREE_ID;
+
+      // Only update if the ID is different
+      if (currentId !== worktreeId) {
+        console.log(`Syncing .mcp.json for worktree ${worktreePath}: ${currentId} -> ${worktreeId}`);
+        await this.setupAgentMcp(worktreePath, worktreeId, projectPath);
+      }
+    } catch (err) {
+      // If we can't read/parse the existing config, regenerate it
+      console.log(`Regenerating .mcp.json for worktree ${worktreePath} due to read error`);
+      await this.setupAgentMcp(worktreePath, worktreeId, projectPath);
     }
   }
 
