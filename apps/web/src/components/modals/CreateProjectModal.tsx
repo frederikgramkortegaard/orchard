@@ -67,54 +67,60 @@ export function CreateProjectModal({ isOpen, onClose, onSubmit, onOpenExisting }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-zinc-800 rounded-lg w-full max-w-md mx-4 shadow-xl">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-700">
-          <h2 className="text-lg font-semibold">Open Project</h2>
-          <button onClick={onClose} className="text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white">
-            <X size={20} />
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-backdrop">
+      <div className="bg-white dark:bg-neutral-800 rounded-xl w-full max-w-md mx-4 shadow-2xl animate-modal border border-zinc-200 dark:border-neutral-700">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100 dark:border-neutral-700">
+          <h2 className="text-base font-semibold">Open Project</h2>
+          <button onClick={onClose} className="p-1 text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-neutral-700 rounded-lg transition-colors">
+            <X size={18} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
           {/* Mode selector */}
-          <div className="flex gap-2">
+          <div className="flex gap-1 p-1 bg-zinc-100 dark:bg-neutral-900 rounded-lg">
             <button
               type="button"
               onClick={() => setMode('recent')}
-              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded ${
-                mode === 'recent' ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-white' : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-500 dark:text-zinc-400'
+              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                mode === 'recent'
+                  ? 'bg-white dark:bg-neutral-700 text-zinc-900 dark:text-white shadow-sm'
+                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
               }`}
             >
-              <Clock size={16} />
+              <Clock size={14} />
               Recent
             </button>
             <button
               type="button"
               onClick={() => setMode('url')}
-              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded ${
-                mode === 'url' ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-white' : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-500 dark:text-zinc-400'
+              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                mode === 'url'
+                  ? 'bg-white dark:bg-neutral-700 text-zinc-900 dark:text-white shadow-sm'
+                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
               }`}
             >
-              <GitBranch size={16} />
+              <GitBranch size={14} />
               Clone
             </button>
             <button
               type="button"
               onClick={() => setMode('local')}
-              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded ${
-                mode === 'local' ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-white' : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-500 dark:text-zinc-400'
+              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                mode === 'local'
+                  ? 'bg-white dark:bg-neutral-700 text-zinc-900 dark:text-white shadow-sm'
+                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
               }`}
             >
-              <Folder size={16} />
+              <Folder size={14} />
               Local
             </button>
           </div>
 
           {mode === 'recent' ? (
-            <div className="space-y-2">
+            <div className="space-y-1.5 max-h-64 overflow-y-auto">
               {availableProjects.length === 0 ? (
-                <p className="text-zinc-500 text-center py-4">No recent projects</p>
+                <p className="text-zinc-400 dark:text-zinc-500 text-center py-6 text-sm">No recent projects</p>
               ) : (
                 availableProjects.map((project) => (
                   <button
@@ -122,12 +128,14 @@ export function CreateProjectModal({ isOpen, onClose, onSubmit, onOpenExisting }
                     type="button"
                     onClick={() => handleOpenExisting(project)}
                     disabled={isSubmitting}
-                    className="w-full flex items-center gap-3 px-3 py-2 bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded text-left"
+                    className="w-full flex items-center gap-3 px-3 py-2.5 bg-zinc-50 dark:bg-neutral-900 hover:bg-zinc-100 dark:hover:bg-neutral-700 rounded-lg text-left transition-colors group"
                   >
-                    <Folder size={18} className="text-zinc-500 dark:text-zinc-400" />
+                    <div className="p-1.5 bg-blue-500/10 dark:bg-blue-500/20 rounded-md">
+                      <Folder size={16} className="text-blue-500 dark:text-blue-400" />
+                    </div>
                     <div className="flex-1 min-w-0">
-                      <div className="font-medium truncate">{project.name}</div>
-                      <div className="text-xs text-zinc-500 truncate">{project.path}</div>
+                      <div className="font-medium text-sm truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{project.name}</div>
+                      <div className="text-xs text-zinc-400 dark:text-zinc-500 truncate font-mono">{project.path}</div>
                     </div>
                   </button>
                 ))
@@ -135,13 +143,13 @@ export function CreateProjectModal({ isOpen, onClose, onSubmit, onOpenExisting }
             </div>
           ) : mode === 'url' ? (
             <div>
-              <label className="block text-sm text-zinc-500 dark:text-zinc-400 mb-1">Repository URL</label>
+              <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">Repository URL</label>
               <input
                 type="text"
                 value={repoUrl}
                 onChange={(e) => setRepoUrl(e.target.value)}
                 placeholder="https://github.com/user/repo.git"
-                className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded focus:outline-none focus:border-blue-500"
+                className="input"
                 required
               />
             </div>
@@ -157,41 +165,41 @@ export function CreateProjectModal({ isOpen, onClose, onSubmit, onOpenExisting }
             />
           ) : (
             <div>
-              <label className="block text-sm text-zinc-500 dark:text-zinc-400 mb-1">Local Repository Path</label>
+              <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">Local Repository Path</label>
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={localPath}
                   onChange={(e) => setLocalPath(e.target.value)}
                   placeholder="/path/to/existing/repo"
-                  className="flex-1 px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded focus:outline-none focus:border-blue-500"
+                  className="input flex-1"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowBrowser(true)}
-                  className="px-3 py-2 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 rounded"
+                  className="px-3 py-2 bg-zinc-100 dark:bg-neutral-700 hover:bg-zinc-200 dark:hover:bg-neutral-600 rounded-lg transition-colors"
                   title="Browse folders"
                 >
-                  <FolderOpen size={18} />
+                  <FolderOpen size={16} />
                 </button>
               </div>
             </div>
           )}
 
           <div>
-            <label className="block text-sm text-zinc-500 dark:text-zinc-400 mb-1">Project Name (optional)</label>
+            <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">Project Name (optional)</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Auto-detected from repo"
-              className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded focus:outline-none focus:border-blue-500"
+              className="input"
             />
           </div>
 
           {error && (
-            <div className="px-3 py-2 bg-red-100 dark:bg-red-900/50 border border-red-300 dark:border-red-700 rounded text-red-700 dark:text-red-200 text-sm">
+            <div className="px-3 py-2.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-lg text-red-600 dark:text-red-300 text-sm">
               {error}
             </div>
           )}
@@ -200,14 +208,14 @@ export function CreateProjectModal({ isOpen, onClose, onSubmit, onOpenExisting }
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 rounded"
+              className="flex-1 px-4 py-2.5 bg-zinc-100 dark:bg-neutral-700 hover:bg-zinc-200 dark:hover:bg-neutral-600 rounded-lg text-sm font-medium transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded disabled:opacity-50"
+              className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium disabled:opacity-50 shadow-sm hover:shadow-md transition-all"
             >
               {isSubmitting ? 'Creating...' : 'Open Project'}
             </button>

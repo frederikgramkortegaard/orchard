@@ -45,17 +45,19 @@ export function CommitsChart({ projectId }: CommitsChartProps) {
   }));
 
   return (
-    <div className="bg-zinc-100 dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">
+    <div className="bg-white dark:bg-neutral-800 rounded-xl border border-zinc-200 dark:border-neutral-700 p-5 shadow-sm">
       <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <GitCommit size={16} className="text-blue-500" />
-          <h3 className="text-sm font-medium">Commits (14 days)</h3>
+        <div className="flex items-center gap-2.5">
+          <div className="p-1.5 bg-blue-500/10 dark:bg-blue-500/20 rounded-lg">
+            <GitCommit size={14} className="text-blue-500" />
+          </div>
+          <h3 className="text-sm font-semibold">Commits (14 days)</h3>
         </div>
         <span className="text-2xl font-bold text-blue-500">{totalCommits}</span>
       </div>
 
       {isLoading ? (
-        <div className="h-[120px] flex items-center justify-center text-zinc-500 text-sm">
+        <div className="h-[120px] flex items-center justify-center text-zinc-400 dark:text-zinc-500 text-sm">
           Loading...
         </div>
       ) : (

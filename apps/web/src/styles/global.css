@@ -2,6 +2,140 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ========================================
+   Design Tokens - Softer Dark Theme
+   ======================================== */
+
+:root {
+  /* Spacing scale (4px grid) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* Border radius scale */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* Shadows for depth */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+
+  /* Transition */
+  --transition-fast: 150ms ease;
+  --transition-normal: 200ms ease;
+}
+
+/* Softer dark theme colors - not pure black */
+.dark {
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+}
+
+/* ========================================
+   Base Styles
+   ======================================== */
+
+html {
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Improved typography defaults */
+body {
+  line-height: 1.5;
+  letter-spacing: -0.011em;
+}
+
+/* ========================================
+   Custom Utility Classes
+   ======================================== */
+
+/* Soft surface backgrounds for dark mode */
+.surface-base {
+  @apply bg-white dark:bg-neutral-900;
+}
+
+.surface-raised {
+  @apply bg-zinc-50 dark:bg-neutral-800;
+}
+
+.surface-overlay {
+  @apply bg-white dark:bg-neutral-800;
+}
+
+/* Card styles with shadows */
+.card {
+  @apply bg-white dark:bg-neutral-800 rounded-xl border border-zinc-200 dark:border-neutral-700;
+  box-shadow: var(--shadow-sm);
+}
+
+.card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* Panel styles */
+.panel {
+  @apply bg-zinc-50 dark:bg-neutral-850 border border-zinc-200 dark:border-neutral-700 rounded-lg;
+}
+
+/* Button base styles */
+.btn {
+  @apply inline-flex items-center justify-center gap-2 font-medium transition-all duration-150;
+  @apply rounded-lg px-4 py-2;
+}
+
+.btn-primary {
+  @apply bg-blue-600 hover:bg-blue-500 text-white;
+  @apply shadow-sm hover:shadow-md;
+}
+
+.btn-secondary {
+  @apply bg-zinc-200 dark:bg-neutral-700 hover:bg-zinc-300 dark:hover:bg-neutral-600;
+  @apply text-zinc-900 dark:text-zinc-100;
+}
+
+/* Input styles */
+.input {
+  @apply w-full px-3 py-2 bg-white dark:bg-neutral-900 border border-zinc-300 dark:border-neutral-600;
+  @apply rounded-lg text-sm transition-colors duration-150;
+  @apply focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500;
+  @apply placeholder:text-zinc-400 dark:placeholder:text-zinc-500;
+}
+
+/* Scrollbar styling for dark mode */
+.dark ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgb(82 82 91 / 0.5);
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgb(82 82 91 / 0.8);
+}
+
+/* ========================================
+   Animations
+   ======================================== */
+
 /* Toast slide-in animation */
 @keyframes slide-in {
   from {
@@ -16,4 +150,50 @@
 
 .animate-slide-in {
   animation: slide-in 0.3s ease-out;
+}
+
+/* Subtle fade-in */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
+/* Modal backdrop */
+@keyframes backdrop-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-backdrop {
+  animation: backdrop-fade 0.15s ease-out;
+}
+
+/* Modal content */
+@keyframes modal-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-modal {
+  animation: modal-enter 0.2s ease-out;
 }

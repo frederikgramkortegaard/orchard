@@ -2,17 +2,24 @@ import { X, CheckCircle, XCircle, AlertTriangle, Info } from 'lucide-react';
 import { useToast, type Toast as ToastType, type ToastType as ToastVariant } from '../contexts/ToastContext';
 
 const iconMap: Record<ToastVariant, React.ReactNode> = {
-  success: <CheckCircle size={18} className="text-green-500" />,
-  error: <XCircle size={18} className="text-red-500" />,
-  warning: <AlertTriangle size={18} className="text-amber-500" />,
-  info: <Info size={18} className="text-blue-500" />,
+  success: <CheckCircle size={16} className="text-emerald-500" />,
+  error: <XCircle size={16} className="text-red-500" />,
+  warning: <AlertTriangle size={16} className="text-amber-500" />,
+  info: <Info size={16} className="text-blue-500" />,
 };
 
 const bgColorMap: Record<ToastVariant, string> = {
-  success: 'bg-green-50 dark:bg-green-900/30 pink:bg-green-50 border-green-200 dark:border-green-800 pink:border-green-200',
-  error: 'bg-red-50 dark:bg-red-900/30 pink:bg-red-50 border-red-200 dark:border-red-800 pink:border-red-200',
-  warning: 'bg-amber-50 dark:bg-amber-900/30 pink:bg-amber-50 border-amber-200 dark:border-amber-800 pink:border-amber-200',
-  info: 'bg-blue-50 dark:bg-blue-900/30 pink:bg-blue-50 border-blue-200 dark:border-blue-800 pink:border-blue-200',
+  success: 'bg-white dark:bg-neutral-800 border-emerald-200 dark:border-emerald-800/50',
+  error: 'bg-white dark:bg-neutral-800 border-red-200 dark:border-red-800/50',
+  warning: 'bg-white dark:bg-neutral-800 border-amber-200 dark:border-amber-800/50',
+  info: 'bg-white dark:bg-neutral-800 border-blue-200 dark:border-blue-800/50',
+};
+
+const iconBgMap: Record<ToastVariant, string> = {
+  success: 'bg-emerald-50 dark:bg-emerald-900/30',
+  error: 'bg-red-50 dark:bg-red-900/30',
+  warning: 'bg-amber-50 dark:bg-amber-900/30',
+  info: 'bg-blue-50 dark:bg-blue-900/30',
 };
 
 function ToastItem({ toast }: { toast: ToastType }) {
@@ -20,15 +27,17 @@ function ToastItem({ toast }: { toast: ToastType }) {
 
   return (
     <div
-      className={`flex items-center gap-3 px-4 py-3 rounded-lg border shadow-lg ${bgColorMap[toast.type]} animate-slide-in`}
+      className={`flex items-center gap-3 px-4 py-3 rounded-xl border shadow-lg ${bgColorMap[toast.type]} animate-slide-in`}
     >
-      {iconMap[toast.type]}
-      <span className="flex-1 text-sm text-zinc-800 dark:text-zinc-100 pink:text-pink-900">
+      <div className={`p-1.5 rounded-lg ${iconBgMap[toast.type]}`}>
+        {iconMap[toast.type]}
+      </div>
+      <span className="flex-1 text-sm text-zinc-700 dark:text-zinc-200">
         {toast.message}
       </span>
       <button
         onClick={() => removeToast(toast.id)}
-        className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 pink:hover:text-pink-600 rounded"
+        className="p-1 text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400 rounded-lg hover:bg-zinc-100 dark:hover:bg-neutral-700 transition-colors"
       >
         <X size={14} />
       </button>

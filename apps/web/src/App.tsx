@@ -112,7 +112,7 @@ function App() {
   }, [activeWorktreeId, closeAllFiles]);
 
   return (
-    <div className="h-screen flex flex-col bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">
+    <div className="h-screen flex flex-col bg-white dark:bg-neutral-900 text-zinc-900 dark:text-zinc-100">
       {/* Project tabs bar */}
       <ProjectTabBar
         onNewProject={() => setShowProjectModal(true)}
@@ -121,26 +121,27 @@ function App() {
       />
 
       {/* Header */}
-      <header className="flex items-center justify-between px-4 py-2 bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700">
+      <header className="flex items-center justify-between px-4 py-2.5 bg-zinc-50 dark:bg-neutral-800/80 border-b border-zinc-200 dark:border-neutral-700">
         <div className="flex items-center gap-4">
-          <h1 className="text-xl font-bold">Orchard</h1>
+          <h1 className="text-lg font-semibold tracking-tight">Orchard</h1>
           {activeProject && (
             <span className="text-sm text-zinc-500 dark:text-zinc-400">
               {activeProject.name}
-              {activeWorktree && ` / ${activeWorktree.branch}`}
+              {activeWorktree && <span className="text-zinc-400 dark:text-zinc-500"> / </span>}
+              {activeWorktree && <span className="font-medium text-zinc-600 dark:text-zinc-300">{activeWorktree.branch}</span>}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-zinc-500 dark:text-zinc-400">
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-zinc-400 dark:text-zinc-500 font-mono">
             {activeWorktree ? activeWorktree.path : 'No worktree selected'}
           </span>
           <button
             onClick={toggleTheme}
-            className="p-2 rounded-lg bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+            className="p-2 rounded-lg bg-zinc-100 dark:bg-neutral-700 hover:bg-zinc-200 dark:hover:bg-neutral-600 transition-colors"
             title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
           >
-            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
           </button>
         </div>
       </header>
@@ -160,7 +161,7 @@ function App() {
             />
           </Panel>
 
-          <Separator className="w-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-col-resize" />
+          <Separator className="w-px bg-zinc-200 dark:bg-neutral-700 hover:bg-blue-400 dark:hover:bg-blue-500 cursor-col-resize transition-colors" />
 
           <Panel defaultSize={60} minSize={5}>
             <Group orientation="vertical" className="h-full">
@@ -169,23 +170,23 @@ function App() {
               {activeWorktree ? (
                 <EditorPane worktreePath={activeWorktree.path} />
               ) : (
-                <div className="h-full bg-zinc-50 dark:bg-zinc-900 flex items-center justify-center text-zinc-500 dark:text-zinc-500">
+                <div className="h-full bg-zinc-50 dark:bg-neutral-900 flex items-center justify-center text-zinc-500 dark:text-zinc-400">
                   {activeProject ? (
-                    <div className="text-center">
-                      <p>Select a worktree or create a new one</p>
+                    <div className="text-center animate-fade-in">
+                      <p className="text-sm">Select a worktree or create a new one</p>
                       <button
                         onClick={() => setShowWorktreeModal(true)}
-                        className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded"
+                        className="mt-4 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg shadow-sm hover:shadow-md transition-all"
                       >
                         Create Worktree
                       </button>
                     </div>
                   ) : (
-                    <div className="text-center">
-                      <p>Open a project to get started</p>
+                    <div className="text-center animate-fade-in">
+                      <p className="text-sm">Open a project to get started</p>
                       <button
                         onClick={() => setShowProjectModal(true)}
-                        className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded"
+                        className="mt-4 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg shadow-sm hover:shadow-md transition-all"
                       >
                         Open Project
                       </button>
@@ -195,7 +196,7 @@ function App() {
               )}
             </Panel>
 
-            <Separator className="h-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-row-resize" />
+            <Separator className="h-px bg-zinc-200 dark:bg-neutral-700 hover:bg-blue-400 dark:hover:bg-blue-500 cursor-row-resize transition-colors" />
 
             {/* Terminal area */}
             <Panel defaultSize={45} minSize={5}>
@@ -211,9 +212,9 @@ function App() {
           {/* Orchestrator log panel on the right */}
           {activeProjectId && (
             <>
-              <Separator className="w-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-col-resize" />
+              <Separator className="w-px bg-zinc-200 dark:bg-neutral-700 hover:bg-blue-400 dark:hover:bg-blue-500 cursor-col-resize transition-colors" />
               <Panel defaultSize={20} minSize={5}>
-                <div className="h-full p-2 bg-zinc-100 dark:bg-zinc-800">
+                <div className="h-full p-3 bg-zinc-50 dark:bg-neutral-800/50">
                   <OrchestratorLog projectId={activeProjectId} />
                 </div>
               </Panel>

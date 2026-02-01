@@ -147,15 +147,15 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
   }, [inputText, orchestratorSessionId, projectId, addMessage]);
 
   return (
-    <div className="flex flex-col h-full bg-zinc-200 dark:bg-zinc-800 rounded-lg border border-zinc-300 dark:border-zinc-700 overflow-hidden">
+    <div className="flex flex-col h-full bg-white dark:bg-neutral-800 rounded-xl border border-zinc-200 dark:border-neutral-700 overflow-hidden shadow-sm">
       {/* Chat header */}
-      <div className="flex items-center gap-2 px-3 py-2 bg-zinc-100 dark:bg-zinc-900 border-b border-zinc-300 dark:border-zinc-700">
+      <div className="flex items-center gap-2 px-3 py-2 bg-zinc-50 dark:bg-neutral-900/50 border-b border-zinc-100 dark:border-neutral-700">
         <div
-          className={`w-2 h-2 rounded-full ${
-            orchestratorSessionId ? 'bg-green-500' : 'bg-zinc-400'
+          className={`w-1.5 h-1.5 rounded-full ${
+            orchestratorSessionId ? 'bg-emerald-400' : 'bg-zinc-300 dark:bg-zinc-600'
           }`}
         />
-        <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+        <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
           {orchestratorSessionId ? 'Connected' : 'Messages will queue'}
         </span>
       </div>
@@ -163,38 +163,38 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
       {/* Chat messages */}
       <div
         ref={chatRef}
-        className="flex-1 overflow-y-auto p-2 space-y-2"
+        className="flex-1 overflow-y-auto p-3 space-y-3"
       >
         {chatMessages.length === 0 ? (
-          <div className="text-xs text-zinc-500 text-center py-4">
-            No messages yet. Send a message to the orchestrator.
+          <div className="text-xs text-zinc-400 dark:text-zinc-500 text-center py-6">
+            Send a message to the orchestrator
           </div>
         ) : (
           chatMessages.map((msg) => (
             <div
               key={msg.id}
-              className={`flex gap-2 ${msg.from === 'user' ? 'justify-end' : 'justify-start'}`}
+              className={`flex gap-2 ${msg.from === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}
             >
               {msg.from === 'orchestrator' && (
-                <div className="w-6 h-6 rounded-full bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center flex-shrink-0">
-                  <Bot size={14} className="text-amber-600 dark:text-amber-400" />
+                <div className="w-6 h-6 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
+                  <Bot size={12} className="text-amber-600 dark:text-amber-400" />
                 </div>
               )}
               <div
-                className={`max-w-[80%] px-3 py-2 rounded-lg text-sm ${
+                className={`max-w-[85%] px-3 py-2 text-[13px] leading-relaxed ${
                   msg.from === 'user'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200'
+                    ? 'bg-blue-500 text-white rounded-2xl rounded-br-md'
+                    : 'bg-zinc-100 dark:bg-neutral-700 text-zinc-700 dark:text-zinc-200 rounded-2xl rounded-bl-md'
                 }`}
               >
                 <p className="whitespace-pre-wrap break-words">{msg.text}</p>
-                <p className={`text-xs mt-1 ${msg.from === 'user' ? 'text-blue-200' : 'text-zinc-400'}`}>
+                <p className={`text-[10px] mt-1 ${msg.from === 'user' ? 'text-blue-200' : 'text-zinc-400 dark:text-zinc-500'}`}>
                   {new Date(msg.timestamp).toLocaleTimeString()}
                 </p>
               </div>
               {msg.from === 'user' && (
-                <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center flex-shrink-0">
-                  <User size={14} className="text-blue-600 dark:text-blue-400" />
+                <div className="w-6 h-6 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+                  <User size={12} className="text-blue-600 dark:text-blue-400" />
                 </div>
               )}
             </div>
@@ -204,48 +204,48 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
 
       {/* Clear pending button */}
       {pendingCount > 0 && (
-        <div className="flex justify-end px-2 py-1 bg-zinc-100 dark:bg-zinc-900 border-t border-zinc-300 dark:border-zinc-700">
+        <div className="flex justify-end px-3 py-1.5 bg-zinc-50 dark:bg-neutral-900/50 border-t border-zinc-100 dark:border-neutral-700">
           <button
             onClick={handleClearPending}
             disabled={isClearing}
-            className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 flex items-center gap-1 disabled:opacity-50"
+            className="text-[11px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 flex items-center gap-1 disabled:opacity-50 transition-colors"
             title="Mark all pending messages as processed"
           >
-            <XCircle size={12} />
+            <XCircle size={11} />
             {isClearing ? 'Clearing...' : `Clear ${pendingCount} pending`}
           </button>
         </div>
       )}
 
       {/* Input area */}
-      <div className="flex items-center gap-2 p-2 bg-zinc-100 dark:bg-zinc-900 border-t border-zinc-300 dark:border-zinc-700">
+      <div className="flex items-center gap-2 p-2 bg-zinc-50 dark:bg-neutral-900/50 border-t border-zinc-100 dark:border-neutral-700">
         <div
-          className={`flex items-center justify-center w-8 h-8 rounded ${
+          className={`flex items-center justify-center w-7 h-7 rounded-lg transition-colors ${
             status === 'success'
-              ? 'bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400'
+              ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
               : status === 'error'
-              ? 'bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400'
+              ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
               : orchestratorSessionId
-              ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
-              : 'bg-zinc-300 dark:bg-zinc-700 text-zinc-500'
+              ? 'bg-amber-100 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400'
+              : 'bg-zinc-100 dark:bg-neutral-700 text-zinc-400'
           }`}
         >
-          <Radio size={16} className={isSending ? 'animate-pulse' : ''} />
+          <Radio size={14} className={isSending ? 'animate-pulse' : ''} />
         </div>
         <input
           type="text"
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           placeholder="Message..."
-          className="flex-1 px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded text-sm focus:outline-none focus:border-amber-500 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+          className="flex-1 px-3 py-1.5 bg-white dark:bg-neutral-800 border border-zinc-200 dark:border-neutral-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 transition-all"
           onKeyDown={(e) => e.key === 'Enter' && !isSending && handleSend()}
         />
         <button
           onClick={handleSend}
           disabled={isSending || !inputText.trim()}
-          className="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded text-sm disabled:opacity-50 flex items-center"
+          className="p-2 bg-amber-500 hover:bg-amber-400 text-white rounded-lg disabled:opacity-40 flex items-center shadow-sm hover:shadow-md transition-all"
         >
-          {isSending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+          {isSending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
         </button>
       </div>
     </div>
