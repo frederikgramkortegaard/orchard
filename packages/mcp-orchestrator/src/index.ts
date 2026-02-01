@@ -27,6 +27,7 @@ import { logActivity } from './tools/log-activity.js';
 import { listProjects } from './tools/list-projects.js';
 import { getMergeQueue } from './tools/get-merge-queue.js';
 import { mergeFromQueue } from './tools/merge-from-queue.js';
+import { removeFromQueue } from './tools/remove-from-queue.js';
 
 // Orchard server base URL (configurable via env)
 const ORCHARD_API = process.env.ORCHARD_API || 'http://localhost:3001';
@@ -442,6 +443,20 @@ const tools: Tool[] = [
       required: ['worktreeId'],
     },
   },
+  {
+    name: 'remove_from_merge_queue',
+    description: 'Remove a worktree from the merge queue without merging',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        worktreeId: {
+          type: 'string',
+          description: 'The worktree ID to remove from the merge queue',
+        },
+      },
+      required: ['worktreeId'],
+    },
+  },
 ];
 
 // Tool handlers with automatic activity logging
@@ -583,6 +598,26 @@ const toolHandlers: Record<string, (args: Record<string, unknown>) => Promise<st
         await logToolActivity(wt.projectId, 'orchestrator', `Merged from queue: ${wt.branch}`, { worktreeId });
       }
     } catch { /* ignore */ }
+    return result;
+  },
+
+  remove_from_merge_queue: async (args) => {
+    const { worktreeId } = args as { worktreeId: string };
+    // Get worktree info for activity logging before removing
+    let projectId: string | undefined;
+    let branch: string | undefined;
+    try {
+      const res = await fetch(`${ORCHARD_API}/worktrees/${worktreeId}`);
+      if (res.ok) {
+        const wt = await res.json();
+        projectId = wt.projectId;
+        branch = wt.branch;
+      }
+    } catch { /* ignore */ }
+    const result = await removeFromQueue(ORCHARD_API, { worktreeId });
+    if (projectId) {
+      await logToolActivity(projectId, 'orchestrator', `Removed from queue: ${branch || worktreeId}`, { worktreeId });
+    }
     return result;
   },
 };
