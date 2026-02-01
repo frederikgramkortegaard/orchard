@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
-import { Sun, Moon, Settings, Activity, GitCommit } from 'lucide-react';
+import { Sun, Moon, Settings } from 'lucide-react';
 import { useProjectStore } from './stores/project.store';
 import { useTheme } from './contexts/ThemeContext';
 import { useToast } from './contexts/ToastContext';
@@ -12,12 +12,9 @@ import { KeyboardShortcutsModal } from './components/modals/KeyboardShortcutsMod
 import { SettingsModal } from './components/modals/SettingsModal';
 import { DiffViewerModal } from './components/diff';
 import { OrchestratorPanel } from './components/orchestrator/OrchestratorPanel';
-import { ActivityLog } from './components/orchestrator/ActivityLog';
+import { ActivityPane } from './components/orchestrator/ActivityPane';
 import { Dashboard } from './components/dashboard/Dashboard';
-import { GitHistorySidebar, CommitDetailModal } from './components/git-history';
 import * as api from './api/projects';
-
-type RightPanelTab = 'activity' | 'git-history';
 
 function App() {
   const { theme, toggleTheme } = useTheme();
@@ -28,12 +25,6 @@ function App() {
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [diffViewerState, setDiffViewerState] = useState<{ worktreeId: string; branch: string } | null>(null);
-  const [rightPanelTab, setRightPanelTab] = useState<RightPanelTab>('activity');
-  const [commitDetailState, setCommitDetailState] = useState<{
-    commitHash: string | null;
-    compareBase: string | null;
-    compareTarget: string | null;
-  } | null>(null);
   const {
     projects,
     activeProjectId,
@@ -95,7 +86,6 @@ function App() {
         setShowWorktreeModal(false);
         setShowSettingsModal(false);
         setDiffViewerState(null);
-        setCommitDetailState(null);
       }
 
       // Cmd/Ctrl + 1-9 - Switch to worktree
@@ -150,14 +140,10 @@ function App() {
     try {
       await api.archiveWorktree(worktreeId);
       addToast('info', `Worktree "${worktree?.branch || 'unknown'}" archived`);
-      // Force refresh worktrees to update UI immediately
-      if (activeProjectId) {
-        api.fetchWorktreesWithConflicts(activeProjectId).then(setWorktrees).catch(console.error);
-      }
     } catch (err: any) {
       addToast('error', err.message || 'Failed to archive worktree');
     }
-  }, [worktrees, addToast, activeProjectId, setWorktrees]);
+  }, [worktrees, addToast]);
 
   const handleDeleteProject = useCallback(async (projectId: string) => {
     await api.deleteProject(projectId);
@@ -166,14 +152,6 @@ function App() {
 
   const handleViewDiff = useCallback((worktreeId: string, branch: string) => {
     setDiffViewerState({ worktreeId, branch });
-  }, []);
-
-  const handleViewCommitDiff = useCallback((commitHash: string) => {
-    setCommitDetailState({ commitHash, compareBase: null, compareTarget: null });
-  }, []);
-
-  const handleCompareCommits = useCallback((base: string, target: string) => {
-    setCommitDetailState({ commitHash: null, compareBase: base, compareTarget: target });
   }, []);
 
   const activeWorktree = worktrees.find((w) => w.id === activeWorktreeId);
@@ -266,55 +244,13 @@ function App() {
             )}
           </Panel>
 
-          {/* Right: Activity feed / Git History */}
+          {/* Right: Activity feed / Orchestrator log */}
           {activeProjectId && (
             <>
               <Separator className="w-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-col-resize" />
               <Panel defaultSize={20} minSize={5}>
-                <div className="h-full flex flex-col bg-zinc-100 dark:bg-zinc-800">
-                  {/* Tab switcher */}
-                  <div className="flex border-b border-zinc-200 dark:border-zinc-700 flex-shrink-0">
-                    <button
-                      onClick={() => setRightPanelTab('activity')}
-                      className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors ${
-                        rightPanelTab === 'activity'
-                          ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
-                          : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'
-                      }`}
-                    >
-                      <Activity size={14} />
-                      Activity
-                    </button>
-                    <button
-                      onClick={() => setRightPanelTab('git-history')}
-                      className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors ${
-                        rightPanelTab === 'git-history'
-                          ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
-                          : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'
-                      }`}
-                    >
-                      <GitCommit size={14} />
-                      Git History
-                    </button>
-                  </div>
-                  {/* Tab content */}
-                  <div className="flex-1 min-h-0 overflow-hidden">
-                    {rightPanelTab === 'activity' ? (
-                      <div className="h-full p-2">
-                        <ActivityLog projectId={activeProjectId} />
-                      </div>
-                    ) : activeWorktreeId ? (
-                      <GitHistorySidebar
-                        worktreeId={activeWorktreeId}
-                        onViewCommitDiff={handleViewCommitDiff}
-                        onCompareCommits={handleCompareCommits}
-                      />
-                    ) : (
-                      <div className="flex items-center justify-center h-full text-zinc-500 dark:text-zinc-400">
-                        <p className="text-sm">Select a worktree to view git history</p>
-                      </div>
-                    )}
-                  </div>
+                <div className="h-full p-2 bg-zinc-100 dark:bg-zinc-800">
+                  <ActivityPane projectId={activeProjectId} />
                 </div>
               </Panel>
             </>
@@ -345,17 +281,6 @@ function App() {
           worktreeId={diffViewerState.worktreeId}
           worktreeBranch={diffViewerState.branch}
           onClose={() => setDiffViewerState(null)}
-        />
-      )}
-
-      {commitDetailState && activeWorktreeId && (
-        <CommitDetailModal
-          isOpen={!!commitDetailState}
-          worktreeId={activeWorktreeId}
-          commitHash={commitDetailState.commitHash}
-          compareBase={commitDetailState.compareBase}
-          compareTarget={commitDetailState.compareTarget}
-          onClose={() => setCommitDetailState(null)}
         />
       )}
 

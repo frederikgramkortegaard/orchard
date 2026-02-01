@@ -379,3 +379,30 @@ export async function fetchCommitFileContent(
   }
   return res.json();
 }
+
+// Alias for backward compatibility
+export type GitHistoryCommit = GitGraphNode;
+
+// Fetch worktree history (alias for fetchGitHistory)
+export async function fetchWorktreeHistory(
+  worktreeId: string,
+  limit = 100
+): Promise<GitHistoryResult> {
+  return fetchGitHistory(worktreeId, limit);
+}
+
+// Fetch project-wide history (all branches)
+export async function fetchProjectHistory(
+  projectId: string,
+  limit = 100
+): Promise<GitHistoryResult> {
+  const params = new URLSearchParams({
+    limit: limit.toString(),
+  });
+  const res = await fetch(`${API_BASE}/projects/${projectId}/history?${params}`);
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to fetch project history');
+  }
+  return res.json();
+}

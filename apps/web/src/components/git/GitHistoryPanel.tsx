@@ -3,7 +3,7 @@ import { GitCommit, GitBranch, RefreshCw, User, Clock } from 'lucide-react';
 import {
   fetchProjectHistory,
   fetchWorktreeHistory,
-  type GitHistoryCommit,
+  type GitCommitInfo,
   type GitHistoryResult,
 } from '../../api/projects';
 
@@ -162,8 +162,8 @@ export function GitHistoryPanel({ projectId, worktreeId, worktreeBranch }: GitHi
           </div>
         ) : history?.commits && history.commits.length > 0 ? (
           <div className="divide-y divide-zinc-200 dark:divide-zinc-700">
-            {history.commits.map((commit) => (
-              <CommitRow key={commit.hash} commit={commit} formatDate={formatDate} />
+            {history.commits.map((node) => (
+              <CommitRow key={node.commit.hash} commit={node.commit} formatDate={formatDate} />
             ))}
           </div>
         ) : (
@@ -176,7 +176,7 @@ export function GitHistoryPanel({ projectId, worktreeId, worktreeBranch }: GitHi
   );
 }
 
-function CommitRow({ commit, formatDate }: { commit: GitHistoryCommit; formatDate: (date: string) => string }) {
+function CommitRow({ commit, formatDate }: { commit: GitCommitInfo; formatDate: (date: string) => string }) {
   return (
     <div className="px-4 py-3 hover:bg-zinc-200/50 dark:hover:bg-zinc-700/50 transition-colors">
       <div className="flex items-start gap-3">
