@@ -25,6 +25,8 @@ function App() {
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [diffViewerState, setDiffViewerState] = useState<{ worktreeId: string; branch: string } | null>(null);
+  // Counter to force remount of project-dependent components on switch for instant data refresh
+  const [projectSwitchKey, setProjectSwitchKey] = useState(0);
   const {
     projects,
     activeProjectId,
@@ -57,6 +59,15 @@ function App() {
       setWorktrees([]);
     }
   }, [activeProjectId, setWorktrees]);
+
+  // Handle project tab switch - trigger immediate fetches for instant feel
+  const handleProjectSwitch = useCallback((projectId: string) => {
+    // Immediately fetch worktrees for the new project
+    api.fetchWorktreesWithConflicts(projectId).then(setWorktrees).catch(console.error);
+    // Increment switch key to force remount of project-dependent components
+    // This ensures chat and activity components immediately fetch fresh data
+    setProjectSwitchKey(prev => prev + 1);
+  }, [setWorktrees]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -174,6 +185,7 @@ function App() {
         onNewProject={() => setShowProjectModal(true)}
         showDashboard={showDashboard}
         onToggleDashboard={() => setShowDashboard(!showDashboard)}
+        onProjectSwitch={handleProjectSwitch}
       />
 
       {/* Header */}
@@ -240,7 +252,7 @@ function App() {
               <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-900">
                 {/* Loop control hidden - see OrchestratorLoopControl if re-enabling */}
                 <div className="flex-1 min-h-0 p-2">
-                  <OrchestratorPanel projectId={activeProjectId} projectPath={activeProject.path} />
+                  <OrchestratorPanel key={`chat-${activeProjectId}-${projectSwitchKey}`} projectId={activeProjectId} projectPath={activeProject.path} />
                 </div>
               </div>
             ) : (
@@ -264,7 +276,7 @@ function App() {
               <Separator className="w-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-col-resize" />
               <Panel defaultSize={20} minSize={5}>
                 <div className="h-full p-2 bg-zinc-100 dark:bg-zinc-800">
-                  <ActivityPane projectId={activeProjectId} />
+                  <ActivityPane key={`activity-${activeProjectId}-${projectSwitchKey}`} projectId={activeProjectId} />
                 </div>
               </Panel>
             </>
