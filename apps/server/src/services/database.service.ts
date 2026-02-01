@@ -1188,6 +1188,33 @@ class DatabaseService extends EventEmitter {
   }
 
   /**
+   * Get interrupted print sessions (exit code -1) that need to be resumed
+   */
+  getInterruptedPrintSessions(projectPath: string): PrintSession[] {
+    const db = this.getDatabase(projectPath);
+    const stmt = db.prepare(`
+      SELECT id, worktree_id as worktreeId, project_id as projectId, task, status,
+             exit_code as exitCode, started_at as startedAt, completed_at as completedAt
+      FROM print_sessions
+      WHERE exit_code = -1
+      ORDER BY completed_at DESC
+    `);
+    return stmt.all() as PrintSession[];
+  }
+
+  /**
+   * Mark an interrupted session as handled (so we don't keep retrying)
+   */
+  markInterruptedSessionHandled(projectPath: string, sessionId: string): void {
+    const db = this.getDatabase(projectPath);
+    // Update exit code to -2 to mark as "handled" and avoid retry loops
+    const stmt = db.prepare(`
+      UPDATE print_sessions SET exit_code = -2 WHERE id = ? AND exit_code = -1
+    `);
+    stmt.run(sessionId);
+  }
+
+  /**
    * Complete a print session
    */
   completePrintSession(projectPath: string, sessionId: string, exitCode: number): void {

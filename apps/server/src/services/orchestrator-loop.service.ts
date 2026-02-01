@@ -53,12 +53,19 @@ export interface MergeQueueItem {
   hasCommits: boolean;
 }
 
+export interface InterruptedSession {
+  sessionId: string;
+  worktreeId: string;
+  task: string;
+}
+
 export interface TickContext {
   timestamp: Date;
   tickNumber: number;
   pendingUserMessages: number;
   activeAgents: AgentStatus[];
   deadSessions: string[];
+  interruptedSessions: InterruptedSession[];
   completions: DetectedPattern[];
   questions: DetectedPattern[];
   errors: DetectedPattern[];
@@ -973,6 +980,7 @@ class OrchestratorLoopService extends EventEmitter {
                       context.completions.length > 0 ||
                       context.questions.length > 0 ||
                       context.errors.length > 0 ||
+                      context.interruptedSessions.length > 0 ||
                       context.mergeQueue.length > 0;
 
       if (!hasWork) {
@@ -1030,9 +1038,11 @@ class OrchestratorLoopService extends EventEmitter {
         pendingUserMessages: 0,
         activeAgents: [],
         deadSessions: [],
+        interruptedSessions: [],
         completions: [],
         questions: [],
         errors: [],
+        mergeQueue: [],
         projectId: this.projectId || '',
       };
     }
@@ -1416,6 +1426,14 @@ class OrchestratorLoopService extends EventEmitter {
     // Dead sessions
     if (context.deadSessions.length > 0) {
       lines.push(`- Dead sessions (auto-restarting): ${context.deadSessions.join(', ')}`);
+    }
+
+    // Interrupted sessions (need resume_session)
+    if (context.interruptedSessions.length > 0) {
+      lines.push(`- INTERRUPTED SESSIONS (use resume_session to continue):`);
+      for (const s of context.interruptedSessions) {
+        lines.push(`  - worktreeId: ${s.worktreeId} - Task: ${s.task}`);
+      }
     }
 
     // Recent completions
@@ -2606,8 +2624,9 @@ class OrchestratorLoopService extends EventEmitter {
     this.pendingQuestions = [];
     this.pendingErrors = [];
 
-    // Get merge queue
+    // Get merge queue and interrupted sessions
     let mergeQueue: MergeQueueItem[] = [];
+    let interruptedSessions: InterruptedSession[] = [];
     const project = projectService.getProject(projectId);
     if (project?.path) {
       const queueEntries = databaseService.getMergeQueue(project.path);
@@ -2618,6 +2637,14 @@ class OrchestratorLoopService extends EventEmitter {
         summary: entry.summary,
         hasCommits: entry.hasCommits,
       }));
+
+      // Get interrupted print sessions (exit code -1)
+      const interrupted = databaseService.getInterruptedPrintSessions(project.path);
+      interruptedSessions = interrupted.map(s => ({
+        sessionId: s.id,
+        worktreeId: s.worktreeId,
+        task: s.task.slice(0, 100), // Truncate for context
+      }));
     }
 
     return {
@@ -2626,6 +2653,7 @@ class OrchestratorLoopService extends EventEmitter {
       pendingUserMessages: pendingMessages.length,
       activeAgents,
       deadSessions: deadWorktreeIds,
+      interruptedSessions,
       completions,
       questions,
       errors,

@@ -38,7 +38,7 @@ function ParsedOutput({ output }: { output: string }) {
 }
 
 // Read-only print session viewer component
-function PrintSessionViewer({ session, projectId }: { session: PrintSession; projectId: string }) {
+function PrintSessionViewer({ session, projectId, worktreeBranch }: { session: PrintSession; projectId: string; worktreeBranch?: string }) {
   const [output, setOutput] = useState('');
   const [lastId, setLastId] = useState(0);
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -119,6 +119,12 @@ function PrintSessionViewer({ session, projectId }: { session: PrintSession; pro
         }`}>
           {session.status === 'running' ? 'Running' : session.status === 'completed' ? 'Completed' : 'Failed'}
         </span>
+        {worktreeBranch && (
+          <>
+            <span className="text-xs text-zinc-500">•</span>
+            <span className="text-xs text-zinc-500 font-mono">{worktreeBranch}</span>
+          </>
+        )}
         <span className="text-xs text-zinc-500">•</span>
         <span className="text-xs text-zinc-400 truncate flex-1" title={session.task}>
           {session.task}
@@ -217,7 +223,7 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
   const { send, subscribe, isConnected, connectionId } = useWebSocket();
   const { sessions, addSession, removeSession, setSessionRateLimited, clearSessionRateLimit } = useTerminalStore();
   const { addToast } = useToast();
-  const { activeProjectId } = useProjectStore();
+  const { activeProjectId, worktrees } = useProjectStore();
   const [panels, setPanels] = useState<TerminalPanel[]>([{ id: 'left', sessionId: null, printSessionId: null }]);
   const [activePanelId, setActivePanelId] = useState('left');
   const [isCreating, setIsCreating] = useState(false);
@@ -427,7 +433,10 @@ export function SplitTerminalPane({ worktreeId, worktreePath, projectPath }: Spl
   // Simple render - just show the most recent print session
   const renderContent = () => {
     if (mostRecentPrintSession && activeProjectId) {
-      return <PrintSessionViewer session={mostRecentPrintSession} projectId={activeProjectId} />;
+      // Look up the branch name for the worktree
+      const sessionWorktree = worktrees.find(w => w.id === mostRecentPrintSession.worktreeId);
+      const branchName = sessionWorktree?.branch;
+      return <PrintSessionViewer session={mostRecentPrintSession} projectId={activeProjectId} worktreeBranch={branchName} />;
     }
 
     return (
