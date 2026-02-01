@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Send, Loader2, Bot, XCircle, MessageCircle, Circle, Check, CheckCheck, Clock } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { useChatStore, type MessageStatus } from '../../stores/chat.store';
 
 interface OrchestratorPanelProps {
@@ -284,7 +285,9 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
                     : 'bg-zinc-700 text-zinc-100 rounded-tl-sm rounded-tr-xl rounded-bl-xl rounded-br-xl'
                 }`}
               >
-                <p className="whitespace-pre-wrap break-words">{msg.text}</p>
+                <div className="prose prose-sm prose-invert max-w-none break-words [&_p]:my-0 [&_p:not(:last-child)]:mb-2 [&_ul]:my-1 [&_ul]:pl-4 [&_ol]:my-1 [&_ol]:pl-4 [&_li]:my-0 [&_pre]:my-2 [&_pre]:p-2 [&_pre]:rounded [&_pre]:bg-black/20 [&_code]:text-xs [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:bg-black/20 [&_pre_code]:p-0 [&_pre_code]:bg-transparent [&_a]:text-blue-300 [&_a]:underline [&_strong]:font-semibold [&_em]:italic [&_blockquote]:border-l-2 [&_blockquote]:border-zinc-500 [&_blockquote]:pl-2 [&_blockquote]:my-2 [&_blockquote]:italic">
+                  <ReactMarkdown>{msg.text}</ReactMarkdown>
+                </div>
                 <div className={`flex items-center gap-1.5 mt-1 ${
                   msg.from === 'user' ? 'justify-end' : 'justify-start'
                 }`}>
