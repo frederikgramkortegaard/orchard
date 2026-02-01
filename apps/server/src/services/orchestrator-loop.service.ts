@@ -1629,6 +1629,32 @@ class OrchestratorLoopService extends EventEmitter {
   }
 
   /**
+   * Resolve a worktree identifier (UUID, partial UUID, or branch name) to a full worktree
+   * This helps when the LLM passes truncated UUIDs or branch names instead of full UUIDs
+   */
+  private resolveWorktree(identifier: string): { id: string; branch: string; path: string; archived: boolean } | null {
+    const projectId = this.projectId;
+    if (!projectId) return null;
+
+    // First try exact UUID match
+    const exact = worktreeService.getWorktree(identifier);
+    if (exact) return exact;
+
+    // Get all worktrees for the project
+    const allWorktrees = worktreeService.getWorktreesForProject(projectId);
+
+    // Try partial UUID match (starts with)
+    const byPartialId = allWorktrees.find(w => w.id.startsWith(identifier));
+    if (byPartialId) return byPartialId;
+
+    // Try branch name match (exact or partial)
+    const byBranch = allWorktrees.find(w => w.branch === identifier || w.branch.endsWith(identifier));
+    if (byBranch) return byBranch;
+
+    return null;
+  }
+
+  /**
    * Tool: Create a new worktree with an agent
    */
   private async toolCreateWorktree(name: string, task: string, correlationId: string): Promise<void> {
@@ -1639,7 +1665,9 @@ class OrchestratorLoopService extends EventEmitter {
     if (!project) throw new Error('Project not found');
 
     // Create worktree directly using worktree service
-    const branchName = `feature/${name}`;
+    // Strip feature/ prefix if already present to avoid feature/feature/
+    const cleanName = name.replace(/^feature\//, '');
+    const branchName = `feature/${cleanName}`;
     await this.logToTextFile(`Creating worktree: ${branchName}`);
 
     try {
@@ -1698,8 +1726,9 @@ class OrchestratorLoopService extends EventEmitter {
     const projectId = this.projectId;
     if (!projectId) throw new Error('No project context');
 
-    const worktree = worktreeService.getWorktree(worktreeId);
-    if (!worktree) throw new Error('Worktree not found');
+    // Resolve the worktree from partial UUID or branch name
+    const worktree = this.resolveWorktree(worktreeId);
+    if (!worktree) throw new Error(`Worktree not found: "${worktreeId}" - use list_worktrees to find valid IDs`);
 
     const project = projectService.getProject(projectId);
     if (!project) throw new Error('Project not found');
@@ -1969,11 +1998,11 @@ class OrchestratorLoopService extends EventEmitter {
    * Tool: Archive a worktree
    */
   private async toolArchiveWorktree(worktreeId: string, correlationId: string): Promise<void> {
-    const worktree = worktreeService.getWorktree(worktreeId);
-    if (!worktree) throw new Error('Worktree not found');
+    const worktree = this.resolveWorktree(worktreeId);
+    if (!worktree) throw new Error(`Worktree not found: "${worktreeId}" - use list_worktrees to find valid IDs`);
 
     // Archive the worktree
-    await worktreeService.archiveWorktree(worktreeId);
+    await worktreeService.archiveWorktree(worktree.id);
 
     await activityLoggerService.log({
       type: 'action',
@@ -1990,11 +2019,11 @@ class OrchestratorLoopService extends EventEmitter {
    * Tool: Unarchive a worktree to make it active again
    */
   private async toolUnarchiveWorktree(worktreeId: string, correlationId: string): Promise<void> {
-    const worktree = worktreeService.getWorktree(worktreeId);
-    if (!worktree) throw new Error('Worktree not found');
+    const worktree = this.resolveWorktree(worktreeId);
+    if (!worktree) throw new Error(`Worktree not found: "${worktreeId}" - use list_worktrees to find valid IDs`);
 
     // Unarchive the worktree
-    worktreeService.markWorktreeActive(worktreeId);
+    worktreeService.markWorktreeActive(worktree.id);
 
     await activityLoggerService.log({
       type: 'action',
