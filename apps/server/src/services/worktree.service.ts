@@ -201,9 +201,32 @@ class WorktreeService {
           // For cloned projects, the /main subdirectory is the main worktree
           const isMain = path === mainPath;
           const id = this.getOrCreateId(canonicalProjectId, path);
-
-          const status = await this.getWorktreeStatus(path);
           const archived = this.archivedWorktrees.has(id);
+          const mode = this.worktreeModes.get(id);
+
+          // Skip expensive git operations for archived worktrees
+          // They don't need fresh status since they're not being worked on
+          if (archived) {
+            const worktree: Worktree = {
+              id,
+              projectId: canonicalProjectId,
+              path,
+              branch: branch || 'detached',
+              isMain,
+              merged: true, // Archived implies merged
+              archived: true,
+              mode,
+              status: { ahead: 0, behind: 0, modified: 0, staged: 0, untracked: 0 },
+              lastCommitDate: null,
+              createdAt: null,
+            };
+            worktrees.push(worktree);
+            this.worktrees.set(id, worktree);
+            continue;
+          }
+
+          // Only run expensive git operations for non-archived worktrees
+          const status = await this.getWorktreeStatus(path);
           const { lastCommitDate, createdAt } = await this.getWorktreeDates(path, branch || 'HEAD', canonicalProjectId);
 
           // Check if this branch has been merged into default branch
@@ -217,7 +240,6 @@ class WorktreeService {
             }
           }
 
-          const mode = this.worktreeModes.get(id);
           const worktree: Worktree = {
             id,
             projectId: canonicalProjectId,
