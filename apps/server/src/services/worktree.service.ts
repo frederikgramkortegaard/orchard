@@ -240,6 +240,20 @@ class WorktreeService {
             }
           }
 
+          // Auto-archive merged worktrees with no uncommitted changes and no active sessions
+          // Note: `merged` is already false if there are active sessions (checked above)
+          let shouldArchive = archived;
+          if (!archived && merged && !isMain) {
+            // Double-check no active sessions before archiving
+            const hasActiveSessions = await this.hasActiveTerminalSessions(id);
+            if (!hasActiveSessions) {
+              console.log(`[WorktreeService] Auto-archiving merged worktree: ${branch}`);
+              shouldArchive = true;
+              this.archivedWorktrees.add(id);
+              await this.saveArchivedWorktree(project.path, id, true);
+            }
+          }
+
           const worktree: Worktree = {
             id,
             projectId: canonicalProjectId,
@@ -247,7 +261,7 @@ class WorktreeService {
             branch: branch || 'detached',
             isMain,
             merged,
-            archived,
+            archived: shouldArchive,
             mode,
             status,
             lastCommitDate,
@@ -264,7 +278,7 @@ class WorktreeService {
               projectId: canonicalProjectId,
               path,
               branch: branch || 'detached',
-              archived,
+              archived: shouldArchive,
               mode,
             });
             // Sync .mcp.json to ensure WORKTREE_ID matches the server's regenerated ID

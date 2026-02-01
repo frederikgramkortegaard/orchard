@@ -91,12 +91,16 @@ export async function mergeQueueRoutes(fastify: FastifyInstance) {
       // Mark as merged in the queue
       databaseService.markMergeQueueEntryMerged(project.path, worktreeId);
 
-      console.log(`[MergeQueue] Successfully merged ${entry.branch} into ${defaultBranch}`);
+      // Auto-archive the worktree after successful merge
+      await worktreeService.archiveWorktree(worktreeId);
+
+      console.log(`[MergeQueue] Successfully merged and archived ${entry.branch} into ${defaultBranch}`);
 
       return {
         success: true,
         message: `Merged ${entry.branch} into ${defaultBranch}`,
         branch: entry.branch,
+        archived: true,
       };
     } catch (err: any) {
       console.error(`[MergeQueue] Merge failed for ${entry.branch}:`, err);
