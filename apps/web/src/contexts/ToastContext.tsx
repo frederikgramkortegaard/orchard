@@ -2,15 +2,29 @@ import { createContext, useContext, useState, useCallback, type ReactNode } from
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
+export interface ToastOptions {
+  operation?: string;
+  details?: string;
+  action?: ToastAction;
+}
+
 export interface Toast {
   id: string;
   type: ToastType;
   message: string;
+  operation?: string;
+  details?: string;
+  action?: ToastAction;
 }
 
 interface ToastContextType {
   toasts: Toast[];
-  addToast: (type: ToastType, message: string) => void;
+  addToast: (type: ToastType, message: string, options?: ToastOptions) => void;
   removeToast: (id: string) => void;
 }
 
@@ -25,16 +39,24 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const addToast = useCallback((type: ToastType, message: string) => {
+  const addToast = useCallback((type: ToastType, message: string, options?: ToastOptions) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-    const toast: Toast = { id, type, message };
+    const toast: Toast = {
+      id,
+      type,
+      message,
+      operation: options?.operation,
+      details: options?.details,
+      action: options?.action,
+    };
 
     setToasts((prev) => [...prev, toast]);
 
-    // Auto-dismiss after 5 seconds
+    // Auto-dismiss after 5 seconds (longer for toasts with details or actions)
+    const dismissMs = (options?.details || options?.action) ? AUTO_DISMISS_MS * 2 : AUTO_DISMISS_MS;
     setTimeout(() => {
       removeToast(id);
-    }, AUTO_DISMISS_MS);
+    }, dismissMs);
   }, [removeToast]);
 
   return (
