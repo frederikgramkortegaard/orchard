@@ -227,7 +227,7 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
               return (
               <div
                 key={worktree.id}
-                onClick={() => setActiveWorktree(worktree.id)}
+                onClick={() => setActiveWorktree(activeWorktreeId === worktree.id ? null : worktree.id)}
                 onContextMenu={(e) => handleContextMenu(e, worktree)}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left group cursor-pointer transition-all ${
                   activeWorktreeId === worktree.id
