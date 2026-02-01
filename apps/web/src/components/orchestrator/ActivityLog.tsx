@@ -84,6 +84,10 @@ function getActivityKind(entry: ActivityEntry): ActivityKind {
   }
 
   // Infer from summary/category
+  // Check for "Agent progress:" first to avoid false positives with "completed" keyword
+  if (summary.startsWith('agent progress:')) {
+    return 'progress';
+  }
   if (summary.includes('completed') || summary.includes('task complete')) {
     return 'task_complete';
   }
