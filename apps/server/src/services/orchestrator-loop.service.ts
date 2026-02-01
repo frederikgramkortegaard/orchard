@@ -1011,6 +1011,13 @@ class OrchestratorLoopService extends EventEmitter {
         await this.logToTextFile(`[TICK #${this.tickNumber}] Nothing to do - skipping LLM call`);
         this.lastActionWasNoAction = true;
       } else {
+        // Limit conversation history to avoid context pollution but keep some context
+        // Keep last 10 messages for context, discard older ones
+        if (this.conversationHistory.length > 10) {
+          this.conversationHistory = this.conversationHistory.slice(-10);
+          debugLogService.debug('orchestrator', 'Trimmed conversation history to last 10 messages', { correlationId });
+        }
+
         // Call LLM for decisions - returns true if a real action was taken (not no_action)
         tookAction = await this.callLLMForDecisions(context, correlationId);
         this.lastActionWasNoAction = !tookAction;
@@ -1414,14 +1421,18 @@ class OrchestratorLoopService extends EventEmitter {
   private formatTickMessage(context: TickContext): string {
     const lines: string[] = [
       `[TICK #${context.tickNumber} | ${context.timestamp.toISOString()}]`,
-      '',
-      'Current State:',
     ];
 
-    // Pending user messages
+    // Pending user messages - show prominently at the top
     if (context.pendingUserMessages > 0) {
-      lines.push(`- Pending user messages: ${context.pendingUserMessages}`);
+      lines.push('');
+      lines.push(`⚠️ NEW USER MESSAGE(S): ${context.pendingUserMessages} pending`);
+      lines.push('→ Call get_user_messages to read and respond to the NEW message(s)');
+      lines.push('→ This may be a NEW question unrelated to previous topics');
     }
+
+    lines.push('');
+    lines.push('Current State:');
 
     // Active agents
     if (context.activeAgents.length > 0) {
