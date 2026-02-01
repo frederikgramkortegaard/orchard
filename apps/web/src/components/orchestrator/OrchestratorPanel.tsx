@@ -281,8 +281,8 @@ export function OrchestratorPanel({ projectId, projectPath }: OrchestratorPanelP
               <div
                 className={`relative max-w-[85%] px-3 py-2 text-sm shadow-sm cursor-context-menu ${
                   msg.from === 'user'
-                    ? 'bg-green-600 text-green-50 rounded-tl-xl rounded-tr-sm rounded-bl-xl rounded-br-xl'
-                    : 'bg-zinc-700 text-zinc-400 rounded-tl-sm rounded-tr-xl rounded-bl-xl rounded-br-xl'
+                    ? 'bg-blue-600 text-white rounded-tl-xl rounded-tr-sm rounded-bl-xl rounded-br-xl'
+                    : 'bg-zinc-700 text-zinc-100 rounded-tl-sm rounded-tr-xl rounded-bl-xl rounded-br-xl'
                 }`}
               >
                 <div className="prose prose-sm prose-invert max-w-none break-words [&_p]:my-0 [&_p:not(:last-child)]:mb-2 [&_ul]:my-1 [&_ul]:pl-4 [&_ol]:my-1 [&_ol]:pl-4 [&_li]:my-0 [&_pre]:my-2 [&_pre]:p-2 [&_pre]:rounded [&_pre]:bg-black/20 [&_code]:text-xs [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:bg-black/20 [&_pre_code]:p-0 [&_pre_code]:bg-transparent [&_a]:text-blue-300 [&_a]:underline [&_strong]:font-semibold [&_em]:italic [&_blockquote]:border-l-2 [&_blockquote]:border-zinc-500 [&_blockquote]:pl-2 [&_blockquote]:my-2 [&_blockquote]:italic">

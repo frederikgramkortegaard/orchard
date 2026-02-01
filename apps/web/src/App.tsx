@@ -276,7 +276,12 @@ function App() {
               <Separator className="w-1 bg-zinc-300 dark:bg-zinc-700 hover:bg-zinc-400 dark:hover:bg-zinc-600 cursor-col-resize" />
               <Panel defaultSize={20} minSize={5}>
                 <div className="h-full p-2 bg-zinc-100 dark:bg-zinc-800">
-                  <ActivityPane key={`activity-${activeProjectId}-${projectSwitchKey}`} projectId={activeProjectId} />
+                  <ActivityPane
+                    key={`activity-${activeProjectId}-${projectSwitchKey}`}
+                    projectId={activeProjectId}
+                    worktreeId={activeWorktreeId || undefined}
+                    worktreeBranch={activeWorktree?.branch}
+                  />
                 </div>
               </Panel>
             </>

@@ -1,13 +1,16 @@
 import { useState } from 'react';
-import { Activity, BarChart3 } from 'lucide-react';
+import { Activity, BarChart3, GitCommit } from 'lucide-react';
 import { ActivityLog } from './ActivityLog';
 import { UsageStats } from './UsageStats';
+import { GitHistoryPanel } from '../git/GitHistoryPanel';
 
 interface ActivityPaneProps {
   projectId: string;
+  worktreeId?: string;
+  worktreeBranch?: string;
 }
 
-type TabId = 'activity' | 'usage';
+type TabId = 'activity' | 'git-history' | 'usage';
 
 interface Tab {
   id: TabId;
@@ -17,14 +20,15 @@ interface Tab {
 
 const TABS: Tab[] = [
   { id: 'activity', label: 'Activity', icon: Activity },
+  { id: 'git-history', label: 'Git History', icon: GitCommit },
   { id: 'usage', label: 'AI Usage', icon: BarChart3 },
 ];
 
-export function ActivityPane({ projectId }: ActivityPaneProps) {
+export function ActivityPane({ projectId, worktreeId, worktreeBranch }: ActivityPaneProps) {
   const [activeTab, setActiveTab] = useState<TabId>('activity');
 
   return (
-    <div className="h-full flex flex-col bg-zinc-100 dark:bg-zinc-900 rounded-2xl overflow-hidden">
+    <div className="h-full flex flex-col bg-zinc-100 dark:bg-zinc-900 overflow-hidden">
       {/* Tab Bar */}
       <div className="flex items-center bg-zinc-200 dark:bg-zinc-800 border-b border-zinc-300 dark:border-zinc-700">
         {TABS.map((tab) => {
@@ -50,6 +54,13 @@ export function ActivityPane({ projectId }: ActivityPaneProps) {
       {/* Tab Content */}
       <div className="flex-1 min-h-0 overflow-hidden">
         {activeTab === 'activity' && <ActivityLog projectId={projectId} />}
+        {activeTab === 'git-history' && (
+          <GitHistoryPanel
+            projectId={projectId}
+            worktreeId={worktreeId}
+            worktreeBranch={worktreeBranch}
+          />
+        )}
         {activeTab === 'usage' && <UsageStats projectId={projectId} />}
       </div>
     </div>

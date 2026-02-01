@@ -157,6 +157,18 @@ export async function printSessionsRoutes(fastify: FastifyInstance) {
                   databaseService.appendTerminalOutput(project.path, sessionId,
                     `@@TOOL:${block.name}@@\n@@CMD:${input.pattern || ''}@@\n`
                   );
+                } else if (block.name === 'WebSearch') {
+                  databaseService.appendTerminalOutput(project.path, sessionId,
+                    `@@TOOL:WebSearch@@\n@@CMD:${input.query || ''}@@\n`
+                  );
+                } else if (block.name === 'WebFetch') {
+                  databaseService.appendTerminalOutput(project.path, sessionId,
+                    `@@TOOL:WebFetch@@\n@@CMD:${input.url || ''}@@\n`
+                  );
+                } else if (block.name === 'Task') {
+                  databaseService.appendTerminalOutput(project.path, sessionId,
+                    `@@TOOL:Task@@\n@@CMD:${input.description || input.prompt?.slice(0, 100) || ''}@@\n`
+                  );
                 } else {
                   // Other tools
                   databaseService.appendTerminalOutput(project.path, sessionId,

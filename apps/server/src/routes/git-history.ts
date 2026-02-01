@@ -4,18 +4,29 @@ import { existsSync } from 'fs';
 import { projectService } from '../services/project.service.js';
 import { worktreeService } from '../services/worktree.service.js';
 
-export interface GitHistoryCommit {
+export interface GitCommitInfo {
   hash: string;
   hashShort: string;
   message: string;
   author: string;
+  authorEmail: string;
   date: string;
-  branch?: string;
+  parents: string[];
+  refs: string[];
+}
+
+export interface GitGraphNode {
+  commit: GitCommitInfo;
+  column: number;
+  isMerge: boolean;
+  branchColor: number;
 }
 
 export interface GitHistoryResult {
-  commits: GitHistoryCommit[];
-  branches?: string[];
+  worktreeId?: string;
+  currentBranch: string;
+  commits: GitGraphNode[];
+  branches: { name: string; head: string; isCurrent: boolean }[];
 }
 
 export async function gitHistoryRoutes(fastify: FastifyInstance) {
@@ -40,9 +51,16 @@ export async function gitHistoryRoutes(fastify: FastifyInstance) {
     const git = simpleGit(mainWorktreePath);
 
     try {
+      // Get current branch
+      const branchSummary = await git.branch();
+      const currentBranch = branchSummary.current;
+
       // Get all branches for reference
-      const branchResult = await git.branch(['-a']);
-      const branches = branchResult.all;
+      const branches = branchSummary.all.map(name => ({
+        name,
+        head: branchSummary.branches[name]?.commit || '',
+        isCurrent: name === currentBranch,
+      }));
 
       // Get git log with --all flag to show all branches
       const log = await git.log({
@@ -50,15 +68,24 @@ export async function gitHistoryRoutes(fastify: FastifyInstance) {
         '--all': null,
       });
 
-      const commits: GitHistoryCommit[] = log.all.map((commit) => ({
-        hash: commit.hash,
-        hashShort: commit.hash.slice(0, 7),
-        message: commit.message,
-        author: commit.author_name,
-        date: commit.date,
+      const commits: GitGraphNode[] = log.all.map((commit, index) => ({
+        commit: {
+          hash: commit.hash,
+          hashShort: commit.hash.slice(0, 7),
+          message: commit.message,
+          author: commit.author_name,
+          authorEmail: commit.author_email,
+          date: commit.date,
+          parents: commit.refs ? commit.refs.split(',').map(r => r.trim()) : [],
+          refs: commit.refs ? commit.refs.split(',').map(r => r.trim()).filter(r => r) : [],
+        },
+        column: 0,
+        isMerge: false,
+        branchColor: index % 6,
       }));
 
       return {
+        currentBranch,
         commits,
         branches,
       } as GitHistoryResult;
@@ -82,18 +109,41 @@ export async function gitHistoryRoutes(fastify: FastifyInstance) {
     const git = simpleGit(worktree.path);
 
     try {
+      // Get current branch
+      const branchSummary = await git.branch();
+      const currentBranch = branchSummary.current;
+
+      // Get branches
+      const branches = branchSummary.all.map(name => ({
+        name,
+        head: branchSummary.branches[name]?.commit || '',
+        isCurrent: name === currentBranch,
+      }));
+
+      // Get git log for current branch only (not --all)
       const log = await git.log({ maxCount: limit });
 
-      const commits: GitHistoryCommit[] = log.all.map((commit) => ({
-        hash: commit.hash,
-        hashShort: commit.hash.slice(0, 7),
-        message: commit.message,
-        author: commit.author_name,
-        date: commit.date,
+      const commits: GitGraphNode[] = log.all.map((commit, index) => ({
+        commit: {
+          hash: commit.hash,
+          hashShort: commit.hash.slice(0, 7),
+          message: commit.message,
+          author: commit.author_name,
+          authorEmail: commit.author_email,
+          date: commit.date,
+          parents: commit.refs ? commit.refs.split(',').map(r => r.trim()) : [],
+          refs: commit.refs ? commit.refs.split(',').map(r => r.trim()).filter(r => r) : [],
+        },
+        column: 0,
+        isMerge: false,
+        branchColor: index % 6,
       }));
 
       return {
+        worktreeId: worktree.id,
+        currentBranch,
         commits,
+        branches,
       } as GitHistoryResult;
     } catch (err: any) {
       console.error('Error getting worktree history:', err);

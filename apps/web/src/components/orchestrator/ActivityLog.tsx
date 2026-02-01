@@ -434,13 +434,9 @@ export function ActivityLog({ projectId }: ActivityLogProps) {
   }, [entries]);
 
   return (
-    <div className="h-full flex flex-col bg-zinc-100 dark:bg-zinc-900 rounded-2xl overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 bg-zinc-200 dark:bg-zinc-800">
-        <div className="flex items-center gap-2 text-zinc-700 dark:text-zinc-300">
-          <Activity size={16} />
-          <span className="text-sm font-semibold">Activity</span>
-        </div>
-        <div className="flex items-center gap-2">
+    <div className="h-full flex flex-col bg-zinc-100 dark:bg-zinc-900 overflow-hidden">
+      <div className="flex items-center justify-end px-3 py-2 bg-zinc-200/50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-700">
+        <div className="flex items-center gap-1">
           <div className="relative" ref={filterRef}>
             <button
               onClick={() => setFilterOpen(!filterOpen)}
