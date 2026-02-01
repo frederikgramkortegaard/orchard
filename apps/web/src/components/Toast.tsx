@@ -10,10 +10,10 @@ const iconMap: Record<ToastVariant, React.ReactNode> = {
 };
 
 const bgColorMap: Record<ToastVariant, string> = {
-  success: 'bg-zinc-100 dark:bg-zinc-800 border-green-400 dark:border-green-600',
-  error: 'bg-zinc-100 dark:bg-zinc-800 border-red-400 dark:border-red-600',
-  warning: 'bg-zinc-100 dark:bg-zinc-800 border-amber-400 dark:border-amber-600',
-  info: 'bg-zinc-100 dark:bg-zinc-800 border-blue-400 dark:border-blue-600',
+  success: 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800',
+  error: 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800',
+  warning: 'bg-amber-50 dark:bg-amber-900/30 border-amber-200 dark:border-amber-800',
+  info: 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800',
 };
 
 function ToastItem({ toast }: { toast: ToastType }) {
@@ -37,7 +37,7 @@ function ToastItem({ toast }: { toast: ToastType }) {
   return (
     <div
       onClick={handleDismiss}
-      className={`flex flex-col gap-2 px-5 py-4 rounded-2xl border-l-4 shadow-xl cursor-pointer backdrop-blur-sm ${bgColorMap[toast.type]} animate-slide-in`}
+      className={`flex flex-col gap-2 px-4 py-3 rounded-lg border shadow-lg cursor-pointer ${bgColorMap[toast.type]} animate-slide-in`}
     >
       <div className="flex items-center gap-3">
         {iconMap[toast.type]}
@@ -70,7 +70,7 @@ function ToastItem({ toast }: { toast: ToastType }) {
         </div>
       </div>
       {toast.details && isExpanded && (
-        <div className="text-xs text-zinc-600 dark:text-zinc-300 bg-zinc-200/50 dark:bg-zinc-900/50 rounded-xl p-3 font-mono whitespace-pre-wrap break-all">
+        <div className="text-xs text-zinc-600 dark:text-zinc-300 bg-black/5 dark:bg-black/20 rounded p-2 font-mono whitespace-pre-wrap break-all">
           {toast.details}
         </div>
       )}
@@ -78,7 +78,7 @@ function ToastItem({ toast }: { toast: ToastType }) {
         <div className="flex justify-end">
           <button
             onClick={handleAction}
-            className="text-xs font-medium px-4 py-2 rounded-full bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+            className="text-xs font-medium px-3 py-1.5 rounded bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
           >
             {toast.action.label}
           </button>
