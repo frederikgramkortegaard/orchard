@@ -298,6 +298,23 @@ const ORCHESTRATOR_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: 'function',
     function: {
+      name: 'unarchive_worktree',
+      description: 'Unarchive a worktree to make it active again. Use this when you need to access or merge an archived worktree.',
+      parameters: {
+        type: 'object',
+        properties: {
+          worktreeId: {
+            type: 'string',
+            description: 'The ID of the worktree to unarchive',
+          },
+        },
+        required: ['worktreeId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'nudge_agent',
       description: 'Send enter presses to a stuck agent to wake it up. Use this when an agent appears idle or unresponsive.',
       parameters: {
@@ -1562,6 +1579,9 @@ class OrchestratorLoopService extends EventEmitter {
         case 'archive_worktree':
           await this.toolArchiveWorktree(args.worktreeId, correlationId);
           return `SUCCESS: Archived worktree ${args.worktreeId}`;
+        case 'unarchive_worktree':
+          await this.toolUnarchiveWorktree(args.worktreeId, correlationId);
+          return `SUCCESS: Unarchived worktree ${args.worktreeId}`;
         case 'nudge_agent':
           await this.toolNudgeAgent(args.worktreeId, correlationId);
           return `SUCCESS: Nudged agent in ${args.worktreeId}`;
@@ -1964,6 +1984,27 @@ class OrchestratorLoopService extends EventEmitter {
     });
 
     this.emit('worktree:archived', { worktreeId, branch: worktree.branch });
+  }
+
+  /**
+   * Tool: Unarchive a worktree to make it active again
+   */
+  private async toolUnarchiveWorktree(worktreeId: string, correlationId: string): Promise<void> {
+    const worktree = worktreeService.getWorktree(worktreeId);
+    if (!worktree) throw new Error('Worktree not found');
+
+    // Unarchive the worktree
+    worktreeService.markWorktreeActive(worktreeId);
+
+    await activityLoggerService.log({
+      type: 'action',
+      category: 'worktree',
+      summary: `Unarchived worktree ${worktree.branch}`,
+      details: { worktreeId, branch: worktree.branch },
+      correlationId,
+    });
+
+    this.emit('worktree:unarchived', { worktreeId, branch: worktree.branch });
   }
 
   /**
