@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { databaseService } from '../services/database.service.js';
 import { projectService } from '../services/project.service.js';
 import { worktreeService } from '../services/worktree.service.js';
-import { spawn, execSync } from 'child_process';
+import { spawn, execSync, ChildProcess } from 'child_process';
 import { randomUUID } from 'crypto';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
@@ -22,6 +22,29 @@ async function hasCommitsSinceStart(worktreePath: string, projectId: string): Pr
   } catch {
     return false;
   }
+}
+
+// Track running tasks per worktree to prevent concurrent tasks
+// Maps worktreeId -> { sessionId, process, startedAt }
+const runningTasks = new Map<string, { sessionId: string; process: ChildProcess; startedAt: Date }>();
+
+// Helper to check if a worktree has a running task
+function hasRunningTask(worktreeId: string): { running: boolean; sessionId?: string; startedAt?: Date } {
+  const task = runningTasks.get(worktreeId);
+  if (task) {
+    return { running: true, sessionId: task.sessionId, startedAt: task.startedAt };
+  }
+  return { running: false };
+}
+
+// Helper to register a running task
+function registerRunningTask(worktreeId: string, sessionId: string, process: ChildProcess): void {
+  runningTasks.set(worktreeId, { sessionId, process, startedAt: new Date() });
+}
+
+// Helper to clear a running task
+function clearRunningTask(worktreeId: string): void {
+  runningTasks.delete(worktreeId);
 }
 
 // MCP tools prompt to inject into every agent task
@@ -64,6 +87,16 @@ export async function printSessionsRoutes(fastify: FastifyInstance) {
     const worktree = worktreeService.getWorktree(worktreeId);
     if (!worktree) {
       return reply.status(404).send({ error: 'Worktree not found' });
+    }
+
+    // Check if worktree already has a running task
+    const existing = hasRunningTask(worktreeId);
+    if (existing.running) {
+      return reply.status(409).send({
+        error: 'Worktree already has a running task',
+        sessionId: existing.sessionId,
+        startedAt: existing.startedAt?.toISOString(),
+      });
     }
 
     const project = projectService.getProject(worktree.projectId);
@@ -122,6 +155,9 @@ export async function printSessionsRoutes(fastify: FastifyInstance) {
     });
 
     console.log(`[PrintSessions] Started claude -p for session ${sessionId}, pid: ${claude.pid}`);
+
+    // Register this task as running for the worktree
+    registerRunningTask(worktreeId, sessionId, claude);
 
     // Buffer for incomplete JSON lines
     let lineBuffer = '';
@@ -251,6 +287,9 @@ export async function printSessionsRoutes(fastify: FastifyInstance) {
       console.log(`[PrintSessions] Session ${sessionId} closed with code ${code}`);
       databaseService.completePrintSession(project.path, sessionId, code ?? 1);
 
+      // Clear the running task flag for this worktree
+      clearRunningTask(worktreeId);
+
       // If task completed successfully (exit code 0), check for commits and add to merge queue
       if (code === 0) {
         try {
@@ -276,6 +315,8 @@ export async function printSessionsRoutes(fastify: FastifyInstance) {
       console.error(`[PrintSessions] Error for session ${sessionId}:`, err);
       databaseService.appendTerminalOutput(project.path, sessionId, `\nError: ${err.message}\n`);
       databaseService.completePrintSession(project.path, sessionId, 1);
+      // Clear the running task flag for this worktree
+      clearRunningTask(worktreeId);
     });
 
     return {
