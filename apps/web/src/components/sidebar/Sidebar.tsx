@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, GitBranch, Folder, Trash2, CheckCircle, Archive, Clock, GitCompare, Loader2, Search, X, Copy } from 'lucide-react';
+import { Plus, GitBranch, Folder, Trash2, CheckCircle, Archive, Clock, GitCompare, GitMerge, Loader2, Search, X, Copy } from 'lucide-react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import { useProjectStore, type Worktree } from '../../stores/project.store';
 import { useTerminalStore } from '../../stores/terminal.store';
+import { useToast } from '../../contexts/ToastContext';
 import { SplitTerminalPane } from '../terminal/SplitTerminalPane';
 import { FileViewer } from './FileViewer';
 
@@ -24,10 +25,33 @@ interface ContextMenu {
 }
 
 export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onArchiveWorktree, onViewDiff, worktreeId, worktreePath, projectPath }: SidebarProps) {
-  const { projects, activeProjectId, worktrees, activeWorktreeId, setActiveWorktree } = useProjectStore();
+  const { projects, activeProjectId, worktrees, activeWorktreeId, setActiveWorktree, fetchWorktrees } = useProjectStore();
   const { sessions } = useTerminalStore();
+  const { addToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
+  const [mergingWorktreeId, setMergingWorktreeId] = useState<string | null>(null);
+
+  const handleMerge = async (worktreeId: string, branch: string) => {
+    setMergingWorktreeId(worktreeId);
+    try {
+      const response = await fetch(`/api/worktrees/${worktreeId}/merge`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Merge failed');
+      }
+      addToast('success', `Merged ${branch} into main`);
+      if (activeProjectId) {
+        fetchWorktrees(activeProjectId);
+      }
+    } catch (error) {
+      addToast('error', `Failed to merge: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setMergingWorktreeId(null);
+    }
+  };
 
   // Close context menu when clicking outside
   const closeContextMenu = useCallback(() => {
@@ -237,6 +261,23 @@ export function Sidebar({ onOpenProject, onCreateWorktree, onDeleteWorktree, onA
                     title="View diff"
                   >
                     <GitCompare size={12} />
+                  </button>
+                )}
+                {!worktree.isMain && !worktree.archived && worktree.status.ahead > 0 && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleMerge(worktree.id, worktree.branch);
+                    }}
+                    disabled={mergingWorktreeId === worktree.id}
+                    className="opacity-0 group-hover:opacity-100 p-0.5 text-zinc-500 dark:text-zinc-400 hover:text-green-500 dark:hover:text-green-400 disabled:opacity-50"
+                    title="Merge into main"
+                  >
+                    {mergingWorktreeId === worktree.id ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <GitMerge size={12} />
+                    )}
                   </button>
                 )}
                 {!worktree.isMain && !worktree.archived && (
