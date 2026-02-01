@@ -1,10 +1,13 @@
 {
   "mcpServers": {
-    "orchard": {
+    "orchard-agent": {
       "command": "node",
-      "args": ["/Users/fgk/Developer/orchard/packages/mcp-orchestrator/dist/index.js"],
+      "args": [
+        "/Users/fgk/Developer/orchard/packages/mcp-agent/dist/index.js"
+      ],
       "env": {
-        "ORCHARD_API": "http://localhost:3001"
+        "ORCHARD_API": "http://localhost:3001",
+        "WORKTREE_ID": "a68087be-721a-5c5d-0c7b-9181107cf409"
       }
     }
   }
