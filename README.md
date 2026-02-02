@@ -4,6 +4,10 @@
 
 A multi-agent orchestrator for Claude Code that enables parallel AI coding workflows using git worktrees.
 
+![Orchard Screenshot](screenshot.png)
+
+*The Orchard dashboard showing: (left) worktree sidebar with active and archived branches, (center) orchestrator chat where users give natural language instructions and the AI coordinates tasks, (right) activity feed showing real-time agent progress updates. In this example, multiple agents are working on different features while the orchestrator manages merges and resolves conflicts.*
+
 ## Overview
 
 Orchard coordinates multiple Claude Code agents working simultaneously on different features in isolated git worktrees. It provides a web dashboard for monitoring agent activity, reviewing changes, and managing the development workflow.
