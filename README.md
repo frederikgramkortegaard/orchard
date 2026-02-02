@@ -1,5 +1,7 @@
 # Orchard
 
+> **Note:** This project was fully vibe coded as an experiment in AI-assisted development. It serves as a meta-analysis of vibe coding itself - an AI orchestrator built entirely through vibe coding, managing other AI agents. The code, architecture, and even this README were generated through natural language conversations with Claude. Take it as a test, a proof of concept.
+
 A multi-agent orchestrator for Claude Code that enables parallel AI coding workflows using git worktrees.
 
 ## Overview
